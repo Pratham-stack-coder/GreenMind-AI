@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.env
+backend/app/ml/dataset.csv
+backend/app/ml/model.pkl
+backend/app/ml/metrics.json
+.DS_Store
+node_modules/
