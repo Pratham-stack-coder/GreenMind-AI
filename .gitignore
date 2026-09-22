@@ -1,11 +1,42 @@
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+
+# Virtual environments
 .venv/
 venv/
-*.egg-info/
+ENV/
+env/
+
+# Environment files
 .env
-backend/app/ml/dataset.csv
-backend/app/ml/model.pkl
-backend/app/ml/metrics.json
-.DS_Store
+.env.local
+.env.*.local
+
+# Node & Frontend
 node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+.eslintcache
+
+# Logs & scratch
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Large ML data files (reproducible with train.py)
+backend/app/ml/dataset.csv
+backend/app/ml/*.csv
+backend/app/ml/*.pkl
+backend/app/ml/metrics.json
+backend/data/*.db
+backend/*.db

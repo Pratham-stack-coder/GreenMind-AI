@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: greenmind-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DEMO_MODE=true
+      - PORT=8000
+    volumes:
+      - ./backend/app/ml:/app/app/ml
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: greenmind-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

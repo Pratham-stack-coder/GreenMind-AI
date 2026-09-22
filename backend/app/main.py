@@ -1,74 +1,115 @@
 """
-GreenMind AI backend.
+GreenMind AI — Autonomous Green Cloud Operating System
+FastAPI backend v2.0
 
-Endpoints:
-  GET  /health                    liveness check
-  GET  /cloud-metrics              current (demo) cloud metrics
-  POST /predict                    CPU forecast + risk level
-  POST /schedule-recommendation    carbon+cost aware run recommendation
-  GET  /carbon-curve                24h carbon intensity curve for a region
-  GET  /regions                     available demo regions
-
-Everything here runs in DEMO mode: /cloud-metrics returns synthetic values
-and /carbon-curve returns an illustrative lookup table (see app/carbon.py).
-Nothing in this API claims to be live cloud telemetry.
+All endpoints versioned under /api/v1/
+Legacy v1 endpoints preserved at root for backward compatibility.
 """
 
-import random
-from datetime import datetime, timezone
+from __future__ import annotations
 
-from fastapi import FastAPI, HTTPException
+import random
+import math
+from datetime import datetime, timezone
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import carbon, decision_engine
+from .config import get_settings
+from . import carbon
+from .schemas import CloudMetrics, PredictResponse, ScheduleRequest, ScheduleResponse, MetricForecast
+from .decision_engine import classify_risk, recommend
 from .ml import predictor
-from .schemas import (
-    CloudMetrics,
-    PredictRequest,
-    PredictResponse,
-    ScheduleRequest,
-    ScheduleResponse,
-)
+from .routers import telemetry, predictions, recommendations, agents, digital_twin, analytics, copilot
+
+settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup: pre-load ML models so first request isn't slow."""
+    try:
+        predictor.model_info()  # triggers _load for cpu model
+    except FileNotFoundError:
+        pass  # train.py hasn't been run yet — endpoints will return 503
+    yield
+
 
 app = FastAPI(
     title="GreenMind AI",
-    description="Carbon-and-cost-aware cloud scheduling (demo backend).",
-    version="0.1.0",
+    description=(
+        "Autonomous Green Cloud Operating System — "
+        "AI-powered cloud management with cost, performance, sustainability, "
+        "security, and reliability intelligence."
+    ),
+    version="2.0.0",
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten before any real deployment
+    allow_origins=settings.allowed_origins + ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# ── API v1 routers ─────────────────────────────────────────────────────────────
+PREFIX = "/api/v1"
+app.include_router(telemetry.router, prefix=PREFIX)
+app.include_router(predictions.router, prefix=PREFIX)
+app.include_router(recommendations.router, prefix=PREFIX)
+app.include_router(agents.router, prefix=PREFIX)
+app.include_router(digital_twin.router, prefix=PREFIX)
+app.include_router(analytics.router, prefix=PREFIX)
+app.include_router(copilot.router, prefix=PREFIX)
 
-@app.get("/health")
+
+# ── Health & system ───────────────────────────────────────────────────────────
+
+@app.get("/health", tags=["System"])
 def health():
-    return {"status": "ok"}
+    return {
+        "status": "ok",
+        "version": settings.app_version,
+        "demo_mode": settings.demo_mode,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
 
-@app.get("/regions")
+@app.get("/api/v1/regions", tags=["System"])
 def regions():
     return {"regions": carbon.available_regions()}
 
 
-@app.get("/carbon-curve")
+@app.get("/api/v1/carbon-curve", tags=["Carbon"])
 def carbon_curve(region: str = carbon.DEFAULT_REGION):
+    return {
+        "region": region,
+        "curve": carbon.get_intensity_curve(region),
+        "green_score": carbon.region_green_score(region),
+    }
+
+
+# ── Legacy v1 endpoints (backward-compatible) ─────────────────────────────────
+
+@app.get("/regions", tags=["Legacy"])
+def legacy_regions():
+    return {"regions": carbon.available_regions()}
+
+
+@app.get("/carbon-curve", tags=["Legacy"])
+def legacy_carbon_curve(region: str = carbon.DEFAULT_REGION):
     return {"region": region, "curve": carbon.get_intensity_curve(region)}
 
 
-@app.get("/cloud-metrics", response_model=CloudMetrics)
-def cloud_metrics(region: str = carbon.DEFAULT_REGION):
-    """
-    DEMO cloud metrics. Replace with a real collector (e.g. an AWS CloudWatch
-    poller) that returns the same schema to go live -- nothing downstream of
-    this endpoint needs to change.
-    """
+@app.get("/cloud-metrics", response_model=CloudMetrics, tags=["Legacy"])
+def legacy_cloud_metrics(region: str = carbon.DEFAULT_REGION):
     now = datetime.now(timezone.utc)
     hour = now.hour + now.minute / 60.0
-    base_cpu = 35 + 30 * max(0, __import__("math").sin((hour - 7) / 24 * 6.28)) ** 2
+    base_cpu = 35 + 30 * max(0, math.sin((hour - 7) / 24 * 6.28)) ** 2
     return CloudMetrics(
         timestamp=now.isoformat(),
         region=region,
@@ -80,33 +121,23 @@ def cloud_metrics(region: str = carbon.DEFAULT_REGION):
     )
 
 
-@app.post("/predict", response_model=PredictResponse)
-def predict(req: PredictRequest):
+@app.post("/predict", tags=["Legacy"])
+def legacy_predict(cpu: float = 45.0, hour: float = 12.0, day_of_week: int = 0):
     try:
-        predicted = predictor.predict_future_cpu(
-            cpu=req.cpu,
-            hour=req.hour,
-            day_of_week=req.day_of_week,
-            cpu_rolling_avg_1h=req.cpu_rolling_avg_1h,
-            cpu_rolling_std_1h=req.cpu_rolling_std_1h,
-        )
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
-
-    info = predictor.model_info()
-    mae = info.get("gradient_boosting", {}).get("mae")
-
-    return PredictResponse(
-        current_cpu=req.cpu,
-        predicted_cpu=round(predicted, 2),
-        risk=decision_engine.classify_risk(predicted),
-        model_mae=mae,
-    )
+        pred = predictor.predict_cpu(cpu, hour, day_of_week)
+        return {
+            "current_cpu": cpu,
+            "predicted_cpu": pred.predicted,
+            "risk": classify_risk(pred.predicted),
+        }
+    except FileNotFoundError as exc:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail=str(exc))
 
 
-@app.post("/schedule-recommendation", response_model=ScheduleResponse)
-def schedule_recommendation(req: ScheduleRequest):
-    rec = decision_engine.recommend(
+@app.post("/schedule-recommendation", response_model=ScheduleResponse, tags=["Legacy"])
+def legacy_schedule(req: ScheduleRequest):
+    rec = recommend(
         predicted_cpu=req.predicted_cpu,
         current_hour=req.current_hour,
         region=req.region,

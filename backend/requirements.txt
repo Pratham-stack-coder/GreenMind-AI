@@ -1,7 +1,19 @@
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 pydantic==2.9.2
+pydantic-settings==2.5.2
 scikit-learn==1.5.2
 pandas==2.2.3
 numpy==2.1.1
 joblib==1.4.2
+# Optional — for LangGraph multi-agent orchestration
+langgraph==0.2.28
+langchain-core==0.3.9
+# Optional — for real LLM Copilot responses
+# openai==1.50.0
+# google-generativeai==0.8.2
+# Optional — for PostgreSQL async
+# sqlalchemy[asyncio]==2.0.35
+# asyncpg==0.29.0
+# Optional — for Redis caching
+# redis[hiredis]==5.1.0
