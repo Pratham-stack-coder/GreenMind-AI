@@ -1,10 +1,11 @@
-"""Copilot router — natural language AI assistant endpoint."""
+"""Copilot router — natural language AI cloud management assistant endpoint."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter
 
-from ..agents.copilot import respond
+from ..copilot.agent import copilot_agent
+from ..copilot.schemas import CopilotChatRequest
 from ..schemas import CopilotRequest, CopilotResponse
 
 router = APIRouter(prefix="/copilot", tags=["AI Copilot"])
@@ -12,14 +13,26 @@ router = APIRouter(prefix="/copilot", tags=["AI Copilot"])
 
 @router.post("/chat", response_model=CopilotResponse)
 async def chat(req: CopilotRequest):
-    """Process a natural language message and return a structured Copilot response."""
+    """
+    Process a natural language message and return a structured Copilot response
+    grounded in live cloud telemetry and tool execution.
+    """
     history = [{"role": m.role, "content": m.content} for m in req.history]
-    result = await respond(req.message, history, req.context)
+    internal_req = CopilotChatRequest(
+        message=req.message,
+        history=history,
+        context=req.context or {},
+    )
+    result = copilot_agent.process_message(internal_req)
+
     return CopilotResponse(
-        reply=result["reply"],
-        actions=result.get("actions", []),
-        charts=result.get("charts", []),
-        follow_up_suggestions=result.get("follow_up_suggestions", []),
+        reply=result.answer,
+        answer=result.answer,
+        sources=result.sources,
+        actions=[a.model_dump() for a in result.actions],
+        charts=[],
+        follow_up_suggestions=result.follow_up_suggestions,
+        data_snapshot=result.data_snapshot,
     )
 
 
@@ -28,13 +41,13 @@ def suggested_queries():
     """Return suggested starter queries for the Copilot."""
     return {
         "suggestions": [
-            "What can I do to reduce my cloud bill?",
+            "Why is my cloud cost high?",
+            "Should I scale my EC2 instance?",
+            "How can I reduce carbon emissions?",
+            "What is my current cloud health?",
+            "What resources are underutilized?",
+            "What happens if I right-size this instance?",
             "When is the best time to run my batch job tonight?",
-            "What is my overall optimization score?",
-            "Am I at risk of an SLO breach?",
-            "Which region has the lowest carbon intensity right now?",
             "Simulate what happens if I resize to m5.large",
-            "Show me my top 3 security risks",
-            "How does my carbon footprint compare to last week?",
         ]
     }

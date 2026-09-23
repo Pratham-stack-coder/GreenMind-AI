@@ -147,6 +147,16 @@ def model_info() -> dict:
     return _METRICS
 
 
+def get_feature_importances() -> dict:
+    imp_path = HERE / "feature_importance.json"
+    if imp_path.exists():
+        try:
+            return json.loads(imp_path.read_text())
+        except Exception:
+            pass
+    return {}
+
+
 def predict_all(
     cpu: float,
     memory: float = 50.0,

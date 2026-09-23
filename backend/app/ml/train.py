@@ -2,6 +2,7 @@
 Multi-metric ML training — trains separate GradientBoosting models for
 CPU, memory, network, cost, and carbon forecasting.
 All models use chronological train/test split to prevent data leakage.
+Computes and reports MAE, RMSE, and R² metrics alongside feature importances.
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from pathlib import Path
 import joblib
 import numpy as np
 from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import mean_absolute_error, r2_score
 
 from generate_dataset import generate_series
 
@@ -54,13 +55,28 @@ def train_model(df, features: list[str], target: str) -> tuple:
     naive_mae = float(mean_absolute_error(y_test, X_test[features[0]].values))
     improvement = round(100 * (1 - mae / naive_mae), 1) if naive_mae > 0 else 0.0
 
-    return model, {
+    # Calculate RMSE & R²
+    rmse = float(np.sqrt(np.mean((y_test - preds) ** 2)))
+    r2 = float(r2_score(y_test, preds))
+
+    # Feature importance mapping
+    feature_imp = {
+        feat: round(float(imp), 4)
+        for feat, imp in zip(features, model.feature_importances_)
+    }
+
+    metrics = {
         "mae": round(mae, 3),
+        "rmse": round(rmse, 3),
+        "r2": round(r2, 3),
         "naive_mae": round(naive_mae, 3),
         "improvement_pct": improvement,
         "n_train": len(train),
         "n_test": len(test),
+        "feature_importance": feature_imp,
     }
+
+    return model, metrics
 
 
 def main():
@@ -68,20 +84,32 @@ def main():
     df = generate_series(days=60)
 
     all_metrics = {}
+    feature_importances = {}
+
     for name, (features, target) in TARGETS.items():
         print(f"  Training {name} forecaster…")
         model, metrics = train_model(df, features, target)
         joblib.dump(model, HERE / f"{name}_model.pkl")
+        if name == "cpu":
+            joblib.dump(model, HERE / "model.pkl")  # legacy compatibility
+
+        feature_importances[name] = metrics["feature_importance"]
         all_metrics[name] = metrics
+
         beat = metrics["improvement_pct"]
         sign = "OK" if beat > 0 else "--"
-        print(f"    MAE={metrics['mae']:.3f}  naive={metrics['naive_mae']:.3f}  "
-              f"[{sign}] beats baseline by {beat:.1f}%")
+        print(
+            f"    MAE={metrics['mae']:.3f}  RMSE={metrics['rmse']:.3f}  R²={metrics['r2']:.3f}  "
+            f"naive={metrics['naive_mae']:.3f}  [{sign}] beats baseline by {beat:.1f}%"
+        )
 
     with open(HERE / "metrics.json", "w") as f:
         json.dump(all_metrics, f, indent=2)
 
-    print(f"\nSaved models to {HERE}")
+    with open(HERE / "feature_importance.json", "w") as f:
+        json.dump(feature_importances, f, indent=2)
+
+    print(f"\nSaved models and metrics to {HERE}")
     print("Training complete.")
 
 

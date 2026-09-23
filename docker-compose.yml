@@ -11,8 +11,15 @@ services:
     environment:
       - DEMO_MODE=true
       - PORT=8000
+      - DATABASE_URL=postgresql+asyncpg://greenmind:greenmind_secure_pass@postgres:5432/greenmind
+      - REDIS_URL=redis://redis:6379/0
     volumes:
       - ./backend/app/ml:/app/app/ml
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
@@ -25,3 +32,64 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: greenmind-postgres
+    environment:
+      - POSTGRES_USER=greenmind
+      - POSTGRES_PASSWORD=greenmind_secure_pass
+      - POSTGRES_DB=greenmind
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U greenmind"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: greenmind-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Optional Observability Profile (docker compose --profile monitoring up)
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: greenmind-prometheus
+    profiles: ["monitoring"]
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: greenmind-grafana
+    profiles: ["monitoring"]
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:

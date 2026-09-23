@@ -111,6 +111,10 @@ class RecommendationItem(BaseModel):
     status: Literal["open", "applied", "dismissed"] = "open"
     applied_at: str | None = None
     steps_taken: list[str] = []
+    what_detected: str | None = None
+    why_it_matters: str | None = None
+    expected_impact: str | None = None
+    feature_importance: dict[str, float] = Field(default_factory=dict)
 
 
 class RecommendationsResponse(BaseModel):
@@ -160,11 +164,17 @@ class ExplainRequest(BaseModel):
 class ExplainResponse(BaseModel):
     recommendation_id: str
     title: str
-    why_flagged: str
-    data_evidence: list[dict[str, Any]]
-    counterfactual: str
-    steps_to_implement: list[str]
-    expected_outcome: str
+    what_detected: str = ""
+    why_it_matters: str = ""
+    evidence: list[str] = Field(default_factory=list)
+    recommendation: str = ""
+    expected_impact: str = ""
+    why_flagged: str = ""
+    data_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    counterfactual: str = ""
+    steps_to_implement: list[str] = Field(default_factory=list)
+    expected_outcome: str = ""
+    feature_importance: dict[str, float] = Field(default_factory=dict)
 
 
 # ── Multi-Agent ───────────────────────────────────────────────────────────────
@@ -183,6 +193,16 @@ class AgentResult(BaseModel):
     score: int  # 0-100 domain score
 
 
+class ConflictResolutionItem(BaseModel):
+    conflict_type: str = "Capacity vs Cost"
+    description: str
+    conflicting_agents: list[str]
+    agent_recommendations: dict[str, str] = Field(default_factory=dict)
+    reconciliation_rationale: str
+    final_decision: str
+    confidence: float = 0.85
+
+
 class AgentRunResponse(BaseModel):
     run_id: str
     started_at: str
@@ -192,6 +212,7 @@ class AgentRunResponse(BaseModel):
     unified_recommendations: list[RecommendationItem]
     overall_score: int
     summary: str
+    conflicts: list[ConflictResolutionItem] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def sync_agent_results(self) -> AgentRunResponse:
@@ -251,10 +272,21 @@ class CopilotRequest(BaseModel):
 
 
 class CopilotResponse(BaseModel):
-    reply: str
-    actions: list[dict[str, Any]] = []
-    charts: list[dict[str, Any]] = []
-    follow_up_suggestions: list[str] = []
+    reply: str = ""
+    answer: str = ""
+    sources: list[str] = Field(default_factory=list)
+    actions: list[dict[str, Any]] = Field(default_factory=list)
+    charts: list[dict[str, Any]] = Field(default_factory=list)
+    follow_up_suggestions: list[str] = Field(default_factory=list)
+    data_snapshot: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def sync_reply_answer(self) -> CopilotResponse:
+        if not self.reply and self.answer:
+            self.reply = self.answer
+        elif not self.answer and self.reply:
+            self.answer = self.reply
+        return self
 
 
 # ── Analytics ─────────────────────────────────────────────────────────────────

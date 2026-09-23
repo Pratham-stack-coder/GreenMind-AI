@@ -1,0 +1,36 @@
+{
+  "cpu": {
+    "cpu": 0.6937,
+    "hour": 0.2234,
+    "day_of_week": 0.0475,
+    "cpu_rolling_avg_1h": 0.0329,
+    "cpu_rolling_std_1h": 0.0025
+  },
+  "memory": {
+    "memory": 0.4546,
+    "hour": 0.3572,
+    "day_of_week": 0.0016,
+    "memory_rolling_avg_1h": 0.1773,
+    "memory_rolling_std_1h": 0.0093
+  },
+  "network": {
+    "network": 0.6767,
+    "hour": 0.2603,
+    "day_of_week": 0.0398,
+    "network_rolling_avg_1h": 0.0208,
+    "network_rolling_std_1h": 0.0024
+  },
+  "cost": {
+    "cpu": 0.6712,
+    "memory": 0.0314,
+    "cost_usd": 0.0246,
+    "hour": 0.2194,
+    "day_of_week": 0.0534
+  },
+  "carbon": {
+    "carbon_intensity_gco2_per_kwh": 0.7105,
+    "hour": 0.1999,
+    "day_of_week": 0.005,
+    "cpu": 0.0846
+  }
+}

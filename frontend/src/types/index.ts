@@ -11,7 +11,7 @@ export interface CloudMetrics {
   cost_usd_per_hour: number
   carbon_gco2_per_hour: number
   instance_count: number
-  source: 'DEMO' | 'LIVE'
+  source: 'DEMO' | 'LIVE' | 'LIVE_AWS' | string
 }
 
 export interface MetricForecast {
@@ -171,4 +171,61 @@ export interface CarbonDataPoint {
   provider: string
   region: string
   intensity_gco2_per_kwh: number
+}
+
+export interface CloudResource {
+  id: string
+  name: string
+  type: string
+  provider: string
+  region: string
+  status: string
+  cpu_utilization: number
+  memory_utilization: number
+  cost_per_hour: number
+  carbon_intensity: number
+  tags: Record<string, string>
+  right_size_candidate: boolean
+}
+
+export interface ConflictResolutionItem {
+  conflict_type: string
+  description: string
+  conflicting_agents: string[]
+  agent_recommendations: Record<string, string>
+  reconciliation_rationale: string
+  final_decision: string
+  confidence: number
+}
+
+export interface ScenarioSimulationResult {
+  simulation_id: string
+  scenario: string
+  is_simulated: boolean
+  label: string
+  before: {
+    cpu: number
+    memory: number
+    cost: number
+    carbon: number
+    instance_count: number
+    monthly_cost: number
+    monthly_carbon_kg: number
+  }
+  after: {
+    cpu: number
+    memory: number
+    cost: number
+    carbon: number
+    instance_count: number
+    monthly_cost: number
+    monthly_carbon_kg: number
+  }
+  estimated_saving: number
+  estimated_carbon_reduction: number
+  performance_impact: string
+  risk: 'LOW' | 'MEDIUM' | 'HIGH'
+  recommendation: string
+  confidence: number
+  warnings: string[]
 }

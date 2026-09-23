@@ -1,0 +1,82 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": 1,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "API Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(greenmind_api_requests_total[1m])",
+          "legendFormat": "{{method}} {{path}} ({{status}})"
+        }
+      ]
+    },
+    {
+      "title": "Request Latency p95",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(greenmind_api_request_duration_seconds_sum[1m]) / rate(greenmind_api_request_duration_seconds_count[1m])",
+          "legendFormat": "{{path}}"
+        }
+      ]
+    },
+    {
+      "title": "Prediction Invocations",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "greenmind_prediction_requests_total"
+        }
+      ]
+    },
+    {
+      "title": "API Error Count",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 8 },
+      "targets": [
+        {
+          "expr": "greenmind_api_errors_total"
+        }
+      ]
+    },
+    {
+      "title": "Telemetry Collections",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "greenmind_cloud_collections_total"
+        }
+      ]
+    },
+    {
+      "title": "Agent Execution Duration",
+      "type": "stat",
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 8 },
+      "targets": [
+        {
+          "expr": "greenmind_agent_execution_seconds_sum / greenmind_agent_execution_seconds_count"
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["greenmind", "cloud", "ai"],
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "",
+  "title": "GreenMind AI - Cloud OS Observability",
+  "version": 1
+}

@@ -1,0 +1,81 @@
+{
+  "cpu": {
+    "mae": 3.809,
+    "rmse": 4.811,
+    "r2": 0.855,
+    "naive_mae": 6.5,
+    "improvement_pct": 41.4,
+    "n_train": 4604,
+    "n_test": 1152,
+    "feature_importance": {
+      "cpu": 0.6937,
+      "hour": 0.2234,
+      "day_of_week": 0.0475,
+      "cpu_rolling_avg_1h": 0.0329,
+      "cpu_rolling_std_1h": 0.0025
+    }
+  },
+  "memory": {
+    "mae": 2.979,
+    "rmse": 3.704,
+    "r2": 0.636,
+    "naive_mae": 3.996,
+    "improvement_pct": 25.4,
+    "n_train": 4604,
+    "n_test": 1152,
+    "feature_importance": {
+      "memory": 0.4546,
+      "hour": 0.3572,
+      "day_of_week": 0.0016,
+      "memory_rolling_avg_1h": 0.1773,
+      "memory_rolling_std_1h": 0.0093
+    }
+  },
+  "network": {
+    "mae": 43.876,
+    "rmse": 55.328,
+    "r2": 0.871,
+    "naive_mae": 80.346,
+    "improvement_pct": 45.4,
+    "n_train": 4604,
+    "n_test": 1152,
+    "feature_importance": {
+      "network": 0.6767,
+      "hour": 0.2603,
+      "day_of_week": 0.0398,
+      "network_rolling_avg_1h": 0.0208,
+      "network_rolling_std_1h": 0.0024
+    }
+  },
+  "cost": {
+    "mae": 0.009,
+    "rmse": 0.011,
+    "r2": 0.474,
+    "naive_mae": 50.367,
+    "improvement_pct": 100.0,
+    "n_train": 4604,
+    "n_test": 1152,
+    "feature_importance": {
+      "cpu": 0.6712,
+      "memory": 0.0314,
+      "cost_usd": 0.0246,
+      "hour": 0.2194,
+      "day_of_week": 0.0534
+    }
+  },
+  "carbon": {
+    "mae": 4.061,
+    "rmse": 5.087,
+    "r2": 0.391,
+    "naive_mae": 367.88,
+    "improvement_pct": 98.9,
+    "n_train": 4604,
+    "n_test": 1152,
+    "feature_importance": {
+      "carbon_intensity_gco2_per_kwh": 0.7105,
+      "hour": 0.1999,
+      "day_of_week": 0.005,
+      "cpu": 0.0846
+    }
+  }
+}

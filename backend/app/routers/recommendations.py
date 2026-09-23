@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query
 from .. import carbon
 from ..agents import orchestrator
 from ..decision_engine import right_size, scaling_advice
+from ..ml import predictor
 from ..routers.telemetry import _generate_live_metrics
 from ..schemas import (
     ApplyRequest,
@@ -312,29 +313,46 @@ def explain_recommendation(rec_id: str):
         "cost": {
             "why_flagged": "Cost anomaly detected based on utilization-to-spend ratio analysis.",
             "counterfactual": "If current spending patterns continue unchanged, projected monthly overspend will increase.",
+            "feature_key": "cost",
         },
         "performance": {
             "why_flagged": "Performance metrics show utilization approaching saturation thresholds.",
             "counterfactual": "Without intervention, latency will increase and SLOs will be breached.",
+            "feature_key": "cpu",
         },
         "sustainability": {
             "why_flagged": "Carbon intensity analysis shows significant emissions reduction is achievable.",
             "counterfactual": "Maintaining current scheduling pattern misses carbon-free hours.",
+            "feature_key": "carbon",
         },
         "security": {
             "why_flagged": "Security posture assessment detected configuration against best practices.",
             "counterfactual": "These configurations represent known attack vectors actively exploited.",
+            "feature_key": "cpu",
         },
         "reliability": {
             "why_flagged": "Reliability assessment identified infrastructure risk factors.",
             "counterfactual": "Without redundancy, a single failure event causes complete service outage.",
+            "feature_key": "memory",
         },
     }
     cat_explain = _EXPLANATIONS.get(rec.category, _EXPLANATIONS["cost"])
+    feature_importances = predictor.get_feature_importances()
+    feat_key = cat_explain.get("feature_key", "cost")
+    target_feat_imp = feature_importances.get(feat_key, {})
+
+    savings_str = f"Estimated monthly saving: ${rec.estimated_monthly_savings_usd:.0f}." if rec.estimated_monthly_savings_usd > 0 else ""
+    carbon_str = f"Estimated carbon reduction: {rec.estimated_carbon_reduction_pct:.0f}%." if rec.estimated_carbon_reduction_pct > 0 else ""
+    expected_impact = f"{rec.impact_summary} {savings_str} {carbon_str}".strip()
 
     return ExplainResponse(
         recommendation_id=rec.id,
         title=rec.title,
+        what_detected=rec.title,
+        why_it_matters=cat_explain["why_flagged"],
+        evidence=rec.evidence,
+        recommendation=rec.action,
+        expected_impact=expected_impact,
         why_flagged=cat_explain["why_flagged"],
         data_evidence=[{"key": e, "value": "Detected"} for e in rec.evidence],
         counterfactual=cat_explain["counterfactual"],
@@ -345,4 +363,5 @@ def explain_recommendation(rec_id: str):
             "Update runbook and document the change",
         ],
         expected_outcome=rec.impact_summary,
+        feature_importance=target_feat_imp,
     )

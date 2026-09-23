@@ -111,5 +111,22 @@ export const fetchCarbonCurve = (region = 'us-east'): Promise<{ region: string; 
 export const fetchRegions = (): Promise<{ regions: string[] }> =>
   api.get('/regions').then(r => r.data)
 
-export const fetchHealth = (): Promise<{ status: string; version: string; demo_mode: boolean }> =>
+export const fetchHealth = (): Promise<{ status: string; version: string; demo_mode: boolean; cloud_mode?: string }> =>
   axios.get('/health').then(r => r.data)
+
+// ── Cloud Providers & Resources ────────────────────────────────────────────
+export const fetchCloudResources = (
+  provider = 'aws',
+  region = 'us-east'
+): Promise<{ provider: string; region: string; resources: any[]; count: number }> =>
+  axios.get('/cloud/resources', { params: { provider, region } }).then(r => r.data)
+
+export const fetchCloudProviders = (): Promise<{ providers: any[]; default_mode: string }> =>
+  axios.get('/cloud/providers').then(r => r.data)
+
+export const simulateScenario = (payload: {
+  scenario: string
+  current_state?: any
+  region?: string
+}): Promise<any> =>
+  api.post('/digital-twin/scenario', payload).then(r => r.data)

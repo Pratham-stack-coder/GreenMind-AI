@@ -9,6 +9,7 @@ from fastapi import APIRouter
 
 from .. import carbon
 from ..decision_engine import INSTANCE_COSTS
+from ..digital_twin.schemas import ScenarioSimulationResult, SimulationScenarioRequest
 from ..schemas import SimulationMetrics, SimulationRequest, SimulationResult
 
 router = APIRouter(prefix="/digital-twin", tags=["Digital Twin"])
@@ -124,3 +125,10 @@ def simulate(req: SimulationRequest):
         confidence=confidence,
         warnings=warnings,
     )
+
+
+@router.post("/scenario", response_model=ScenarioSimulationResult)
+def simulate_scenario(req: SimulationScenarioRequest):
+    """Run a high-level scenario simulation (RIGHT_SIZE, SCALE_UP, SCALE_DOWN, CONSOLIDATE)."""
+    from ..digital_twin import simulator as dt_simulator
+    return dt_simulator.run_simulation(req)

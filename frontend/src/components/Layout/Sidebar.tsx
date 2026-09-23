@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, TrendingUp, Lightbulb, Bot, GitFork,
   MessageSquare, BarChart3, Settings, Leaf, Activity, Zap,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Server, DollarSign
 } from 'lucide-react'
 import { useAppStore } from '../../store'
 
@@ -11,7 +11,8 @@ const navSections = [
   {
     label: 'Overview',
     items: [
-      { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+      { to: '/', icon: LayoutDashboard, label: 'Overview' },
+      { to: '/cloud-resources', icon: Server, label: 'Cloud Resources' },
       { to: '/analytics', icon: BarChart3, label: 'Analytics' },
     ],
   },
@@ -19,15 +20,17 @@ const navSections = [
     label: 'AI Intelligence',
     items: [
       { to: '/predictions', icon: TrendingUp, label: 'Predictions' },
-      { to: '/recommendations', icon: Lightbulb, label: 'Recommendations' },
+      { to: '/recommendations', icon: Lightbulb, label: 'AI Recommendations' },
       { to: '/agents', icon: Bot, label: 'Multi-Agent AI' },
+      { to: '/copilot', icon: MessageSquare, label: 'AI Copilot' },
     ],
   },
   {
     label: 'Optimization',
     items: [
+      { to: '/cost-optimization', icon: DollarSign, label: 'Cost Optimization' },
+      { to: '/carbon-intelligence', icon: Leaf, label: 'Carbon Intelligence' },
       { to: '/digital-twin', icon: GitFork, label: 'Digital Twin' },
-      { to: '/copilot', icon: MessageSquare, label: 'AI Copilot' },
     ],
   },
   {

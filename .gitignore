@@ -37,6 +37,13 @@ Thumbs.db
 backend/app/ml/dataset.csv
 backend/app/ml/*.csv
 backend/app/ml/*.pkl
-backend/app/ml/metrics.json
 backend/data/*.db
 backend/*.db
+*.db
+
+# Security & Private Credentials
+*.pem
+*.key
+credentials
+credentials.json
+service-account*.json

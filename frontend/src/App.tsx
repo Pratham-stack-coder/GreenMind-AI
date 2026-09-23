@@ -4,7 +4,10 @@ import Sidebar from './components/Layout/Sidebar'
 import TopBar from './components/Layout/TopBar'
 import NotificationsPanel from './components/Layout/NotificationsPanel'
 import DashboardPage from './pages/DashboardPage'
+import CloudResourcesPage from './pages/CloudResourcesPage'
 import PredictionsPage from './pages/PredictionsPage'
+import CostOptimizationPage from './pages/CostOptimizationPage'
+import CarbonIntelligencePage from './pages/CarbonIntelligencePage'
 import RecommendationsPage from './pages/RecommendationsPage'
 import AgentsPage from './pages/AgentsPage'
 import DigitalTwinPage from './pages/DigitalTwinPage'
@@ -37,7 +40,10 @@ export default function App() {
           <AnimatePresence mode="wait">
             <Routes>
               <Route path="/" element={<motion.div {...pageTransition}><DashboardPage /></motion.div>} />
+              <Route path="/cloud-resources" element={<motion.div {...pageTransition}><CloudResourcesPage /></motion.div>} />
               <Route path="/predictions" element={<motion.div {...pageTransition}><PredictionsPage /></motion.div>} />
+              <Route path="/cost-optimization" element={<motion.div {...pageTransition}><CostOptimizationPage /></motion.div>} />
+              <Route path="/carbon-intelligence" element={<motion.div {...pageTransition}><CarbonIntelligencePage /></motion.div>} />
               <Route path="/recommendations" element={<motion.div {...pageTransition}><RecommendationsPage /></motion.div>} />
               <Route path="/agents" element={<motion.div {...pageTransition}><AgentsPage /></motion.div>} />
               <Route path="/digital-twin" element={<motion.div {...pageTransition}><DigitalTwinPage /></motion.div>} />
