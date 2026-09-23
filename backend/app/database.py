@@ -34,16 +34,27 @@ from .config import get_settings
 settings = get_settings()
 
 # Default to SQLite with aiosqlite for zero-config persistence
+db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "greenmind.db"))
+fallback_url = f"sqlite+aiosqlite:///{db_path}"
+
 DB_URL = settings.database_url
 if not DB_URL:
-    db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "greenmind.db"))
-    DB_URL = f"sqlite+aiosqlite:///{db_path}"
+    DB_URL = fallback_url
 else:
     # Normalize postgres url for asyncpg if plain postgresql:// is provided
     if DB_URL.startswith("postgresql://"):
         DB_URL = DB_URL.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-_engine = create_async_engine(DB_URL, echo=False)
+try:
+    _engine = create_async_engine(DB_URL, echo=False)
+except Exception as e:
+    import logging
+    logging.getLogger(__name__).warning(
+        f"Could not initialize database engine for {DB_URL}: {e}. Falling back to SQLite."
+    )
+    DB_URL = fallback_url
+    _engine = create_async_engine(DB_URL, echo=False)
+
 _async_session_maker = async_sessionmaker(_engine, expire_on_commit=False, class_=AsyncSession)
 
 
