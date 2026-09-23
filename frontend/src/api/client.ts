@@ -3,6 +3,9 @@ import type {
   CloudMetrics,
   PredictResponse,
   RecommendationsResponse,
+  ApplyResponse,
+  BatchApplyResponse,
+  ExplainResponse,
   AgentRunResponse,
   OptimizationScores,
   SimulationResult,
@@ -42,12 +45,32 @@ export const fetchModelInfo = (): Promise<{ models: Record<string, unknown>; sta
 // ── Recommendations ────────────────────────────────────────────────────────
 export const fetchRecommendations = (params?: {
   provider?: string; region?: string; refresh?: boolean
-  category?: string; priority?: string
+  category?: string; priority?: string; status?: string
 }): Promise<RecommendationsResponse> =>
   api.get('/recommendations', { params }).then(r => r.data)
 
-export const fetchExplain = (id: string): Promise<unknown> =>
+export const fetchExplain = (id: string): Promise<ExplainResponse> =>
   api.get(`/recommendations/${id}/explain`).then(r => r.data)
+
+export const applyRecommendation = (
+  id: string,
+  options?: { dry_run?: boolean; operator_notes?: string }
+): Promise<ApplyResponse> =>
+  api.post(`/recommendations/${id}/apply`, options || {}).then(r => r.data)
+
+export const rollbackRecommendation = (id: string): Promise<ApplyResponse> =>
+  api.post(`/recommendations/${id}/rollback`).then(r => r.data)
+
+export const dismissRecommendation = (id: string): Promise<{ status: string; recommendation_id: string }> =>
+  api.post(`/recommendations/${id}/dismiss`).then(r => r.data)
+
+export const batchApplyRecommendations = (payload?: {
+  category?: string; priority?: string; recommendation_ids?: string[]; dry_run?: boolean
+}): Promise<BatchApplyResponse> =>
+  api.post('/recommendations/apply-batch', payload || {}).then(r => r.data)
+
+export const fetchAppliedRecommendations = (): Promise<ApplyResponse[]> =>
+  api.get('/recommendations/applied').then(r => r.data)
 
 // ── Agents ─────────────────────────────────────────────────────────────────
 export const runAgents = (payload: { provider: string; region: string }): Promise<AgentRunResponse> =>
@@ -71,18 +94,22 @@ export const fetchScores = (provider = 'aws', region = 'us-east'): Promise<Optim
   api.get('/analytics/score', { params: { provider, region } }).then(r => r.data)
 
 // ── Copilot ────────────────────────────────────────────────────────────────
-export const sendCopilotMessage = (message: string, history: CopilotMessage[]): Promise<CopilotResponse> =>
-  api.post('/copilot/chat', { message, history }).then(r => r.data)
+export const sendCopilotMessage = (
+  message: string,
+  history: CopilotMessage[],
+  context?: Record<string, unknown>
+): Promise<CopilotResponse> =>
+  api.post('/copilot/chat', { message, history, context: context ?? {} }).then(r => r.data)
 
 export const fetchCopilotSuggestions = (): Promise<{ suggestions: string[] }> =>
   api.get('/copilot/suggestions').then(r => r.data)
 
 // ── Carbon / System ────────────────────────────────────────────────────────
 export const fetchCarbonCurve = (region = 'us-east'): Promise<{ region: string; curve: CarbonPoint[]; green_score: number }> =>
-  api.get('/carbon-curve', { baseURL: '/', params: { region } }).then(r => r.data)
+  api.get('/carbon-curve', { params: { region } }).then(r => r.data)
 
 export const fetchRegions = (): Promise<{ regions: string[] }> =>
-  api.get('/regions', { baseURL: '/' }).then(r => r.data)
+  api.get('/regions').then(r => r.data)
 
 export const fetchHealth = (): Promise<{ status: string; version: string; demo_mode: boolean }> =>
   axios.get('/health').then(r => r.data)

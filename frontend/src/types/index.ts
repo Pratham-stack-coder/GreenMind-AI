@@ -46,12 +46,46 @@ export interface RecommendationItem {
   action: string
   evidence: string[]
   confidence: number
+  status?: 'open' | 'applied' | 'dismissed'
+  applied_at?: string
+  steps_taken?: string[]
 }
 
 export interface RecommendationsResponse {
   recommendations: RecommendationItem[]
   generated_at: string
   optimization_score: number
+}
+
+export interface ApplyResponse {
+  recommendation_id: string
+  title: string
+  status: 'applied' | 'failed' | 'pending' | 'rolled_back' | 'simulated'
+  message: string
+  estimated_monthly_savings_usd: number
+  estimated_carbon_reduction_pct: number
+  applied_at: string
+  steps_taken: string[]
+  dry_run?: boolean
+  new_score?: number
+}
+
+export interface BatchApplyResponse {
+  applied_count: number
+  total_monthly_savings_usd: number
+  total_carbon_reduction_pct: number
+  results: ApplyResponse[]
+  new_score: number
+}
+
+export interface ExplainResponse {
+  recommendation_id: string
+  title: string
+  why_flagged: string
+  data_evidence: { key: string; value: string }[]
+  counterfactual: string
+  steps_to_implement: string[]
+  expected_outcome: string
 }
 
 export interface AgentResult {

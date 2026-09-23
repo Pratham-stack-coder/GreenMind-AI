@@ -12,7 +12,7 @@ Falls back gracefully to a sequential runner if langgraph is not installed.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TypedDict
 
 from ..schemas import AgentResult, AgentRunResponse, CloudMetrics, RecommendationItem
@@ -122,7 +122,7 @@ def run(metrics: CloudMetrics, context: dict | None = None) -> AgentRunResponse:
     """
     context = context or {}
     run_id = str(uuid.uuid4())[:8]
-    started_at = datetime.utcnow().isoformat()
+    started_at = datetime.now(timezone.utc).isoformat()
 
     # Try LangGraph orchestration first
     try:
@@ -158,7 +158,7 @@ def run(metrics: CloudMetrics, context: dict | None = None) -> AgentRunResponse:
     return AgentRunResponse(
         run_id=run_id,
         started_at=started_at,
-        completed_at=datetime.utcnow().isoformat(),
+        completed_at=datetime.now(timezone.utc).isoformat(),
         agents=agent_result_objs,
         unified_recommendations=unified,
         overall_score=overall,

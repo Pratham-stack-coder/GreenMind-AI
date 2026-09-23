@@ -16,4 +16,5 @@ langchain-core==0.3.9
 # sqlalchemy[asyncio]==2.0.35
 # asyncpg==0.29.0
 # Optional — for Redis caching
-# redis[hiredis]==5.1.0
+httpx==0.28.1
+pytest==9.1.1

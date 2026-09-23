@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Bot, Play, ChevronDown, ChevronUp, CheckCircle, Clock } from 'lucide-react'
+import { Bot, Play, ChevronDown, ChevronUp, CheckCircle, Clock, Loader2, Circle } from 'lucide-react'
 import { useAppStore } from '../store'
 import { runAgents, fetchAgentStatus } from '../api/client'
 import type { AgentRunResponse, AgentResult } from '../types'
@@ -10,6 +10,8 @@ const agentColors: Record<string, string> = {
   CostAgent: 'amber', PerformanceAgent: 'blue', SustainabilityAgent: 'emerald',
   SecurityAgent: 'red', ReliabilityAgent: 'indigo',
 }
+
+const AGENT_ORDER = ['CostAgent', 'PerformanceAgent', 'SustainabilityAgent', 'SecurityAgent', 'ReliabilityAgent']
 
 function AgentCard({ agent }: { agent: AgentResult }) {
   const [expanded, setExpanded] = useState(false)
@@ -78,9 +80,102 @@ function AgentCard({ agent }: { agent: AgentResult }) {
   )
 }
 
+/** Live orchestration timeline shown while agents are running */
+function AgentTimeline({ isPending, doneAgents }: { isPending: boolean, doneAgents: string[] }) {
+  return (
+    <div className="card mb-4" style={{ padding: '20px 24px' }}>
+      <div className="text-xs text-muted mb-4" style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        Orchestration Pipeline
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {AGENT_ORDER.map((agentName, idx) => {
+          const isDone = doneAgents.includes(agentName)
+          const isRunning = isPending && !isDone && doneAgents.length === idx
+          const isPendingStep = !isDone && !isRunning
+          const color = agentColors[agentName] || 'muted'
+          const shortName = agentName.replace('Agent', '')
+
+          return (
+            <div key={agentName} style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+              {/* Connector line + dot */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 20 }}>
+                <motion.div
+                  animate={isDone ? { scale: [1, 1.3, 1], backgroundColor: ['#10b981', '#34d399', '#10b981'] } : {}}
+                  transition={{ duration: 0.5 }}
+                  style={{
+                    width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: isDone
+                      ? 'var(--emerald-500)'
+                      : isRunning
+                        ? 'rgba(99,102,241,0.3)'
+                        : 'rgba(255,255,255,0.06)',
+                    border: `2px solid ${isDone ? 'var(--emerald-500)' : isRunning ? 'var(--indigo-400)' : 'var(--border)'}`,
+                    transition: 'all 0.4s ease',
+                  }}
+                >
+                  {isDone && <CheckCircle size={11} color="#fff" />}
+                  {isRunning && <Loader2 size={11} color="var(--indigo-400)" className="animate-spin" />}
+                  {isPendingStep && <Circle size={8} color="var(--text-muted)" />}
+                </motion.div>
+                {idx < AGENT_ORDER.length - 1 && (
+                  <div style={{
+                    width: 2, height: 28, flexShrink: 0,
+                    background: isDone ? 'var(--emerald-500)' : 'var(--border)',
+                    transition: 'background 0.4s ease',
+                  }} />
+                )}
+              </div>
+
+              {/* Label */}
+              <div style={{ paddingTop: 1, paddingBottom: idx < AGENT_ORDER.length - 1 ? 20 : 0 }}>
+                <div style={{
+                  fontSize: 13, fontWeight: isDone ? 600 : 500,
+                  color: isDone ? 'var(--text-primary)' : isRunning ? 'var(--indigo-400)' : 'var(--text-muted)',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                }}>
+                  <span className={`badge badge-${isDone ? 'emerald' : isRunning ? 'indigo' : 'muted'}`} style={{ fontSize: 10 }}>
+                    {isDone ? '✓' : isRunning ? '…' : idx + 1}
+                  </span>
+                  {shortName}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                  {isDone ? 'Analysis complete' : isRunning ? 'Running analysis…' : 'Waiting'}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+
+        {/* Orchestrator */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginTop: 8 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 20 }}>
+            <div style={{ width: 2, height: 12, background: doneAgents.length === AGENT_ORDER.length ? 'var(--emerald-500)' : 'var(--border)' }} />
+            <div style={{
+              width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: doneAgents.length === AGENT_ORDER.length ? 'var(--gradient-emerald)' : 'rgba(255,255,255,0.06)',
+              border: `2px solid ${doneAgents.length === AGENT_ORDER.length ? 'var(--emerald-500)' : 'var(--border)'}`,
+            }}>
+              <Bot size={10} color={doneAgents.length === AGENT_ORDER.length ? '#fff' : 'var(--text-muted)'} />
+            </div>
+          </div>
+          <div style={{ paddingTop: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: doneAgents.length === AGENT_ORDER.length ? 'var(--emerald-400)' : 'var(--text-muted)' }}>
+              Orchestrator → Unified Plan
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AgentsPage() {
   const { provider, region } = useAppStore()
   const [result, setResult] = useState<AgentRunResponse | null>(null)
+  const [doneAgents, setDoneAgents] = useState<string[]>([])
+  const timelineRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const { data: lastRun } = useQuery({
     queryKey: ['agentStatus'],
@@ -89,8 +184,30 @@ export default function AgentsPage() {
 
   const { mutate: run, isPending } = useMutation({
     mutationFn: () => runAgents({ provider, region }),
-    onSuccess: (data) => setResult(data),
+    onMutate: () => {
+      setDoneAgents([])
+      // Simulate agent-by-agent progress (sequential, ~800ms each)
+      let i = 0
+      timelineRef.current = setInterval(() => {
+        if (i < AGENT_ORDER.length) {
+          setDoneAgents(prev => [...prev, AGENT_ORDER[i]])
+          i++
+        } else {
+          if (timelineRef.current) clearInterval(timelineRef.current)
+        }
+      }, 900)
+    },
+    onSuccess: (data) => {
+      setResult(data)
+      setDoneAgents(AGENT_ORDER) // ensure all shown as done
+      if (timelineRef.current) clearInterval(timelineRef.current)
+    },
+    onError: () => {
+      if (timelineRef.current) clearInterval(timelineRef.current)
+    },
   })
+
+  useEffect(() => () => { if (timelineRef.current) clearInterval(timelineRef.current) }, [])
 
   const display = result || lastRun
 
@@ -101,30 +218,37 @@ export default function AgentsPage() {
           <h1>Multi-Agent AI</h1>
           <p className="text-secondary text-sm mt-1">5 specialized agents collaborate to produce unified optimization plans</p>
         </div>
-        <button className="btn btn-primary" onClick={() => run()} disabled={isPending}>
+        <button className="btn btn-primary" onClick={() => run()} disabled={isPending} id="run-agents-btn">
           {isPending ? (
-            <><span className="animate-spin" style={{ display: 'inline-block' }}>⟳</span> Analyzing…</>
+            <><Loader2 size={14} className="animate-spin" /> Analyzing…</>
           ) : (
             <><Play size={14} /> Run Full Analysis</>
           )}
         </button>
       </div>
 
-      {/* Agent architecture diagram */}
-      <div className="card mb-4" style={{ padding: '16px 20px' }}>
-        <div className="text-xs text-muted mb-3" style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Agent Architecture</div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-          {['CostAgent', 'PerformanceAgent', 'SustainabilityAgent', 'SecurityAgent', 'ReliabilityAgent'].map(a => (
-            <div key={a} className={`badge badge-${agentColors[a] || 'muted'}`}>
-              <Bot size={11} /> {a.replace('Agent', '')}
-            </div>
-          ))}
-          <div className="text-secondary" style={{ fontSize: 18, display: 'flex', alignItems: 'center', padding: '0 4px' }}>→</div>
-          <div className="badge badge-emerald">Orchestrator</div>
-          <div className="text-secondary" style={{ fontSize: 18, display: 'flex', alignItems: 'center', padding: '0 4px' }}>→</div>
-          <div className="badge badge-indigo">Unified Plan</div>
+      {/* Live orchestration timeline */}
+      {(isPending || (display && doneAgents.length > 0)) && (
+        <AgentTimeline isPending={isPending} doneAgents={doneAgents} />
+      )}
+
+      {/* Static architecture diagram when not running and no history */}
+      {!isPending && doneAgents.length === 0 && (
+        <div className="card mb-4" style={{ padding: '16px 20px' }}>
+          <div className="text-xs text-muted mb-3" style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Agent Architecture</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {AGENT_ORDER.map(a => (
+              <div key={a} className={`badge badge-${agentColors[a] || 'muted'}`}>
+                <Bot size={11} /> {a.replace('Agent', '')}
+              </div>
+            ))}
+            <div className="text-secondary" style={{ fontSize: 18, display: 'flex', alignItems: 'center', padding: '0 4px' }}>→</div>
+            <div className="badge badge-emerald">Orchestrator</div>
+            <div className="text-secondary" style={{ fontSize: 18, display: 'flex', alignItems: 'center', padding: '0 4px' }}>→</div>
+            <div className="badge badge-indigo">Unified Plan</div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Run summary */}
       {display && (

@@ -1,12 +1,16 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
 } from 'recharts'
-import { Cpu, MemoryStick, Network, DollarSign, Leaf, Activity, TrendingUp, AlertTriangle } from 'lucide-react'
+import {
+  Cpu, MemoryStick, Network, DollarSign, Leaf, Activity, TrendingUp, AlertTriangle,
+  CheckCircle2, Sparkles, Loader2
+} from 'lucide-react'
 import { useAppStore } from '../store'
-import { fetchLiveMetrics, fetchScores, fetchTelemetryHistory, fetchRecommendations } from '../api/client'
+import { fetchLiveMetrics, fetchScores, fetchTelemetryHistory, fetchRecommendations, applyRecommendation } from '../api/client'
 import type { CloudMetrics, OptimizationScores } from '../types'
 
 // ── Custom Tooltip ───────────────────────────────────────────────────────────
@@ -25,11 +29,39 @@ const ChartTooltip = ({ active, payload, label }: any) => {
   )
 }
 
+// ── Count-up hook ────────────────────────────────────────────────────────────
+function useCountUp(target: number, duration = 900) {
+  const [val, setVal] = useState(0)
+  const frame = useRef<number>(0)
+  const prev = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (target === prev.current) return
+    const start = performance.now()
+    const from = prev.current ?? 0
+    prev.current = target
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration)
+      // easeOutCubic
+      const ease = 1 - Math.pow(1 - t, 3)
+      setVal(from + (target - from) * ease)
+      if (t < 1) frame.current = requestAnimationFrame(tick)
+    }
+    cancelAnimationFrame(frame.current)
+    frame.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame.current)
+  }, [target, duration])
+
+  return val
+}
+
 // ── Metric Card ──────────────────────────────────────────────────────────────
 function MetricCard({ label, value, unit, icon: Icon, color, delta }: {
   label: string; value: number | string; unit: string
   icon: React.ComponentType<any>; color: string; delta?: number
 }) {
+  const numVal = typeof value === 'number' ? value : 0
+  const animated = useCountUp(numVal)
   const deltaClass = delta == null ? '' : delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat'
   const deltaLabel = delta == null ? '' : `${delta > 0 ? '+' : ''}${delta.toFixed(1)}%`
   return (
@@ -43,7 +75,7 @@ function MetricCard({ label, value, unit, icon: Icon, color, delta }: {
         <Icon size={18} color={`var(--${color === 'emerald' ? 'emerald' : color === 'amber' ? 'amber' : color === 'blue' ? 'blue' : 'indigo'}-400)`} />
       </div>
       <div className="metric-value">
-        {typeof value === 'number' ? value.toFixed(1) : value}
+        {typeof value === 'number' ? animated.toFixed(unit.includes('$') || numVal < 10 ? 4 : 1) : value}
         <span style={{ fontSize: '0.55em', fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 4 }}>{unit}</span>
       </div>
       {delta != null && (
@@ -79,7 +111,28 @@ function ScoreRadar({ scores }: { scores: OptimizationScores }) {
 
 // ── Dashboard Page ────────────────────────────────────────────────────────────
 export default function DashboardPage() {
-  const { provider, region } = useAppStore()
+  const queryClient = useQueryClient()
+  const { provider, region, addNotification } = useAppStore()
+  const [applyingId, setApplyingId] = useState<string | null>(null)
+
+  const handleApplyRec = async (id: string, title: string) => {
+    try {
+      setApplyingId(id)
+      const res = await applyRecommendation(id, { dry_run: false })
+      addNotification({
+        title: 'Optimization Applied',
+        body: `${title} applied successfully. Score updated to ${res.new_score || 85}/100.`,
+        priority: 'high',
+      })
+      queryClient.invalidateQueries({ queryKey: ['recommendations'] })
+      queryClient.invalidateQueries({ queryKey: ['scores'] })
+      queryClient.invalidateQueries({ queryKey: ['liveMetrics'] })
+    } catch (err) {
+      console.error('Failed to apply recommendation', err)
+    } finally {
+      setApplyingId(null)
+    }
+  }
 
   const { data: metrics, isLoading: metricsLoading } = useQuery({
     queryKey: ['liveMetrics', provider, region],
@@ -250,30 +303,68 @@ export default function DashboardPage() {
       {recs && recs.recommendations.length > 0 && (
         <div className="card">
           <div className="flex items-center justify-between mb-3">
-            <h3 style={{ fontSize: 14, fontWeight: 700 }}>Top Recommendations</h3>
+            <div className="flex items-center gap-2">
+              <h3 style={{ fontSize: 14, fontWeight: 700 }}>Top Recommendations</h3>
+              <span className="badge badge-emerald" style={{ fontSize: 10 }}>Auto-Remediation Ready</span>
+            </div>
             <a href="/recommendations" className="text-xs text-emerald" style={{ textDecoration: 'none', fontWeight: 600 }}>View all →</a>
           </div>
           <div className="flex-col gap-2">
-            {recs.recommendations.slice(0, 4).map(rec => (
-              <div key={rec.id} className={`card priority-${rec.priority}`} style={{ padding: '12px 16px' }}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex-1 truncate">
-                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{rec.title}</div>
-                    <div className="text-secondary text-xs">{rec.impact_summary}</div>
-                  </div>
-                  <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
-                    <span className={`badge badge-${rec.priority === 'critical' ? 'red' : rec.priority === 'high' ? 'amber' : rec.priority === 'medium' ? 'blue' : 'muted'}`}>
-                      {rec.priority}
-                    </span>
-                    {rec.estimated_monthly_savings_usd > 0 && (
-                      <span className="text-emerald text-xs font-mono" style={{ fontWeight: 700 }}>
-                        ${rec.estimated_monthly_savings_usd.toFixed(0)}/mo
+            {recs.recommendations.slice(0, 4).map(rec => {
+              const isApplied = rec.status === 'applied'
+              return (
+                <div
+                  key={rec.id}
+                  className={`card priority-${rec.priority}`}
+                  style={{
+                    padding: '12px 16px',
+                    borderColor: isApplied ? 'rgba(16, 185, 129, 0.35)' : undefined,
+                    background: isApplied ? 'rgba(16, 185, 129, 0.04)' : undefined,
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex-1 truncate">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>{rec.title}</span>
+                        {isApplied && (
+                          <span className="badge badge-emerald" style={{ fontSize: 10, padding: '1px 6px' }}>
+                            <CheckCircle2 size={10} /> Applied
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-secondary text-xs">{rec.impact_summary}</div>
+                    </div>
+                    <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
+                      <span className={`badge badge-${rec.priority === 'critical' ? 'red' : rec.priority === 'high' ? 'amber' : rec.priority === 'medium' ? 'blue' : 'muted'}`}>
+                        {rec.priority}
                       </span>
-                    )}
+                      {rec.estimated_monthly_savings_usd > 0 && (
+                        <span className="text-emerald text-xs font-mono" style={{ fontWeight: 700 }}>
+                          ${rec.estimated_monthly_savings_usd.toFixed(0)}/mo
+                        </span>
+                      )}
+                      {!isApplied ? (
+                        <button
+                          className="btn btn-primary btn-sm"
+                          style={{ padding: '3px 10px', fontSize: 11 }}
+                          onClick={() => handleApplyRec(rec.id, rec.title)}
+                          disabled={applyingId === rec.id}
+                        >
+                          {applyingId === rec.id ? (
+                            <Loader2 size={11} className="animate-spin" />
+                          ) : (
+                            <Sparkles size={11} />
+                          )}
+                          Apply
+                        </button>
+                      ) : (
+                        <span className="text-xs text-muted" style={{ fontWeight: 600 }}>Enforced</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}

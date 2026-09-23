@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 # ── Telemetry ─────────────────────────────────────────────────────────────────
@@ -53,6 +53,8 @@ class MetricForecast(BaseModel):
 
 
 class PredictResponse(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
+
     cpu: MetricForecast
     memory: MetricForecast
     network: MetricForecast
@@ -106,12 +108,49 @@ class RecommendationItem(BaseModel):
     action: str
     evidence: list[str] = []
     confidence: float = 0.85
+    status: Literal["open", "applied", "dismissed"] = "open"
+    applied_at: str | None = None
+    steps_taken: list[str] = []
 
 
 class RecommendationsResponse(BaseModel):
     recommendations: list[RecommendationItem]
     generated_at: str
     optimization_score: int  # 0-100
+
+
+class ApplyRequest(BaseModel):
+    dry_run: bool = False
+    operator_notes: str | None = None
+
+
+class ApplyResponse(BaseModel):
+    """Result of applying a recommendation (demo: simulated; live: real API call)."""
+    recommendation_id: str
+    title: str
+    status: Literal["applied", "failed", "pending", "rolled_back", "simulated"]
+    message: str
+    estimated_monthly_savings_usd: float = 0.0
+    estimated_carbon_reduction_pct: float = 0.0
+    applied_at: str
+    steps_taken: list[str] = []
+    dry_run: bool = False
+    new_score: int | None = None
+
+
+class BatchApplyRequest(BaseModel):
+    category: str | None = None
+    priority: str | None = None
+    recommendation_ids: list[str] | None = None
+    dry_run: bool = False
+
+
+class BatchApplyResponse(BaseModel):
+    applied_count: int
+    total_monthly_savings_usd: float
+    total_carbon_reduction_pct: float
+    results: list[ApplyResponse]
+    new_score: int
 
 
 class ExplainRequest(BaseModel):
@@ -148,10 +187,19 @@ class AgentRunResponse(BaseModel):
     run_id: str
     started_at: str
     completed_at: str
-    agents: list[AgentResult]
+    agents: list[AgentResult] = Field(default_factory=list)
+    agent_results: list[AgentResult] = Field(default_factory=list)
     unified_recommendations: list[RecommendationItem]
     overall_score: int
     summary: str
+
+    @model_validator(mode="after")
+    def sync_agent_results(self) -> AgentRunResponse:
+        if not self.agent_results and self.agents:
+            self.agent_results = self.agents
+        elif not self.agents and self.agent_results:
+            self.agents = self.agent_results
+        return self
 
 
 # ── Digital Twin ──────────────────────────────────────────────────────────────

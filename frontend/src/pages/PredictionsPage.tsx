@@ -3,7 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Cell,
+  BarChart, Bar, Cell, ReferenceLine, ComposedChart,
 } from 'recharts'
 import { TrendingUp, AlertTriangle, RefreshCw } from 'lucide-react'
 import { useAppStore } from '../store'
@@ -176,6 +176,67 @@ export default function PredictionsPage() {
           )
         })}
       </div>
+
+      {/* Confidence band forecast chart */}
+      {forecast && (
+        <div className="card mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h3 style={{ fontSize: 14, fontWeight: 700 }}>CPU Forecast with Confidence Band</h3>
+              <p className="text-xs text-muted mt-1">
+                Shaded area shows ±{(((forecast.cpu as any)?.confidence_interval || 0.1) * 100).toFixed(0)}% confidence interval
+              </p>
+            </div>
+            <span className="badge badge-indigo">
+              {((forecast.cpu as any)?.confidence * 100 || 95).toFixed(0)}% confidence
+            </span>
+          </div>
+          {(() => {
+            const cpu = forecast.cpu as any
+            if (!cpu) return null
+            const now = cpu.current
+            const predicted = cpu.predicted
+            const ci = cpu.confidence_interval || 0.1
+            // Build a simulated 60-min trajectory
+            const points = Array.from({ length: 13 }, (_, i) => {
+              const t = i * 5
+              const progress = i / 12
+              const val = now + (predicted - now) * progress + Math.sin(progress * Math.PI) * 3
+              const band = ci * 100 * (0.5 + progress * 0.7)
+              return {
+                min: Math.max(0, val - band),
+                max: Math.min(100, val + band),
+                cpu: val,
+                label: t === 0 ? 'Now' : `+${t}m`,
+              }
+            })
+            return (
+              <div className="chart-container" style={{ height: 200 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={points}>
+                    <defs>
+                      <linearGradient id="bandGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0.05} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} tickFormatter={v => `${v}%`} />
+                    <Tooltip content={<ChartTooltip />} />
+                    {/* Confidence band */}
+                    <Area type="monotone" dataKey="max" stroke="transparent" fill="url(#bandGrad)" legendType="none" name="Upper bound" />
+                    <Area type="monotone" dataKey="min" stroke="transparent" fill="var(--bg-deep)" legendType="none" name="Lower bound" />
+                    {/* Actual prediction line */}
+                    <Area type="monotone" dataKey="cpu" stroke="#10b981" fill="rgba(16,185,129,0.1)" strokeWidth={2.5} dot={false} name="CPU Forecast" />
+                    <ReferenceLine y={now} stroke="rgba(251,191,36,0.5)" strokeDasharray="4 3" label={{ value: 'current', fill: 'var(--amber-400)', fontSize: 9, position: 'insideTopRight' }} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            )
+          })()}
+        </div>
+      )}
 
       {/* Carbon intensity curve */}
       <div className="card">

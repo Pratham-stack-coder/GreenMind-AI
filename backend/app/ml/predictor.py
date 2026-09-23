@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import NamedTuple
 
 import joblib
+import pandas as pd
 
 HERE = Path(__file__).resolve().parent
 
@@ -77,8 +78,8 @@ def predict_cpu(cpu: float, hour: float, day_of_week: int,
     model = _load("cpu")
     if cpu_rolling_avg_1h is None:
         cpu_rolling_avg_1h = cpu
-    row = [[cpu, hour, day_of_week, cpu_rolling_avg_1h, cpu_rolling_std_1h]]
-    pred = _clip(float(model.predict(row)[0]), 0, 100)
+    df = pd.DataFrame([[cpu, hour, day_of_week, cpu_rolling_avg_1h, cpu_rolling_std_1h]], columns=CPU_FEATURES)
+    pred = _clip(float(model.predict(df)[0]), 0, 100)
     delta = round((pred - cpu) / max(cpu, 1) * 100, 1)
     mae = _METRICS.get("cpu", {}).get("mae", 4.0)
     confidence = round(_clip(1.0 - mae / 100, 0.5, 0.99), 2)
@@ -92,8 +93,8 @@ def predict_memory(memory: float, hour: float, day_of_week: int,
         model = _load("memory")
         if memory_rolling_avg_1h is None:
             memory_rolling_avg_1h = memory
-        row = [[memory, hour, day_of_week, memory_rolling_avg_1h, memory_rolling_std_1h]]
-        pred = _clip(float(model.predict(row)[0]), 0, 100)
+        df = pd.DataFrame([[memory, hour, day_of_week, memory_rolling_avg_1h, memory_rolling_std_1h]], columns=MEMORY_FEATURES)
+        pred = _clip(float(model.predict(df)[0]), 0, 100)
     except FileNotFoundError:
         pred = memory * 1.02  # graceful fallback
     delta = round((pred - memory) / max(memory, 1) * 100, 1)
@@ -107,8 +108,8 @@ def predict_network(network: float, hour: float, day_of_week: int,
         model = _load("network")
         if network_rolling_avg_1h is None:
             network_rolling_avg_1h = network
-        row = [[network, hour, day_of_week, network_rolling_avg_1h, network_rolling_std_1h]]
-        pred = _clip(float(model.predict(row)[0]), 0, 5000)
+        df = pd.DataFrame([[network, hour, day_of_week, network_rolling_avg_1h, network_rolling_std_1h]], columns=NETWORK_FEATURES)
+        pred = _clip(float(model.predict(df)[0]), 0, 5000)
     except FileNotFoundError:
         pred = network * 1.01
     delta = round((pred - network) / max(network, 1) * 100, 1)
@@ -119,8 +120,8 @@ def predict_cost(cpu: float, memory: float, cost_usd: float,
                  hour: float, day_of_week: int) -> Forecast:
     try:
         model = _load("cost")
-        row = [[cpu, memory, cost_usd, hour, day_of_week]]
-        pred = _clip(float(model.predict(row)[0]), 0, 50)
+        df = pd.DataFrame([[cpu, memory, cost_usd, hour, day_of_week]], columns=COST_FEATURES)
+        pred = _clip(float(model.predict(df)[0]), 0, 50)
     except FileNotFoundError:
         pred = cost_usd * (1 + (cpu / 100) * 0.1)
     delta = round((pred - cost_usd) / max(cost_usd, 0.001) * 100, 1)
@@ -130,8 +131,8 @@ def predict_cost(cpu: float, memory: float, cost_usd: float,
 def predict_carbon(intensity: float, hour: float, day_of_week: int, cpu: float) -> Forecast:
     try:
         model = _load("carbon")
-        row = [[intensity, hour, day_of_week, cpu]]
-        pred = _clip(float(model.predict(row)[0]), 0, 2000)
+        df = pd.DataFrame([[intensity, hour, day_of_week, cpu]], columns=CARBON_FEATURES)
+        pred = _clip(float(model.predict(df)[0]), 0, 2000)
     except FileNotFoundError:
         pred = intensity * 0.35 * 0.25  # kwh estimate
     delta = round((pred - intensity * 0.35 * 0.25) / max(intensity * 0.35 * 0.25, 0.1) * 100, 1)

@@ -6,7 +6,7 @@ Gracefully degrades to in-memory storage when no DATABASE_URL / REDIS_URL is con
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from .config import get_settings
@@ -68,7 +68,7 @@ _telemetry_history: list[dict] = []
 
 def record_telemetry(entry: dict) -> None:
     global _telemetry_history
-    entry["recorded_at"] = datetime.utcnow().isoformat()
+    entry["recorded_at"] = datetime.now(timezone.utc).isoformat()
     _telemetry_history.append(entry)
     if len(_telemetry_history) > _HISTORY_MAX:
         _telemetry_history = _telemetry_history[-_HISTORY_MAX:]

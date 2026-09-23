@@ -8,7 +8,7 @@ Add GEMINI_API_KEY or OPENAI_API_KEY to .env for real LLM responses.
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..config import get_settings
 
@@ -273,7 +273,12 @@ _RESPONSES: dict[str, dict] = {
 
 
 async def respond(message: str, history: list[dict], context: dict) -> dict:
-    """Process a copilot message and return a structured response."""
+    """Process a copilot message and return a structured response.
+
+    Context injection: if the caller provides live metric readings via *context*,
+    we prepend a concise environment snapshot to the reply so the answer feels
+    grounded in the user's actual infrastructure state rather than generic advice.
+    """
     intent = _detect_intent(message)
 
     # Try real LLM if API key is available
@@ -284,14 +289,45 @@ async def respond(message: str, history: list[dict], context: dict) -> dict:
             pass  # fall through to rule-based
 
     template = _RESPONSES.get(intent, _RESPONSES["general"])
+    base_reply = template["reply"]
+
+    # Build a live-context prefix when metrics are present in the request context
+    ctx_lines: list[str] = []
+    if context:
+        provider = context.get("provider", "")
+        region = context.get("region", "")
+        cpu = context.get("cpu")
+        cost = context.get("cost_usd_per_hour")
+        carbon = context.get("carbon_gco2_per_hour")
+        score = context.get("overall_score")
+
+        parts: list[str] = []
+        if provider and region:
+            parts.append(f"**{provider.upper()} / {region}**")
+        if cpu is not None:
+            load = "high" if cpu > 75 else "moderate" if cpu > 45 else "low"
+            parts.append(f"CPU {cpu:.1f}% ({load} load)")
+        if cost is not None:
+            parts.append(f"${cost:.4f}/hr")
+        if carbon is not None:
+            parts.append(f"{carbon:.1f} gCO₂/hr")
+        if score is not None:
+            parts.append(f"score {score}/100")
+
+        if parts:
+            ctx_lines.append("*Live context: " + " · ".join(parts) + "*\n\n")
+
+    full_reply = "".join(ctx_lines) + base_reply
+
     return {
-        "reply": template["reply"],
+        "reply": full_reply,
         "actions": template.get("actions", []),
         "charts": [],
         "follow_up_suggestions": template.get("follow_up_suggestions", []),
         "intent": intent,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
+
 
 
 async def _llm_respond(message: str, history: list[dict], context: dict, intent: str) -> dict:
@@ -328,5 +364,5 @@ async def _llm_respond(message: str, history: list[dict], context: dict, intent:
         "charts": [],
         "follow_up_suggestions": template.get("follow_up_suggestions", []),
         "intent": intent,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }

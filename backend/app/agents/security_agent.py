@@ -5,7 +5,7 @@ unencrypted storage, and misconfigured security groups (rule-based, demo mode).
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ..schemas import CloudMetrics, RecommendationItem
 
@@ -113,5 +113,5 @@ def analyze(metrics: CloudMetrics, context: dict | None = None) -> dict:
         "findings": findings,
         "recommendations": recs,
         "score": max(0, min(100, score)),
-        "analyzed_at": datetime.utcnow().isoformat(),
+        "analyzed_at": datetime.now(timezone.utc).isoformat(),
     }

@@ -5,7 +5,7 @@ and embodied-carbon-aware recommendations.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .. import carbon
 from ..schemas import CloudMetrics, RecommendationItem
@@ -20,7 +20,7 @@ def analyze(metrics: CloudMetrics, context: dict | None = None) -> dict:
     carbon_gco2 = metrics.carbon_gco2_per_hour
     cpu = metrics.cpu
 
-    now_dt = datetime.utcnow()
+    now_dt = datetime.now(timezone.utc)
     current_hour = now_dt.hour
 
     # ── Carbon intensity of current region ────────────────────────────────────
@@ -120,5 +120,5 @@ def analyze(metrics: CloudMetrics, context: dict | None = None) -> dict:
         "findings": findings,
         "recommendations": recs,
         "score": max(0, min(100, score)),
-        "analyzed_at": datetime.utcnow().isoformat(),
+        "analyzed_at": datetime.now(timezone.utc).isoformat(),
     }

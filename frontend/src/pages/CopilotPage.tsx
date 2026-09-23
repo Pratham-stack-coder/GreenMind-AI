@@ -1,21 +1,65 @@
 import { useState, useRef, useEffect } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, MessageSquare, Sparkles, User, Bot } from 'lucide-react'
-import { sendCopilotMessage, fetchCopilotSuggestions } from '../api/client'
+import { Send, MessageSquare, Sparkles, User, Bot, Zap } from 'lucide-react'
+import { sendCopilotMessage, fetchCopilotSuggestions, fetchLiveMetrics, fetchScores } from '../api/client'
+import { useAppStore } from '../store'
 import type { CopilotMessage } from '../types'
 
+/** Full markdown renderer: headings, bold, italic, code blocks, inline code, bullets, numbered lists */
 function MarkdownText({ content }: { content: string }) {
-  // Minimal markdown: bold, code, bullets
   const html = content
+    // Code blocks (```...```) — process first to avoid other transforms inside
+    .replace(/```([^`]*?)```/gs, '<pre style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);padding:10px 12px;border-radius:8px;font-family:JetBrains Mono,monospace;font-size:12px;overflow-x:auto;margin:6px 0;white-space:pre-wrap">$1</pre>')
+    // Headings
+    .replace(/^### (.*)/gm, '<div style="font-size:13px;font-weight:700;color:var(--text-primary);margin:10px 0 4px">$1</div>')
+    .replace(/^## (.*)/gm, '<div style="font-size:15px;font-weight:700;color:var(--text-primary);margin:12px 0 4px">$1</div>')
+    .replace(/^# (.*)/gm, '<div style="font-size:17px;font-weight:800;color:var(--text-primary);margin:14px 0 6px">$1</div>')
+    // Bold + italic
+    .replace(/\*\*\*(.*?)\*\*\*/g, '<strong><em>$1</em></strong>')
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;font-family:JetBrains Mono,monospace;font-size:0.85em">$1</code>')
-    .replace(/^- (.*)/gm, '<li style="margin-left:12px;list-style:disc">$1</li>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    // Inline code
+    .replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;font-family:JetBrains Mono,monospace;font-size:0.85em;color:var(--emerald-400)">$1</code>')
+    // Bullets
+    .replace(/^- (.*)/gm, '<li style="margin-left:16px;list-style:disc;margin-bottom:2px">$1</li>')
+    // Numbered list
+    .replace(/^\d+\. (.*)/gm, '<li style="margin-left:16px;list-style:decimal;margin-bottom:2px">$1</li>')
+    // Horizontal rule
+    .replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:10px 0" />')
+    // Newlines → br (skip inside pre)
     .replace(/\n/g, '<br />')
+
   return <span dangerouslySetInnerHTML={{ __html: html }} />
 }
 
+/** Animated 3-dot typing indicator */
+function TypingDots() {
+  return (
+    <div style={{ display: 'flex', gap: 4, alignItems: 'center', padding: '4px 0' }}>
+      {[0, 1, 2].map(i => (
+        <motion.div
+          key={i}
+          animate={{ y: [0, -5, 0], opacity: [0.4, 1, 0.4] }}
+          transition={{ duration: 0.7, delay: i * 0.15, repeat: Infinity, ease: 'easeInOut' }}
+          style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--emerald-400)' }}
+        />
+      ))}
+    </div>
+  )
+}
+
+const QUICK_PROMPTS = [
+  { label: '💰 Reduce AWS costs', prompt: 'How can I reduce my AWS costs right now?' },
+  { label: '🌱 Carbon hotspots', prompt: 'What are my carbon emission hotspots?' },
+  { label: '🔒 Security score', prompt: 'Explain my current security score and how to improve it.' },
+  { label: '⚡ CPU spike', prompt: 'My CPU is spiking — what should I do?' },
+  { label: '🚀 Performance tips', prompt: 'Give me top 3 performance optimization tips.' },
+  { label: '📊 Cost forecast', prompt: 'What will my cloud costs look like next month?' },
+]
+
 export default function CopilotPage() {
+  const { provider, region } = useAppStore()
   const [messages, setMessages] = useState<CopilotMessage[]>([])
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -25,8 +69,27 @@ export default function CopilotPage() {
     queryFn: fetchCopilotSuggestions,
   })
 
+  const { data: liveMetrics } = useQuery({
+    queryKey: ['liveMetrics', provider, region],
+    queryFn: () => fetchLiveMetrics(provider, region),
+    refetchInterval: 30_000,
+  })
+
+  const { data: scores } = useQuery({
+    queryKey: ['scores', provider, region],
+    queryFn: () => fetchScores(provider, region),
+    refetchInterval: 60_000,
+  })
+
   const { mutate: send, isPending } = useMutation({
-    mutationFn: (message: string) => sendCopilotMessage(message, messages),
+    mutationFn: (message: string) => sendCopilotMessage(message, messages, {
+      provider,
+      region,
+      cpu: liveMetrics?.cpu,
+      cost_usd_per_hour: liveMetrics?.cost_usd_per_hour,
+      carbon_gco2_per_hour: liveMetrics?.carbon_gco2_per_hour,
+      overall_score: scores?.overall,
+    }),
     onSuccess: (data, message) => {
       setMessages(prev => [
         ...prev,
@@ -36,20 +99,16 @@ export default function CopilotPage() {
     },
   })
 
-  const handleSend = () => {
-    const msg = input.trim()
-    if (!msg || isPending) return
+  const handleSend = (msg?: string) => {
+    const text = (msg || input).trim()
+    if (!text || isPending) return
     setInput('')
-    send(msg)
-  }
-
-  const handleSuggestion = (s: string) => {
-    setInput(s)
+    send(text)
   }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages, isPending])
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 112px)' }}>
@@ -64,9 +123,16 @@ export default function CopilotPage() {
             Natural language interface to your cloud environment
           </p>
         </div>
-        <div className="badge badge-emerald">
-          <span className="status-dot online" style={{ width: 6, height: 6 }} />
-          Rule-based · No API key needed
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+          <div className="badge badge-emerald">
+            <span className="status-dot online animate-pulse-glow" style={{ width: 6, height: 6 }} />
+            Rule-based · No API key needed
+          </div>
+          {liveMetrics && (
+            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              Context: {provider.toUpperCase()} · {region} · CPU {liveMetrics.cpu.toFixed(0)}% · ${liveMetrics.cost_usd_per_hour.toFixed(4)}/hr
+            </div>
+          )}
         </div>
       </div>
 
@@ -82,22 +148,53 @@ export default function CopilotPage() {
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              style={{ textAlign: 'center', padding: '40px 0' }}
+              style={{ textAlign: 'center', padding: '32px 0' }}
             >
-              <Bot size={48} color="var(--emerald-400)" style={{ margin: '0 auto 16px' }} />
+              <div style={{
+                width: 60, height: 60, borderRadius: '50%',
+                background: 'linear-gradient(135deg, rgba(16,185,129,0.2), rgba(99,102,241,0.2))',
+                border: '2px solid rgba(16,185,129,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 16px',
+              }}>
+                <Bot size={28} color="var(--emerald-400)" />
+              </div>
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
                 Hello! I'm GreenMind Copilot
               </div>
-              <div className="text-secondary text-sm" style={{ maxWidth: 400, margin: '0 auto 24px' }}>
-                Ask me about cost optimization, sustainability, performance, security, or how to use any GreenMind feature.
+              <div className="text-secondary text-sm" style={{ maxWidth: 440, margin: '0 auto 28px' }}>
+                Ask me anything about <strong style={{ color: 'var(--text-primary)' }}>cost</strong>,{' '}
+                <strong style={{ color: 'var(--text-primary)' }}>sustainability</strong>,{' '}
+                <strong style={{ color: 'var(--text-primary)' }}>performance</strong>, or{' '}
+                <strong style={{ color: 'var(--text-primary)' }}>security</strong> in your cloud environment.
               </div>
+
+              {/* Quick prompt chips */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 16 }}>
+                {QUICK_PROMPTS.map(p => (
+                  <motion.button
+                    key={p.label}
+                    className="btn btn-secondary btn-sm"
+                    whileHover={{ scale: 1.04, borderColor: 'rgba(16,185,129,0.4)' }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => handleSend(p.prompt)}
+                    style={{ fontSize: 12, gap: 5 }}
+                  >
+                    {p.label}
+                  </motion.button>
+                ))}
+              </div>
+
+              {/* From API suggestions */}
               {suggestionsData && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-                  {suggestionsData.suggestions.slice(0, 6).map(s => (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', padding: '4px 0', width: '100%' }}>More questions:</span>
+                  {suggestionsData.suggestions.slice(0, 4).map(s => (
                     <button
                       key={s}
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => handleSuggestion(s)}
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => handleSend(s)}
+                      style={{ fontSize: 11 }}
                     >
                       {s}
                     </button>
@@ -133,11 +230,25 @@ export default function CopilotPage() {
             ))}
           </AnimatePresence>
 
+          {/* Typing indicator */}
           {isPending && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ alignSelf: 'flex-start' }}>
-              <div className="chat-bubble assistant" style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                <span className="animate-pulse-glow" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--emerald-400)', display: 'inline-block' }} />
-                <span className="text-secondary text-sm">Analyzing…</span>
+            <motion.div
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{ alignSelf: 'flex-start' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <div style={{
+                  width: 28, height: 28, borderRadius: '50%',
+                  background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Bot size={14} color="var(--emerald-400)" />
+                </div>
+                <span className="text-xs text-muted">GreenMind AI</span>
+              </div>
+              <div className="chat-bubble assistant" style={{ padding: '12px 16px' }}>
+                <TypingDots />
               </div>
             </motion.div>
           )}
@@ -145,13 +256,19 @@ export default function CopilotPage() {
           <div ref={bottomRef} />
         </div>
 
-        {/* Suggestions row */}
-        {messages.length > 0 && suggestionsData && (
-          <div style={{ padding: '8px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <span className="text-xs text-muted" style={{ padding: '4px 0', flexShrink: 0 }}>Try:</span>
-            {suggestionsData.suggestions.slice(0, 3).map(s => (
-              <button key={s} className="btn btn-ghost btn-sm" style={{ fontSize: 11, padding: '3px 8px' }} onClick={() => handleSuggestion(s)}>
-                {s}
+        {/* Inline suggestion chips during conversation */}
+        {messages.length > 0 && (
+          <div style={{ padding: '8px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Zap size={12} color="var(--emerald-400)" />
+            <span className="text-xs text-muted" style={{ flexShrink: 0 }}>Quick:</span>
+            {QUICK_PROMPTS.slice(0, 4).map(p => (
+              <button
+                key={p.label}
+                className="btn btn-ghost btn-sm"
+                style={{ fontSize: 11, padding: '3px 8px' }}
+                onClick={() => handleSend(p.prompt)}
+              >
+                {p.label}
               </button>
             ))}
           </div>
@@ -160,16 +277,19 @@ export default function CopilotPage() {
         {/* Input */}
         <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10 }}>
           <input
+            id="copilot-input"
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
             placeholder="Ask about cost, carbon, performance, security…"
             style={{ flex: 1 }}
+            disabled={isPending}
           />
           <button
+            id="copilot-send-btn"
             className="btn btn-primary"
             style={{ flexShrink: 0, padding: '9px 16px' }}
-            onClick={handleSend}
+            onClick={() => handleSend()}
             disabled={isPending || !input.trim()}
           >
             <Send size={16} />

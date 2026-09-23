@@ -2,6 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import Sidebar from './components/Layout/Sidebar'
 import TopBar from './components/Layout/TopBar'
+import NotificationsPanel from './components/Layout/NotificationsPanel'
 import DashboardPage from './pages/DashboardPage'
 import PredictionsPage from './pages/PredictionsPage'
 import RecommendationsPage from './pages/RecommendationsPage'
@@ -10,6 +11,7 @@ import DigitalTwinPage from './pages/DigitalTwinPage'
 import CopilotPage from './pages/CopilotPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import SettingsPage from './pages/SettingsPage'
+import { useAppStore } from './store'
 
 const pageTransition = {
   initial: { opacity: 0, y: 12 },
@@ -19,11 +21,18 @@ const pageTransition = {
 }
 
 export default function App() {
+  const { sidebarCollapsed } = useAppStore()
+  const sidebarWidth = sidebarCollapsed ? 64 : 240
+
   return (
     <div className="main-layout">
       <Sidebar />
-      <div className="content-area">
+      <div
+        className="content-area"
+        style={{ marginLeft: sidebarWidth, transition: 'margin-left 300ms cubic-bezier(0.4,0,0.2,1)' }}
+      >
         <TopBar />
+        <NotificationsPanel />
         <main className="page-content">
           <AnimatePresence mode="wait">
             <Routes>
