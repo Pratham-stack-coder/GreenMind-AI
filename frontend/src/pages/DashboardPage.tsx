@@ -118,31 +118,33 @@ export default function DashboardPage() {
   }
 
   // Determine Data Source Badge truthfully based on actual source
-  const isLive = Boolean(metrics?.source?.startsWith('LIVE'))
+  const isLive = Boolean(metrics?.source && typeof metrics.source === 'string' && metrics.source.startsWith('LIVE'))
   const sourceLabel = isLive ? `LIVE ${provider.toUpperCase()}` : 'DEMO MODE (SYNTHETIC)'
 
   // Prepare chart histories
-  const rawEntries = (history?.entries || []).slice(0, 24).reverse()
+  const rawEntries = Array.isArray(history?.entries) ? history.entries.slice(0, 24).reverse() : []
   const chartData = rawEntries.map((e: CloudMetrics, i: number) => ({
     time: `${i * 15}m`,
-    CPU: e.cpu,
-    Memory: e.memory,
-    Network: e.network,
-    Cost: e.cost_usd_per_hour,
-    Carbon: e.carbon_gco2_per_hour,
+    CPU: typeof e?.cpu === 'number' ? e.cpu : 45,
+    Memory: typeof e?.memory === 'number' ? e.memory : 55,
+    Network: typeof e?.network === 'number' ? e.network : 400,
+    Cost: typeof e?.cost_usd_per_hour === 'number' ? e.cost_usd_per_hour : 0.19,
+    Carbon: typeof e?.carbon_gco2_per_hour === 'number' ? e.carbon_gco2_per_hour : 75,
   }))
 
   // Chart data for Predicted CPU (Historical + Future Projection)
+  const currentCpu = typeof metrics?.cpu === 'number' ? metrics.cpu : 50
   const predictedChartData = [
     ...chartData.slice(-6).map((c, i) => ({ time: `T-${(6 - i) * 15}m`, Actual: c.CPU, Projected: null as number | null })),
-    { time: 'Now', Actual: metrics?.cpu ?? 50, Projected: metrics?.cpu ?? 50 },
-    { time: '+15m', Actual: null, Projected: Math.round(((metrics?.cpu ?? 50) * 0.6 + (forecast?.cpu?.predicted ?? 50) * 0.4) * 10) / 10 },
-    { time: '+30m', Actual: null, Projected: Math.round(((metrics?.cpu ?? 50) * 0.3 + (forecast?.cpu?.predicted ?? 50) * 0.7) * 10) / 10 },
+    { time: 'Now', Actual: currentCpu, Projected: currentCpu },
+    { time: '+15m', Actual: null, Projected: Math.round(((currentCpu * 0.6) + ((forecast?.cpu?.predicted ?? 50) * 0.4)) * 10) / 10 },
+    { time: '+30m', Actual: null, Projected: Math.round(((currentCpu * 0.3) + ((forecast?.cpu?.predicted ?? 50) * 0.7)) * 10) / 10 },
     { time: '+60m', Actual: null, Projected: forecast?.cpu?.predicted ?? 50 },
   ]
 
-  const criticalCount = recs?.recommendations.filter(r => r.priority === 'critical').length || 0
-  const topRec = recs?.recommendations?.[0]
+  const recsList = Array.isArray(recs?.recommendations) ? recs.recommendations : []
+  const criticalCount = recsList.filter(r => r.priority === 'critical').length
+  const topRec = recsList[0]
 
   return (
     <div className="animate-fade-in">
@@ -197,7 +199,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Domain Score & Radar Banner */}
-      {scores && (
+      {scores && typeof scores.overall === 'number' && (
         <div className="card card-accent-emerald mb-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>

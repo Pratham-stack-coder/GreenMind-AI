@@ -39,7 +39,7 @@ export default function TopBar() {
 
   // ── Source 1: Critical/High recommendations ──────────────────────────────
   useEffect(() => {
-    if (!recs?.recommendations) return
+    if (!Array.isArray(recs?.recommendations)) return
     const urgent = recs.recommendations.filter(r => r.priority === 'critical' || r.priority === 'high')
     urgent.slice(0, 4).forEach(r => {
       addNotification({
@@ -54,7 +54,7 @@ export default function TopBar() {
   // ── Source 2: Live metric threshold alerts ───────────────────────────────
   const prevMetricsRef = useRef<{ cpu?: number; cost?: number }>({})
   useEffect(() => {
-    if (!liveMetrics) return
+    if (!liveMetrics || typeof liveMetrics.cpu !== 'number') return
     const prev = prevMetricsRef.current
 
     // CPU spike alert (>85% and not already alerted in this session)
