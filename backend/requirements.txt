@@ -12,9 +12,9 @@ langchain-core==0.3.9
 # Optional — for real LLM Copilot responses
 # openai==1.50.0
 # google-generativeai==0.8.2
-# Optional — for PostgreSQL async
-# sqlalchemy[asyncio]==2.0.35
-# asyncpg==0.29.0
-# Optional — for Redis caching
+sqlalchemy[asyncio]==2.0.54
+aiosqlite==0.22.1
+boto3==1.43.100
 httpx==0.28.1
 pytest==9.1.1
+
