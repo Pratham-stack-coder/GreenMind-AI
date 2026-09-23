@@ -13,6 +13,9 @@ import joblib
 import pandas as pd
 
 HERE = Path(__file__).resolve().parent
+MODEL_DIR = HERE
+METRICS_FILE = HERE / "metrics.json"
+FEATURE_IMPORTANCE_FILE = HERE / "feature_importance.json"
 
 CPU_FEATURES = ["cpu", "hour", "day_of_week", "cpu_rolling_avg_1h", "cpu_rolling_std_1h"]
 MEMORY_FEATURES = ["memory", "hour", "day_of_week", "memory_rolling_avg_1h", "memory_rolling_std_1h"]
@@ -173,3 +176,92 @@ def predict_all(
         "cost": predict_cost(cpu, memory, cost_usd, hour, day_of_week),
         "carbon": predict_carbon(carbon_intensity, hour, day_of_week, cpu),
     }
+
+
+def predict_next_cpu(current_cpu: float, hour: float = 12.0, day_of_week: float | int = 0) -> dict:
+    """Predict CPU utilization for legacy endpoint compatibility."""
+    f = predict_cpu(current_cpu, hour, int(day_of_week))
+    risk = "LOW"
+    if f.predicted >= 85:
+        risk = "CRITICAL"
+    elif f.predicted >= 70:
+        risk = "HIGH"
+    elif f.predicted >= 50:
+        risk = "MEDIUM"
+    return {
+        "current_cpu": f.current,
+        "predicted_cpu": f.predicted,
+        "delta_percent": f.delta_pct,
+        "anomaly": f.anomaly,
+        "confidence": f.confidence,
+        "risk": risk,
+    }
+
+
+class MultiMetricPredictor:
+    """Wrapper class providing multi-step forecasting across all 5 models."""
+
+    def __init__(self):
+        self.is_loaded = True
+
+    def predict_all(self, cpu: float, memory: float, network: float, cost: float, carbon: float, hour: int = 12, day_of_week: int = 0) -> dict[str, float]:
+        preds = predict_all(
+            cpu=cpu,
+            memory=memory,
+            network=network,
+            cost_usd=cost,
+            carbon_intensity=carbon,
+            hour=float(hour),
+            day_of_week=day_of_week,
+        )
+        return {k: v.predicted for k, v in preds.items()}
+
+    def forecast_multi_step(self, current_metrics: dict[str, float], steps: int = 12, current_hour: int = 12, current_day: int = 0) -> dict[str, list[dict]]:
+        """Forecast multiple time steps ahead (e.g. 12 steps x 5 min = 60 min)."""
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        results: dict[str, list[dict]] = {
+            "cpu": [],
+            "memory": [],
+            "network": [],
+            "cost": [],
+            "carbon": [],
+        }
+
+        cpu = current_metrics.get("cpu", 50.0)
+        mem = current_metrics.get("memory", 55.0)
+        net = current_metrics.get("network", 250.0)
+        cost = current_metrics.get("cost", 0.19)
+        carb = current_metrics.get("carbon", 40.0)
+
+        for step in range(1, steps + 1):
+            step_time = now + timedelta(minutes=step * 5)
+            h = step_time.hour
+            d = step_time.weekday()
+            
+            p = predict_all(cpu=cpu, memory=mem, network=net, cost_usd=cost, carbon_intensity=carb, hour=float(h), day_of_week=d)
+            
+            # update rolling values for next step
+            cpu = 0.7 * cpu + 0.3 * p["cpu"].predicted
+            mem = 0.8 * mem + 0.2 * p["memory"].predicted
+            net = 0.7 * net + 0.3 * p["network"].predicted
+            cost = p["cost"].predicted
+            carb = p["carbon"].predicted
+
+            for target in ["cpu", "memory", "network", "cost", "carbon"]:
+                results[target].append({
+                    "step": step,
+                    "minutes_ahead": step * 5,
+                    "predicted": p[target].predicted,
+                    "delta_pct": p[target].delta_pct,
+                    "anomaly": p[target].anomaly,
+                    "confidence": p[target].confidence,
+                    "timestamp": step_time.isoformat(),
+                })
+
+        return results
+
+
+def get_multi_predictor() -> MultiMetricPredictor:
+    return MultiMetricPredictor()
+

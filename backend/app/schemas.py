@@ -232,6 +232,9 @@ class InstanceChange(BaseModel):
     scale_factor: float = 1.0  # for scale_out / scale_in
     target_region: str | None = None  # for migrate
 
+SimulationChange = InstanceChange
+
+
 
 class SimulationRequest(BaseModel):
     baseline_metrics: CloudMetrics

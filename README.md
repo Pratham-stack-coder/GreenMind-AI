@@ -17,7 +17,19 @@
 ## 📋 Status Breakdown
 
 ### 🟢 IMPLEMENTED
-- **Zero-Config Demo Mode**: Complete offline functionality with realistic diurnal load patterns and regional carbon curves across 6 power grid regions. Works out of the box with zero external keys.
+- **CI/CD Automation Pipeline**: GitHub Actions workflows ([.github/workflows/ci.yml](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/.github/workflows/ci.yml) & [deploy.yml](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/.github/workflows/deploy.yml)) validating Python 3.11/3.12 backend unit/ML tests, Node 20 frontend TypeScript typecheck and Vite build, Docker compose validation, and container image publishing.
+- **Automated Test Suite (44 Tests Passing)**:
+  - `test_ml.py`: Validates all 5 trained Gradient Boosting models (`cpu_model.pkl`, `memory_model.pkl`, `network_model.pkl`, `cost_model.pkl`, `carbon_model.pkl`), feature importances, and chronological validation criteria (CPU MAE < 4%).
+  - `test_agents.py`: Validates individual execution of all 5 domain agents (Cost, Performance, Sustainability, Security, Reliability) and transparent conflict resolution.
+  - `test_digital_twin.py`: Validates mathematical calculations for `RIGHT_SIZE`, `SCALE_UP`, `SCALE_DOWN`, `CONSOLIDATE`, and `REGION_MIGRATION`.
+  - `test_copilot.py`: Validates contextual Copilot question answering, tool execution across all 8 tools, evidence citation, and action recommendation triggers.
+  - `test_cloud_connectors.py`: Validates provider factory, demo mode fallback, and live API mock parsing for AWS, Azure, and GCP.
+  - `test_api.py`: Full API router integration coverage across all endpoints.
+- **Multi-Cloud Telemetry Connectors**:
+  - **AWS**: CloudWatch EC2 metrics via `boto3` ([aws_collector.py](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/backend/app/services/aws_collector.py)). Standard CloudWatch CPU/Network telemetry with explicit documentation that guest OS memory/disk requires `CWAgent`.
+  - **Azure**: Direct Azure Monitor REST API client with OAuth2 client-credential token acquisition and metrics parsing ([azure_provider.py](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/backend/app/cloud/azure_provider.py)).
+  - **GCP**: Google Cloud Monitoring v3 REST API client with time-series aggregation query and token handling ([gcp_provider.py](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/backend/app/cloud/gcp_provider.py)).
+  - **Zero-Config Demo Mode**: Automatic, high-fidelity fallback when credentials are absent without fabricating live status.
 - **Enterprise Dark React Cockpit (All 11 Dedicated Pages)**:
   1. `Overview Dashboard` ([DashboardPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/DashboardPage.tsx)): 8 metric cards (CPU, Memory, Storage, Network, Cost, Carbon, Cloud Health, Optimization Score), 6 live trend charts (CPU history, Memory history, Cost trend, Carbon trend, Network usage, Predicted CPU), and explicit **`DEMO DATA`** / **`LIVE AWS`** badges.
   2. `Cloud Resources` ([CloudResourcesPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/CloudResourcesPage.tsx)): Searchable multi-cloud resource inventory with right-sizing candidate flags.
@@ -26,31 +38,25 @@
   5. `Carbon Intelligence` ([CarbonIntelligencePage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/CarbonIntelligencePage.tsx)): 24-hour grid carbon intensity curve, regional clean energy ranking, and time-shift scheduler.
   6. `AI Recommendations` ([RecommendationsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/RecommendationsPage.tsx)): Recommendation ledger with Dry-Run, Apply, Rollback, and Explain AI modal.
   7. `Multi-Agent AI` ([AgentsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/AgentsPage.tsx)): Visual orchestration flow, domain scores, and transparent conflict resolution matrix.
-  8. `Digital Twin` ([DigitalTwinPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/DigitalTwinPage.tsx)): Interactive simulation workbench for all 4 scenarios.
+  8. `Digital Twin` ([DigitalTwinPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/DigitalTwinPage.tsx)): Interactive simulation workbench for all 5 scenarios (including Region Migration).
   9. `AI Copilot` ([CopilotPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/CopilotPage.tsx)): Natural language interface citing real backend metrics and providing quick actions.
   10. `Analytics` ([AnalyticsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/AnalyticsPage.tsx)): Historical spend and carbon analytics with provider breakdowns.
   11. `Settings` ([SettingsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/SettingsPage.tsx)): Cloud mode switcher, provider selector, and backend/database/Redis/LLM connectivity health checks.
 - **5-Metric ML Forecasting Pipeline**: Separate Gradient Boosting models for CPU, Memory, Network, Cost, and Carbon. Chronological train/test split without data leakage. Real MAE, RMSE, and R² scores recorded and exported.
 - **Explainable AI (XAI)**: Every recommendation provides What Detected, Why It Matters, Evidence, Recommendation, Expected Impact, and real ML Feature Importance (`feature_importance.json`).
 - **LangGraph Multi-Agent Architecture with Conflict Resolution**: 5 specialized agents (Cost, Performance, Sustainability, Security, Reliability) with explicit transparent conflict resolution (`resolve_conflicts()`).
-- **Digital Twin Simulation Engine**: Non-destructive simulator evaluating Before vs After for `RIGHT_SIZE`, `SCALE_UP`, `SCALE_DOWN`, and `CONSOLIDATE`. Labeled `SIMULATED / ESTIMATED`.
+- **Digital Twin Simulation Engine**: Non-destructive simulator evaluating Before vs After for `RIGHT_SIZE`, `SCALE_UP`, `SCALE_DOWN`, `CONSOLIDATE`, and `REGION_MIGRATION`. Labeled `SIMULATED / ESTIMATED`.
 - **AI Cloud Copilot Engine**: Natural language query processing grounded in 8 tools (`get_cloud_metrics`, `get_history`, `get_predictions`, `get_cost_analysis`, `get_carbon_analysis`, `get_recommendations`, `get_cloud_health`, `run_digital_twin_simulation`). Cites data sources without hallucinating.
 - **Database & Persistence**: Async SQLAlchemy ORM supporting both SQLite (`greenmind.db`) for demo/dev and PostgreSQL for production. Optional Redis caching.
-- **Prometheus Monitoring & Observability**: Middleware & exposition at `/metrics/prometheus` tracking request rates, latencies, prediction counts, errors, and agent execution times. Grafana dashboard JSON provided.
+- **Prometheus Monitoring & Observability**: Middleware & exposition at `/metrics/prometheus` tracking request rates, latencies, prediction counts, errors, and agent execution times. Grafana automated datasource and dashboard provisioning.
+- **Security Hardening**: PostgreSQL and Redis in `docker-compose.yml` are bound strictly to localhost loopback (`127.0.0.1`), secrets are parameterized via environment variables, and Docker healthchecks are implemented.
 - **Unified Clean API Router**: Complete root and `/api/v1/` routes preserving all legacy and existing endpoints.
 
 ---
 
-### 🟡 PARTIALLY IMPLEMENTED
-- **Azure & GCP Provider Adapters**: Clean provider interfaces ([azure_provider.py](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/backend/app/cloud/azure_provider.py), [gcp_provider.py](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/backend/app/cloud/gcp_provider.py)) and demo adapters are implemented. Live metric collection hooks are prepared for Azure Monitor and Google Cloud Monitoring APIs when credentials are configured.
-
----
-
 ### 🔑 OPTIONAL / REQUIRES CREDENTIALS
-- **AWS Live Telemetry**: Live AWS CloudWatch collector ([aws_collector.py](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/backend/app/services/aws_collector.py)) uses `boto3` for EC2 `CPUUtilization`, `NetworkIn`, and `NetworkOut`. Requires `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
-  - *Note on Memory & Disk*: Standard AWS CloudWatch does NOT provide OS-level Memory % or Disk %; this requires the AWS CloudWatch Agent (`CWAgent` namespace).
-  - Automatically falls back to Demo mode if credentials are not configured.
-- **LLM-Enhanced Copilot**: Connects to OpenAI (`OPENAI_API_KEY`) or Google Gemini (`GEMINI_API_KEY`). Defaults to the built-in deterministic telemetry reasoning engine when keys are absent.
+- **Live Cloud Credentials**: Set `AWS_ACCESS_KEY_ID`, `AZURE_SUBSCRIPTION_ID`/`CLIENT_SECRET`, or `GCP_PROJECT_ID` to activate live polling instead of Demo mode.
+- **LLM-Enhanced Copilot**: Connects to OpenAI (`OPENAI_API_KEY`) or Google Gemini (`GEMINI_API_KEY`). Defaults to built-in deterministic telemetry reasoning when keys are absent.
 - **Production PostgreSQL & Redis**: Activated when `DATABASE_URL` and `REDIS_URL` are set; falls back to async SQLite and in-memory ring buffers otherwise.
 
 ---

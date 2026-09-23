@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: 'GreenMind AI Dashboards'
+    orgId: 1
+    folder: 'GreenMind'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

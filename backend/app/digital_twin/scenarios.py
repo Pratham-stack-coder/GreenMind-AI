@@ -126,6 +126,34 @@ def apply_scenario(scenario: str, before: StateSnapshot) -> tuple[StateSnapshot,
             f"Consolidation saves ${monthly_saving:.0f}/mo and trims Scope 2 carbon by 32%.",
         )
 
+    elif scenario_clean in ["REGION_MIGRATION", "REGION_MIGRATE"]:
+        # Region Migration: e.g. shifting workload to hydro/nuclear green grid (e.g. eu-north-1 / us-west-2)
+        # Slashes carbon emissions by 75% with negligible compute cost difference (~5% savings in cold climate regions)
+        after_cpu = before.cpu
+        after_mem = before.memory
+        after_cost = round(before.cost * 0.95, 2)
+        after_carbon = round(before.carbon * 0.25, 2)
+        monthly_saving = round(before.cost * 0.05 * 24 * 30, 2)
+        monthly_carbon_red = round(before.carbon * 0.75 * 24 * 30 / 1000, 3)
+
+        after = StateSnapshot(
+            cpu=after_cpu,
+            memory=after_mem,
+            cost=after_cost,
+            carbon=after_carbon,
+            instance_count=before.instance_count,
+            monthly_cost=round(after_cost * 24 * 30, 2),
+            monthly_carbon_kg=round(after_carbon * 24 * 30 / 1000, 3),
+        )
+        return (
+            after,
+            monthly_saving,
+            monthly_carbon_red,
+            "Clean energy grid — 75% Scope 2 carbon drop with +18ms ingress latency for North American users",
+            "LOW",
+            f"Region migration cuts carbon footprint by {monthly_carbon_red:.2f} kgCO2/mo with minor egress considerations.",
+        )
+
     # Fallback / Custom
     after = StateSnapshot(
         cpu=round(before.cpu * 0.85, 1),
@@ -144,3 +172,4 @@ def apply_scenario(scenario: str, before: StateSnapshot) -> tuple[StateSnapshot,
         "LOW",
         "Custom scenario simulation completed.",
     )
+
