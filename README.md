@@ -14,24 +14,50 @@
 
 ---
 
-## 📋 Implementation Status & Reality Matrix
+## 📋 Status Breakdown
 
-In accordance with engineering integrity principles, the table below documents the exact operational state of each platform capability:
+### 🟢 IMPLEMENTED
+- **Zero-Config Demo Mode**: Complete offline functionality with realistic diurnal load patterns and regional carbon curves across 6 power grid regions. Works out of the box with zero external keys.
+- **Enterprise Dark React Cockpit (All 11 Dedicated Pages)**:
+  1. `Overview Dashboard` ([DashboardPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/DashboardPage.tsx)): 8 metric cards (CPU, Memory, Storage, Network, Cost, Carbon, Cloud Health, Optimization Score), 6 live trend charts (CPU history, Memory history, Cost trend, Carbon trend, Network usage, Predicted CPU), and explicit **`DEMO DATA`** / **`LIVE AWS`** badges.
+  2. `Cloud Resources` ([CloudResourcesPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/CloudResourcesPage.tsx)): Searchable multi-cloud resource inventory with right-sizing candidate flags.
+  3. `Predictions` ([PredictionsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/PredictionsPage.tsx)): 60-minute multi-metric forecasting and model evaluation telemetry.
+  4. `Cost Optimization` ([CostOptimizationPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/CostOptimizationPage.tsx)): Spend curve, underutilization detection, and instant scenario simulator.
+  5. `Carbon Intelligence` ([CarbonIntelligencePage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/CarbonIntelligencePage.tsx)): 24-hour grid carbon intensity curve, regional clean energy ranking, and time-shift scheduler.
+  6. `AI Recommendations` ([RecommendationsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/RecommendationsPage.tsx)): Recommendation ledger with Dry-Run, Apply, Rollback, and Explain AI modal.
+  7. `Multi-Agent AI` ([AgentsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/AgentsPage.tsx)): Visual orchestration flow, domain scores, and transparent conflict resolution matrix.
+  8. `Digital Twin` ([DigitalTwinPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/DigitalTwinPage.tsx)): Interactive simulation workbench for all 4 scenarios.
+  9. `AI Copilot` ([CopilotPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/CopilotPage.tsx)): Natural language interface citing real backend metrics and providing quick actions.
+  10. `Analytics` ([AnalyticsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/AnalyticsPage.tsx)): Historical spend and carbon analytics with provider breakdowns.
+  11. `Settings` ([SettingsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/SettingsPage.tsx)): Cloud mode switcher, provider selector, and backend/database/Redis/LLM connectivity health checks.
+- **5-Metric ML Forecasting Pipeline**: Separate Gradient Boosting models for CPU, Memory, Network, Cost, and Carbon. Chronological train/test split without data leakage. Real MAE, RMSE, and R² scores recorded and exported.
+- **Explainable AI (XAI)**: Every recommendation provides What Detected, Why It Matters, Evidence, Recommendation, Expected Impact, and real ML Feature Importance (`feature_importance.json`).
+- **LangGraph Multi-Agent Architecture with Conflict Resolution**: 5 specialized agents (Cost, Performance, Sustainability, Security, Reliability) with explicit transparent conflict resolution (`resolve_conflicts()`).
+- **Digital Twin Simulation Engine**: Non-destructive simulator evaluating Before vs After for `RIGHT_SIZE`, `SCALE_UP`, `SCALE_DOWN`, and `CONSOLIDATE`. Labeled `SIMULATED / ESTIMATED`.
+- **AI Cloud Copilot Engine**: Natural language query processing grounded in 8 tools (`get_cloud_metrics`, `get_history`, `get_predictions`, `get_cost_analysis`, `get_carbon_analysis`, `get_recommendations`, `get_cloud_health`, `run_digital_twin_simulation`). Cites data sources without hallucinating.
+- **Database & Persistence**: Async SQLAlchemy ORM supporting both SQLite (`greenmind.db`) for demo/dev and PostgreSQL for production. Optional Redis caching.
+- **Prometheus Monitoring & Observability**: Middleware & exposition at `/metrics/prometheus` tracking request rates, latencies, prediction counts, errors, and agent execution times. Grafana dashboard JSON provided.
+- **Unified Clean API Router**: Complete root and `/api/v1/` routes preserving all legacy and existing endpoints.
 
-| Capability | Status | Implementation Details |
-| :--- | :--- | :--- |
-| **Demo Mode (Zero-Config)** | **IMPLEMENTED** | High-fidelity diurnal patterns for 6 regional grids across AWS, Azure, and GCP. Works completely offline with zero credentials required. |
-| **All 11 Frontend Pages** | **IMPLEMENTED** | Built with React 18, TypeScript, Lucide React, and Recharts. Includes Overview, Cloud Resources, Predictions, Cost Optimization, Carbon Intelligence, AI Recommendations, Multi-Agent AI, Digital Twin, AI Copilot, Analytics, and Settings. |
-| **5-Metric ML Forecasting** | **IMPLEMENTED** | Separate Gradient Boosting models for CPU, Memory, Network, Cost, and Carbon. Evaluated with chronological train/test split (no data leakage). Real MAE, RMSE, and R² scores recorded. |
-| **Explainable AI (XAI)** | **IMPLEMENTED** | Every recommendation provides What Detected, Why It Matters, Evidence, Recommendation, Expected Impact, and real ML Feature Importance. |
-| **Multi-Agent AI** | **IMPLEMENTED** | 5 specialized agents (Cost, Performance, Sustainability, Security, Reliability) with LangGraph StateGraph orchestration and transparent conflict resolution. |
-| **Digital Twin Simulator** | **IMPLEMENTED** | Non-destructive simulation engine evaluating Before vs After for `RIGHT_SIZE`, `SCALE_UP`, `SCALE_DOWN`, and `CONSOLIDATE`. |
-| **AI Cloud Copilot** | **IMPLEMENTED** | Grounded in 8 real application tools and knowledge context. Operates via deterministic engine in Demo Mode, or connects to OpenAI/Gemini when API keys are configured. |
-| **Database & Persistence** | **IMPLEMENTED** | Async SQLAlchemy ORM supporting both SQLite (`greenmind.db`) for development/demo and PostgreSQL for production. Optional Redis caching. |
-| **Prometheus Monitoring** | **IMPLEMENTED** | Middleware and text exposition endpoint at `/metrics/prometheus` tracking request rates, latencies, prediction counts, errors, and agent execution times. Grafana JSON dashboard provided. |
-| **AWS Live Telemetry** | **REQUIRES CREDENTIALS** | Live AWS CloudWatch collector (`boto3`) implemented for EC2 CPU utilization and network I/O. Memory and disk metrics require the AWS CloudWatch Agent (`CWAgent` namespace). Falls back gracefully to Demo mode if credentials are absent. |
-| **Azure & GCP Adapters** | **PARTIALLY IMPLEMENTED** | Standard provider interfaces and safe demo adapters implemented. Live telemetry hooks defined for Azure Monitor and Google Cloud Monitoring APIs when credentials are provided. |
-| **Direct Cloud Remediations** | **PLANNED** | Currently, optimizations are simulated or dry-run logged to the audit ledger. Automated direct destructive AWS instance modifications via IAM are planned for future safety-gated releases. |
+---
+
+### 🟡 PARTIALLY IMPLEMENTED
+- **Azure & GCP Provider Adapters**: Clean provider interfaces ([azure_provider.py](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/backend/app/cloud/azure_provider.py), [gcp_provider.py](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/backend/app/cloud/gcp_provider.py)) and demo adapters are implemented. Live metric collection hooks are prepared for Azure Monitor and Google Cloud Monitoring APIs when credentials are configured.
+
+---
+
+### 🔑 OPTIONAL / REQUIRES CREDENTIALS
+- **AWS Live Telemetry**: Live AWS CloudWatch collector ([aws_collector.py](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/backend/app/services/aws_collector.py)) uses `boto3` for EC2 `CPUUtilization`, `NetworkIn`, and `NetworkOut`. Requires `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+  - *Note on Memory & Disk*: Standard AWS CloudWatch does NOT provide OS-level Memory % or Disk %; this requires the AWS CloudWatch Agent (`CWAgent` namespace).
+  - Automatically falls back to Demo mode if credentials are not configured.
+- **LLM-Enhanced Copilot**: Connects to OpenAI (`OPENAI_API_KEY`) or Google Gemini (`GEMINI_API_KEY`). Defaults to the built-in deterministic telemetry reasoning engine when keys are absent.
+- **Production PostgreSQL & Redis**: Activated when `DATABASE_URL` and `REDIS_URL` are set; falls back to async SQLite and in-memory ring buffers otherwise.
+
+---
+
+### 🔮 PLANNED
+- **Direct Cloud Remediations**: Automated direct destructive instance modifications via IAM (currently actions are non-destructively simulated, dry-run tested, and logged to the audit ledger).
+- **Automated Spot Interruption Re-balancing**: Proactive migration of stateless workloads before Spot termination notices fire.
 
 ---
 
@@ -70,7 +96,7 @@ graph TD
     end
 
     subgraph Frontend["React Enterprise Cockpit"]
-        DASH[11 Specialized Pages]
+        DASH[11 Dedicated Pages]
     end
 
     Multi_Cloud --> INGEST
@@ -89,80 +115,73 @@ graph TD
 
 ## 🔮 Machine Learning Pipeline
 
-The machine learning pipeline forecasts cloud infrastructure demand across 5 dimensions 60 minutes into the future:
+The ML pipeline forecasts cloud demand across 5 dimensions 60 minutes into the future without data leakage (chronological split):
 
-1. **CPU Forecaster**: Predicts future CPU utilization using rolling averages, standard deviation, and diurnal time encodings.
-2. **Memory Forecaster**: Predicts memory utilization with capacity saturation alerts.
-3. **Network Forecaster**: Predicts I/O bandwidth demand (Mbps).
-4. **Cost Forecaster**: Forecasts hourly spend rates based on compute demand and provider pricing tiers.
-5. **Carbon Forecaster**: Projects Scope 2 emissions based on regional grid carbon intensity cycles.
+### Model Evaluation Telemetry (Test Set)
 
-### Actual Model Evaluation Metrics (Test Set)
-
-| Metric Target | MAE | RMSE | R² Score | Baseline Improvement |
-| :--- | :---: | :---: | :---: | :---: |
-| **CPU Utilization (%)** | **3.809%** | 4.811% | 0.855 | +41.4% over naive baseline |
-| **Memory Utilization (%)** | **2.979%** | 3.704% | 0.636 | +25.4% over naive baseline |
-| **Network Traffic (Mbps)** | **43.876** | 55.328 | 0.871 | +45.4% over naive baseline |
-| **Cost (USD/hr)** | **$0.009** | $0.011 | 0.474 | +100.0% over naive baseline |
-| **Carbon (gCO₂/hr)** | **4.061** | 5.087 | 0.391 | +98.9% over naive baseline |
-
-*All models use chronological train/test splitting (first 80% chronologically for training, final 20% for testing) to prevent temporal data leakage.*
+| Target Metric | Model Architecture | MAE | RMSE | R² Score | Baseline Improvement |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| **CPU Utilization (%)** | GradientBoostingRegressor | **3.809%** | 4.811% | 0.855 | +41.4% vs naive |
+| **Memory Utilization (%)** | GradientBoostingRegressor | **2.979%** | 3.704% | 0.636 | +25.4% vs naive |
+| **Network Traffic (Mbps)** | GradientBoostingRegressor | **43.876** | 55.328 | 0.871 | +45.4% vs naive |
+| **Hourly Cost (USD/hr)** | GradientBoostingRegressor | **$0.009** | $0.011 | 0.474 | +100.0% vs naive |
+| **Carbon Intensity (gCO₂/hr)** | GradientBoostingRegressor | **4.061** | 5.087 | 0.391 | +98.9% vs naive |
 
 ---
 
-## 🤖 Multi-Agent Architecture & Conflict Resolution
+## 🤖 Multi-Agent Architecture & Transparent Conflict Resolution
 
-The multi-agent system uses LangGraph to coordinate 5 specialized intelligence agents:
+The multi-agent system coordinates 5 specialized domain agents:
 - **Cost Agent**: Identifies over-provisioned VMs, idle storage volumes, and right-sizing targets.
 - **Performance Agent**: Detects latency risks, capacity saturation, and scaling requirements.
 - **Sustainability Agent**: Evaluates grid carbon intensity curves and recommends time-shifting batch compute to green windows.
 - **Security Agent**: Audits security group exposure and enforces encryption standards.
 - **Reliability Agent**: Verifies multi-AZ redundancy and backup SLA compliance.
 
-### Transparent Conflict Resolution Engine
-When agents have opposing goals (e.g., Performance Agent recommends `SCALE_UP` to minimize latency, while Cost Agent recommends `SCALE_DOWN` to cut spend), GreenMind **does not hide the conflict**. The Decision Engine reconciles the trade-off based on priority, confidence, and severity, outputting both the opposing views and the balanced decision:
+### Transparent Conflict Reconciler
+Opposing recommendations are never hidden:
 - **High CPU Workload (>75%)**: Reconciles to `SCALE_UP_CONSTRAINED` to safeguard SLAs while enforcing auto-scaling step-down rules.
 - **Moderate CPU Workload (<35%)**: Reconciles to `RIGHT_SIZE_WITH_PREDICTIVE_AUTOSCALING` to capture up to 35% savings while maintaining instant burst capacity.
+- **Off-Peak Batch Jobs**: Reconciles to `TIME_SHIFT_NON_CRITICAL_WORKLOADS` during low-carbon grid windows.
 
 ---
 
 ## 🧪 Digital Twin Simulation Engine
 
-The Digital Twin (`/digital-twin/simulate` and `/digital-twin/scenario`) allows cloud architects to safely simulate the impact of infrastructure modifications without altering production systems:
-- `RIGHT_SIZE`: Simulates migrating to a modern, right-sized instance family (e.g., m5.xlarge -> m5.large).
-- `SCALE_UP`: Simulates adding compute nodes to evaluate p99 latency reduction and cost increases.
-- `SCALE_DOWN`: Simulates terminating unneeded instances to project maximum monthly savings against headroom risk.
-- `CONSOLIDATE`: Simulates bin-packing workloads into fewer, denser instances.
+The Digital Twin (`/digital-twin/simulate` and `/digital-twin/scenario`) evaluates the before and after impacts of 4 standard scenarios:
+- `RIGHT_SIZE`: Instance family modernization (e.g., m5.xlarge -> m5.large).
+- `SCALE_UP`: Compute expansion for peak traffic protection.
+- `SCALE_DOWN`: Idle instance reclamation.
+- `CONSOLIDATE`: Node bin-packing and cluster compaction.
 
-All simulation outputs explicitly state **`SIMULATED / ESTIMATED`** and include Before vs After comparisons for CPU, Memory, Cost, Carbon, and Performance Risk.
-
----
-
-## 💬 AI Cloud Copilot
-
-The AI Cloud Copilot (`POST /copilot/chat`) answers conversational questions grounded in real application telemetry:
-- Uses 8 direct GreenMind tools: `get_cloud_metrics`, `get_history`, `get_predictions`, `get_cost_analysis`, `get_carbon_analysis`, `get_recommendations`, `get_cloud_health`, `run_digital_twin_simulation`.
-- Automatically cites evidence sources (e.g. `["cloud_metrics", "cost_analysis"]`).
-- In **Demo Mode**, operates via an intelligent deterministic engine answering strictly from active metrics without hallucination.
-- When `OPENAI_API_KEY` or `GEMINI_API_KEY` is provided, enhances natural language explanations using the configured LLM.
+All outputs explicitly report **`SIMULATED / ESTIMATED`** alongside Before vs After comparisons for CPU, Memory, Cost, Carbon, and Performance Risk.
 
 ---
 
-## 💻 Frontend Dashboard & Cockpit
+## 📡 API Reference Directory
 
-The web interface is a professional enterprise dark-mode cockpit built with React 18, TypeScript, and Vite. It contains all 11 dedicated pages:
-1. **Overview Dashboard**: 8 metric cards (CPU, Memory, Storage, Network, Cost, Carbon, Health, Optimization Score), 6 live trend charts, and clear `DEMO DATA` / `LIVE AWS` badges.
-2. **Cloud Resources**: Searchable resource catalog across AWS, Azure, and GCP with right-size candidate tags.
-3. **Predictions**: 60-minute multi-metric forecasts with model accuracy report (MAE, RMSE, R²).
-4. **Cost Optimization**: Spend breakdown, idle resource discovery, and interactive instant simulator.
-5. **Carbon Intelligence**: 24-hour grid carbon curve, regional clean energy comparisons, and time-shift scheduler.
-6. **AI Recommendations**: Interactive recommendation ledger with Dry-Run, Apply, Rollback, and Explain AI modal.
-7. **Multi-Agent AI**: Visual agent orchestration flow, domain scores, and transparent conflict resolution matrix.
-8. **Digital Twin**: Interactive simulation workbench with Before vs After charts for all 4 scenarios.
-9. **AI Copilot**: Full conversational chat interface with suggested queries and direct action buttons.
-10. **Analytics**: Longitudinal cost and carbon analytics with provider breakdowns.
-11. **Settings**: Cloud mode toggle (DEMO / LIVE), provider selector, and backend/database/Redis/LLM connectivity health checks.
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/` | Platform status, version, and endpoint sitemap |
+| `GET` | `/health` | System health, database, Redis, and LLM connection status |
+| `GET` | `/metrics` | Current live cloud telemetry (CPU, Memory, Storage, Network, Cost, Carbon) |
+| `GET` | `/metrics/prometheus` | Prometheus openmetrics exposition format |
+| `GET` | `/history` | Recent historical telemetry entries |
+| `GET` | `/cloud-metrics` | Telemetry endpoint (preserves demo mode backward compatibility) |
+| `POST`| `/predict` | Legacy CPU prediction endpoint |
+| `GET` | `/predictions` | 60-minute multi-metric forecasts across all 5 dimensions |
+| `GET` | `/recommendations` | Active AI recommendations with priority and category filters |
+| `GET` | `/api/v1/recommendations/{id}/explain` | Explainable AI attribution with real model feature importances |
+| `POST`| `/api/v1/recommendations/{id}/apply` | Execute remediation action (with dry-run support) |
+| `GET` | `/cost-analysis` | Longitudinal spend curve, total USD, and top cost drivers |
+| `GET` | `/carbon-analysis` | Carbon emissions curve, green hours %, and regional comparison |
+| `GET` | `/agents` | List registered intelligence agents and status |
+| `POST`| `/agents/run` | Execute LangGraph multi-agent analysis with conflict resolution |
+| `POST`| `/digital-twin/simulate` | Custom infrastructure change simulation |
+| `POST`| `/digital-twin/scenario` | Standard scenario simulation (RIGHT_SIZE, SCALE_UP, etc.) |
+| `POST`| `/copilot/chat` | AI Cloud Copilot chat grounded in live metrics and tools |
+| `GET` | `/cloud/providers` | List supported cloud providers and operational modes |
+| `GET` | `/cloud/resources` | Cloud resource inventory with right-size candidate tags |
 
 ---
 
@@ -188,7 +207,7 @@ pip install -r backend/requirements.txt
 # Run backend test suite
 PYTHONPATH=backend pytest backend/tests -v
 
-# Start FastAPI backend (runs on http://localhost:8000)
+# Start FastAPI backend (http://localhost:8000)
 uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
@@ -217,7 +236,7 @@ docker compose --profile monitoring up -d
 - **Frontend Cockpit**: `http://localhost:5173`
 - **FastAPI API & Swagger Docs**: `http://localhost:8000/docs`
 - **Prometheus Metrics**: `http://localhost:8000/metrics/prometheus`
-- **Grafana (if monitoring profile active)**: `http://localhost:3000` (User: `admin`, Pass: `admin`)
+- **Grafana (monitoring profile)**: `http://localhost:3000` (User: `admin`, Pass: `admin`)
 
 ---
 
