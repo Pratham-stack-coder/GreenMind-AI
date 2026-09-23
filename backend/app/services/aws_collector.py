@@ -210,3 +210,98 @@ class AWSCollector:
         except Exception as e:
             logger.warning(f"Error querying EC2 describe_instances: {e}")
             return []
+
+    def test_connection(
+        self,
+        access_key_id: str | None = None,
+        secret_access_key: str | None = None,
+        region_name: str | None = None,
+        session_token: str | None = None,
+    ) -> dict[str, Any]:
+        """Test AWS credentials and connectivity using STS and CloudWatch read calls."""
+        ak = access_key_id or settings.aws_access_key_id
+        sk = secret_access_key or settings.aws_secret_access_key
+        rg = region_name or settings.aws_default_region or self.region
+
+        if not (ak and sk):
+            return {
+                "success": False,
+                "status": "not_configured",
+                "mode": "DEMO",
+                "message": "AWS credentials not provided. Running in Demo mode.",
+                "details": {"region": rg},
+                "last_tested": datetime.now(timezone.utc).isoformat(),
+            }
+
+        try:
+            import boto3
+            from botocore.exceptions import ClientError, EndpointConnectionError
+
+            session = boto3.Session(
+                aws_access_key_id=ak,
+                aws_secret_access_key=sk,
+                aws_session_token=session_token,
+                region_name=rg,
+            )
+            sts = session.client("sts")
+            caller = sts.get_caller_identity()
+            account = caller.get("Account", "unknown")
+            arn = caller.get("Arn", "")
+            masked_arn = arn[:20] + "..." if len(arn) > 20 else arn
+
+            cw = session.client("cloudwatch")
+            cw.list_metrics(Namespace="AWS/EC2")
+
+            return {
+                "success": True,
+                "status": "connected",
+                "mode": "LIVE",
+                "message": f"Successfully authenticated with AWS Account {account} ({rg}).",
+                "details": {
+                    "account_id": account,
+                    "region": rg,
+                    "arn": masked_arn,
+                },
+                "last_tested": datetime.now(timezone.utc).isoformat(),
+            }
+
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "ClientError")
+            msg = e.response.get("Error", {}).get("Message", str(e))
+            if code in ["InvalidClientTokenId", "AuthFailure", "SignatureDoesNotMatch", "UnrecognizedClientException"]:
+                status = "authentication_failed"
+                user_msg = f"AWS authentication failed: {code}."
+            elif code in ["AccessDenied", "UnauthorizedOperation", "AccessDeniedException"]:
+                status = "permission_denied"
+                user_msg = f"AWS credentials valid, but missing required read permissions: {code}."
+            else:
+                status = "service_unavailable"
+                user_msg = f"AWS service error ({code}): {msg}"
+
+            return {
+                "success": False,
+                "status": status,
+                "mode": "DEMO",
+                "message": user_msg,
+                "details": {"code": code, "region": rg},
+                "last_tested": datetime.now(timezone.utc).isoformat(),
+            }
+        except EndpointConnectionError:
+            return {
+                "success": False,
+                "status": "service_unavailable",
+                "mode": "DEMO",
+                "message": f"Could not connect to AWS endpoint in region {rg}. Check network or region.",
+                "details": {"region": rg},
+                "last_tested": datetime.now(timezone.utc).isoformat(),
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "status": "service_unavailable",
+                "mode": "DEMO",
+                "message": f"Unexpected error testing AWS connection: {type(e).__name__}",
+                "details": {"error": str(e)[:100]},
+                "last_tested": datetime.now(timezone.utc).isoformat(),
+            }
+

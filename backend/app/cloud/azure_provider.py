@@ -225,3 +225,106 @@ class AzureCloudProvider(BaseCloudProvider):
                 "Networking": "Available",
             },
         }
+
+    def test_connection(
+        self,
+        subscription_id: str | None = None,
+        tenant_id: str | None = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
+    ) -> dict[str, Any]:
+        """Validate live credentials and connectivity against Azure Monitor and ARM APIs."""
+        sub = subscription_id or self.subscription_id
+        ten = tenant_id or self.tenant_id
+        cid = client_id or self.client_id
+        sec = client_secret or self.client_secret
+
+        if not (sub and ten and cid and sec):
+            res = {
+                "success": False,
+                "status": "not_configured",
+                "mode": "DEMO",
+                "message": "Azure credentials not configured. Running in Demo mode.",
+                "details": {"subscription_id": sub or "not_set"},
+                "last_tested": datetime.now(timezone.utc).isoformat(),
+            }
+            self._last_test_result = res
+            return res
+
+        token_url = f"https://login.microsoftonline.com/{ten}/oauth2/v2.0/token"
+        payload = {
+            "grant_type": "client_credentials",
+            "client_id": cid,
+            "client_secret": sec,
+            "scope": "https://management.azure.com/.default",
+        }
+
+        try:
+            with httpx.Client(timeout=8.0) as client:
+                resp = client.post(token_url, data=payload)
+                if resp.status_code != 200:
+                    err_desc = resp.json().get("error_description", "Invalid client secret or tenant ID.")
+                    res = {
+                        "success": False,
+                        "status": "authentication_failed",
+                        "mode": "DEMO",
+                        "message": f"Azure AD authentication failed: {err_desc[:120]}",
+                        "details": {"status_code": resp.status_code},
+                        "last_tested": datetime.now(timezone.utc).isoformat(),
+                    }
+                    self._last_test_result = res
+                    return res
+
+                token = resp.json().get("access_token")
+                arm_url = f"https://management.azure.com/subscriptions/{sub}?api-version=2020-01-01"
+                headers = {"Authorization": f"Bearer {token}"}
+                sub_res = client.get(arm_url, headers=headers)
+
+                if sub_res.status_code == 200:
+                    sub_data = sub_res.json()
+                    display_name = sub_data.get("displayName", sub)
+                    self.is_live = True
+                    res = {
+                        "success": True,
+                        "status": "connected",
+                        "mode": "LIVE",
+                        "message": f"Successfully authenticated with Azure subscription '{display_name}'.",
+                        "details": {
+                            "subscription_id": sub,
+                            "display_name": display_name,
+                            "state": sub_data.get("state", "Enabled"),
+                        },
+                        "last_tested": datetime.now(timezone.utc).isoformat(),
+                    }
+                elif sub_res.status_code == 403:
+                    res = {
+                        "success": False,
+                        "status": "permission_denied",
+                        "mode": "DEMO",
+                        "message": "Azure credentials authenticated, but client lacks Monitoring Reader permission on subscription.",
+                        "details": {"status_code": 403},
+                        "last_tested": datetime.now(timezone.utc).isoformat(),
+                    }
+                else:
+                    res = {
+                        "success": False,
+                        "status": "service_unavailable",
+                        "mode": "DEMO",
+                        "message": f"Azure Resource Manager returned status {sub_res.status_code}.",
+                        "details": {"status_code": sub_res.status_code},
+                        "last_tested": datetime.now(timezone.utc).isoformat(),
+                    }
+                self._last_test_result = res
+                return res
+        except Exception as e:
+            res = {
+                "success": False,
+                "status": "service_unavailable",
+                "mode": "DEMO",
+                "message": f"Network error connecting to Azure endpoints: {type(e).__name__}",
+                "details": {"error": str(e)[:100]},
+                "last_tested": datetime.now(timezone.utc).isoformat(),
+            }
+            self._last_test_result = res
+            return res
+

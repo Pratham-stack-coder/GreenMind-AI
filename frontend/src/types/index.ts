@@ -229,3 +229,36 @@ export interface ScenarioSimulationResult {
   confidence: number
   warnings: string[]
 }
+
+export interface ProviderConnectionStatus {
+  provider: string
+  mode: 'DEMO' | 'LIVE'
+  status: 'connected' | 'not_configured' | 'auth_failed' | 'permission_denied' | 'service_unavailable' | 'demo'
+  message: string
+  last_checked?: string
+  configured_keys?: string[]
+}
+
+export interface SettingsStatusResponse {
+  system_mode: 'DEMO' | 'LIVE'
+  providers: {
+    aws: ProviderConnectionStatus
+    azure: ProviderConnectionStatus
+    gcp: ProviderConnectionStatus
+  }
+  llm: {
+    openai_configured: boolean
+    gemini_configured: boolean
+  }
+  database: string
+  redis: boolean
+}
+
+export interface TestConnectionResponse {
+  provider: string
+  status: string
+  message: string
+  caller_arn?: string
+  tested_at: string
+}
+

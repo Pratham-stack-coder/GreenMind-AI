@@ -14,10 +14,15 @@ import type {
   CostDataPoint,
   CarbonDataPoint,
   CarbonPoint,
+  SettingsStatusResponse,
+  TestConnectionResponse,
 } from '../types'
 
+const RAW_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) || ''
+const API_BASE = RAW_BASE ? `${RAW_BASE.replace(/\/+$/, '')}/api/v1` : '/api/v1'
+
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
   timeout: 15000,
 })
@@ -112,17 +117,17 @@ export const fetchRegions = (): Promise<{ regions: string[] }> =>
   api.get('/regions').then(r => r.data)
 
 export const fetchHealth = (): Promise<{ status: string; version: string; demo_mode: boolean; cloud_mode?: string }> =>
-  axios.get('/health').then(r => r.data)
+  api.get('/health').then(r => r.data)
 
 // ── Cloud Providers & Resources ────────────────────────────────────────────
 export const fetchCloudResources = (
   provider = 'aws',
   region = 'us-east'
 ): Promise<{ provider: string; region: string; resources: any[]; count: number }> =>
-  axios.get('/cloud/resources', { params: { provider, region } }).then(r => r.data)
+  api.get('/cloud/resources', { params: { provider, region } }).then(r => r.data)
 
 export const fetchCloudProviders = (): Promise<{ providers: any[]; default_mode: string }> =>
-  axios.get('/cloud/providers').then(r => r.data)
+  api.get('/cloud/providers').then(r => r.data)
 
 export const simulateScenario = (payload: {
   scenario: string
@@ -130,3 +135,24 @@ export const simulateScenario = (payload: {
   region?: string
 }): Promise<any> =>
   api.post('/digital-twin/scenario', payload).then(r => r.data)
+
+// ── Settings & Multi-Cloud Provider Management ──────────────────────────────
+export const fetchSettingsStatus = (): Promise<SettingsStatusResponse> =>
+  api.get('/settings/status').then(r => r.data)
+
+export const testProviderConnection = (
+  provider: string,
+  credentials?: Record<string, string>
+): Promise<TestConnectionResponse> =>
+  api.post('/settings/test-connection', { provider, credentials: credentials || {} }).then(r => r.data)
+
+export const configureProvider = (
+  provider: string,
+  credentials: Record<string, string>
+): Promise<{ status: string; provider: string; message: string; test_result?: TestConnectionResponse }> =>
+  api.post('/settings/configure', { provider, credentials }).then(r => r.data)
+
+export const disconnectProvider = (
+  provider: string
+): Promise<{ status: string; provider: string; message: string }> =>
+  api.post('/settings/disconnect', { provider }).then(r => r.data)

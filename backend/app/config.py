@@ -55,6 +55,8 @@ class Settings(BaseSettings):
 
     # ── CORS ─────────────────────────────────────────────────────────────────
     allowed_origins: list[str] = ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"]
+    cors_origins: str = ""  # Comma-separated domains for deployed environments
+
 
 
 @lru_cache

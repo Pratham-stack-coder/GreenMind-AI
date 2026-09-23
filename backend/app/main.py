@@ -39,6 +39,7 @@ from .routers import (
     digital_twin,
     predictions,
     recommendations,
+    settings as settings_router,
     telemetry,
 )
 from .schemas import (
@@ -82,11 +83,17 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
+# CORS configuration supporting deployed Vercel and local dev origins
+cors_origins = list(settings.allowed_origins)
+if settings.cors_origins:
+    cors_origins.extend([o.strip() for o in settings.cors_origins.split(",") if o.strip()])
+
 # Middleware
 app.add_middleware(PrometheusMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allowed_origins + ["*"],
+    allow_origins=cors_origins + ["*"] if settings.demo_mode else cors_origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -100,6 +107,9 @@ app.include_router(agents.router, prefix=PREFIX)
 app.include_router(digital_twin.router, prefix=PREFIX)
 app.include_router(analytics.router, prefix=PREFIX)
 app.include_router(copilot.router, prefix=PREFIX)
+app.include_router(settings_router.router, prefix=PREFIX)
+app.include_router(settings_router.router, prefix="")
+
 
 
 # ── Root & System Endpoints ───────────────────────────────────────────────────
@@ -127,6 +137,7 @@ def root():
     }
 
 
+@app.get("/api/v1/health", tags=["System"])
 @app.get("/health", tags=["System"])
 def health():
     return {
@@ -286,6 +297,7 @@ async def post_copilot_chat(req: CopilotRequest):
 
 # ── Cloud Provider & Resource Inventory ───────────────────────────────────────
 
+@app.get("/api/v1/cloud/providers", tags=["Cloud Providers"])
 @app.get("/cloud/providers", tags=["Cloud Providers"])
 def cloud_providers():
     """List supported cloud providers and connection statuses."""
@@ -323,6 +335,7 @@ def cloud_providers():
     }
 
 
+@app.get("/api/v1/cloud/resources", tags=["Cloud Providers"])
 @app.get("/cloud/resources", tags=["Cloud Providers"])
 def cloud_resources(provider: str = Query("aws"), region: str = Query("us-east")):
     """List inventory of cloud resources (VMs, DBs, Storage)."""

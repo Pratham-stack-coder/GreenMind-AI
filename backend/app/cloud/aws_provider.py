@@ -184,3 +184,11 @@ class AWSCloudProvider(BaseCloudProvider):
                 "CloudWatch": "Normal",
             },
         }
+
+    def test_connection(self) -> dict[str, Any]:
+        """Test AWS credentials and connectivity."""
+        res = self.collector.test_connection()
+        self._last_test_result = res
+        self.is_live = res.get("success", False)
+        return res
+

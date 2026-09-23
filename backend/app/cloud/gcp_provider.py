@@ -43,7 +43,7 @@ class GCPCloudProvider(BaseCloudProvider):
         self._token_expires_at: float = 0.0
 
     def _get_access_token(self) -> str | None:
-        """Obtain OAuth2 access token for Google Cloud APIs."""
+        """Obtain OAuth2 access token for Google Cloud APIs using official google-auth."""
         if self._cached_token and time.time() < self._token_expires_at:
             return self._cached_token
 
@@ -51,15 +51,33 @@ class GCPCloudProvider(BaseCloudProvider):
             return None
 
         try:
-            # Parse service account JSON if valid
-            sa_data = json.loads(self.service_account_json)
-            token_uri = sa_data.get("token_uri", "https://oauth2.googleapis.com/token")
-            # For demonstration and live calls, token exchange or direct authorization header is supported
-            return sa_data.get("access_token")
-        except Exception as e:
-            logger.warning(f"Could not parse GCP service account json: {e}")
+            from google.oauth2 import service_account
+            import google.auth.transport.requests
 
-        return None
+            if self.service_account_json.strip().startswith("{"):
+                info = json.loads(self.service_account_json)
+            else:
+                with open(self.service_account_json, "r") as f:
+                    info = json.load(f)
+
+            creds = service_account.Credentials.from_service_account_info(
+                info,
+                scopes=["https://www.googleapis.com/auth/monitoring.read"]
+            )
+            req = google.auth.transport.requests.Request()
+            creds.refresh(req)
+            self._cached_token = creds.token
+            self._token_expires_at = time.time() + 3500
+            return self._cached_token
+        except Exception as e:
+            logger.warning(f"Google service account authentication failed: {e}")
+            # Fallback to direct token if testing with mock token
+            try:
+                sa_data = json.loads(self.service_account_json) if self.service_account_json.strip().startswith("{") else {}
+                return sa_data.get("access_token")
+            except Exception:
+                return None
+
 
     def fetch_live_metrics(self) -> dict[str, Any] | None:
         """Fetch live CPU and network time series from Google Cloud Monitoring v3 API."""
@@ -200,3 +218,106 @@ class GCPCloudProvider(BaseCloudProvider):
                 "VPC Network": "Normal",
             },
         }
+
+    def test_connection(
+        self,
+        project_id: str | None = None,
+        service_account_json: str | None = None,
+    ) -> dict[str, Any]:
+        """Validate live credentials and connectivity against Google Cloud Monitoring v3 API."""
+        proj = project_id or self.project_id
+        sa_json = service_account_json or self.service_account_json
+
+        if not (proj and sa_json):
+            res = {
+                "success": False,
+                "status": "not_configured",
+                "mode": "DEMO",
+                "message": "GCP credentials not configured. Running in Demo mode.",
+                "details": {"project_id": proj or "not_set"},
+                "last_tested": datetime.now(timezone.utc).isoformat(),
+            }
+            self._last_test_result = res
+            return res
+
+        old_sa = self.service_account_json
+        old_proj = self.project_id
+        self.service_account_json = sa_json
+        self.project_id = proj
+        self._cached_token = None
+
+        token = self._get_access_token()
+        if not token:
+            res = {
+                "success": False,
+                "status": "authentication_failed",
+                "mode": "DEMO",
+                "message": "Google Cloud authentication failed: Invalid service account key format or expired certificate.",
+                "details": {"project_id": proj},
+                "last_tested": datetime.now(timezone.utc).isoformat(),
+            }
+            self.service_account_json = old_sa
+            self.project_id = old_proj
+            self._last_test_result = res
+            return res
+
+        url = f"https://monitoring.googleapis.com/v3/projects/{proj}/metricDescriptors"
+        headers = {"Authorization": f"Bearer {token}"}
+        params = {"pageSize": 1}
+
+        try:
+            with httpx.Client(timeout=8.0) as client:
+                resp = client.get(url, headers=headers, params=params)
+                if resp.status_code == 200:
+                    self.is_live = True
+                    res = {
+                        "success": True,
+                        "status": "connected",
+                        "mode": "LIVE",
+                        "message": f"Successfully authenticated with GCP project '{proj}'.",
+                        "details": {"project_id": proj},
+                        "last_tested": datetime.now(timezone.utc).isoformat(),
+                    }
+                elif resp.status_code == 403:
+                    body = resp.json()
+                    err_msg = body.get("error", {}).get("message", "Permission denied.")
+                    if "SERVICE_DISABLED" in err_msg or "has not been used in project" in err_msg:
+                        status = "service_unavailable"
+                        user_msg = "Google Cloud Monitoring API is disabled. Please enable monitoring.googleapis.com in GCP Console."
+                    else:
+                        status = "permission_denied"
+                        user_msg = "Service account authenticated, but lacks 'Monitoring Viewer' role on project."
+
+                    res = {
+                        "success": False,
+                        "status": status,
+                        "mode": "DEMO",
+                        "message": user_msg,
+                        "details": {"status_code": 403},
+                        "last_tested": datetime.now(timezone.utc).isoformat(),
+                    }
+                else:
+                    res = {
+                        "success": False,
+                        "status": "authentication_failed" if resp.status_code == 404 else "service_unavailable",
+                        "mode": "DEMO",
+                        "message": f"Google Cloud API returned status {resp.status_code}.",
+                        "details": {"status_code": resp.status_code},
+                        "last_tested": datetime.now(timezone.utc).isoformat(),
+                    }
+                self._last_test_result = res
+                return res
+        except Exception as e:
+            res = {
+                "success": False,
+                "status": "service_unavailable",
+                "mode": "DEMO",
+                "message": f"Network error connecting to Google Cloud APIs: {type(e).__name__}",
+                "details": {"error": str(e)[:100]},
+                "last_tested": datetime.now(timezone.utc).isoformat(),
+            }
+            self.service_account_json = old_sa
+            self.project_id = old_proj
+            self._last_test_result = res
+            return res
+

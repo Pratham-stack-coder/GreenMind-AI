@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: greenmind-backend
+    env: python
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: .
+    buildCommand: "pip install -r backend/requirements.txt"
+    startCommand: "python -m uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
+      - key: DEMO_MODE
+        value: "true"
+      - key: PORT
+        value: "8000"
+      - key: PYTHONPATH
+        value: "backend:."
+      - key: CORS_ORIGINS
+        sync: false

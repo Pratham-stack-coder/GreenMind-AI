@@ -14,7 +14,8 @@ import {
 import { useAppStore } from '../store'
 import {
   fetchLiveMetrics, fetchScores, fetchTelemetryHistory,
-  fetchRecommendations, applyRecommendation, fetchForecast
+  fetchRecommendations, applyRecommendation, fetchForecast,
+  fetchSettingsStatus
 } from '../api/client'
 import type { CloudMetrics, OptimizationScores, PredictResponse } from '../types'
 import MetricCard from '../components/MetricCard/MetricCard'
@@ -91,6 +92,12 @@ export default function DashboardPage() {
     enabled: !!metrics,
   })
 
+  const { data: settingsStatus } = useQuery({
+    queryKey: ['settings-status'],
+    queryFn: fetchSettingsStatus,
+    refetchInterval: 30_000,
+  })
+
   const handleApplyRec = async (id: string, title: string) => {
     try {
       setApplyingId(id)
@@ -110,9 +117,9 @@ export default function DashboardPage() {
     }
   }
 
-  // Determine Data Source Badge
-  const isLiveAWS = metrics?.source === 'LIVE_AWS'
-  const sourceLabel = isLiveAWS ? 'LIVE AWS' : 'DEMO DATA'
+  // Determine Data Source Badge truthfully based on actual source
+  const isLive = Boolean(metrics?.source?.startsWith('LIVE'))
+  const sourceLabel = isLive ? `LIVE ${provider.toUpperCase()}` : 'DEMO MODE (SYNTHETIC)'
 
   // Prepare chart histories
   const rawEntries = (history?.entries || []).slice(0, 24).reverse()
@@ -148,14 +155,33 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Explicit DEMO DATA vs LIVE AWS badge as requested */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Multi-cloud provider mini pills */}
+          <div className="flex items-center gap-1.5 mr-1">
+            {(['aws', 'azure', 'gcp'] as const).map(p => {
+              const pStatus = settingsStatus?.providers?.[p]
+              const isConnected = pStatus?.status === 'connected'
+              return (
+                <span
+                  key={p}
+                  className={`badge ${isConnected ? 'badge-emerald' : 'badge-muted'}`}
+                  style={{ fontSize: 10, padding: '2px 7px' }}
+                  title={pStatus?.message || p.toUpperCase()}
+                >
+                  <span className={`status-dot ${isConnected ? 'online' : 'muted'}`} style={{ width: 5, height: 5 }} />
+                  {p.toUpperCase()}: {isConnected ? 'LIVE' : 'DEMO'}
+                </span>
+              )
+            })}
+          </div>
+
+          {/* Current Provider Telemetry Source badge */}
           <span
-            className={`badge ${isLiveAWS ? 'badge-emerald' : 'badge-amber'}`}
+            className={`badge ${isLive ? 'badge-emerald' : 'badge-blue'}`}
             style={{ fontWeight: 700, letterSpacing: '0.05em' }}
           >
             <span
-              className={`status-dot ${isLiveAWS ? 'online' : 'busy'}`}
+              className={`status-dot ${isLive ? 'online' : 'muted'}`}
               style={{ width: 6, height: 6 }}
             />
             {sourceLabel}
