@@ -32,21 +32,34 @@ class CloudMetrics(BaseModel):
     timestamp: str
     provider: str = "aws"
     region: str
+    resource_id: str | None = None
+    account_id: str | None = None
+    resource_type: str = "instance"
     cpu: float
     memory: float | None = None
     storage: float | None = None
     network: float | None = None
+    network_in: float | None = None
+    network_out: float | None = None
     cost_usd_per_hour: float = 0.0
     carbon_gco2_per_hour: float = 0.0
     instance_count: int = 1
+    status: str = "running"
     source: DataSourceType = "DEMO"
+    cost_source: DataSourceType | None = None
     memory_source: DataSourceType = "DEMO"
+    network_source: DataSourceType | None = None
     memory_note: str | None = None  # explains why memory may be UNAVAILABLE
+    last_updated: str | None = None
 
 
 class TelemetryHistoryResponse(BaseModel):
     entries: list[CloudMetrics]
     count: int
+    provider: str | None = None
+    region: str | None = None
+    granularity: str = "5m"
+    source: DataSourceType = "DEMO"
 
 
 # ── Predictions ───────────────────────────────────────────────────────────────

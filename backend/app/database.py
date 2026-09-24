@@ -89,14 +89,44 @@ class TelemetryRecord(Base):
     timestamp = Column(String(64), index=True)
     provider = Column(String(32), index=True)
     region = Column(String(32), index=True)
-    source = Column(String(32), default="SIMULATED_DEMO")
-    cpu = Column(Float)
-    memory = Column(Float)
-    storage = Column(Float)
-    network = Column(Float)
-    cost_per_hour = Column(Float)
-    carbon_intensity = Column(Float)
+    account_id = Column(String(64), nullable=True)
+    resource_id = Column(String(128), nullable=True, index=True)
+    resource_type = Column(String(64), default="instance")
+    source = Column(String(32), default="DEMO")
+    cpu = Column(Float, default=0.0)
+    memory = Column(Float, nullable=True)
+    storage = Column(Float, nullable=True)
+    network = Column(Float, nullable=True)
+    network_in = Column(Float, nullable=True)
+    network_out = Column(Float, nullable=True)
+    cost_per_hour = Column(Float, default=0.0)
+    carbon_intensity = Column(Float, default=0.0)
+    status = Column(String(32), default="running")
+    memory_source = Column(String(32), default="DEMO")
+    memory_note = Column(Text, nullable=True)
     recorded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "timestamp": self.timestamp,
+            "provider": self.provider,
+            "region": self.region,
+            "account_id": self.account_id,
+            "resource_id": self.resource_id,
+            "resource_type": self.resource_type,
+            "cpu": self.cpu,
+            "memory": self.memory,
+            "storage": self.storage,
+            "network": self.network,
+            "network_in": self.network_in,
+            "network_out": self.network_out,
+            "cost_usd_per_hour": self.cost_per_hour,
+            "carbon_gco2_per_hour": self.carbon_intensity,
+            "status": self.status,
+            "source": self.source,
+            "memory_source": self.memory_source,
+            "memory_note": self.memory_note,
+        }
 
 
 class PredictionRecord(Base):
@@ -253,11 +283,12 @@ def record_telemetry(entry: dict) -> None:
 
 
 def get_telemetry_history(limit: int = 100) -> list[dict]:
+    """Retrieve telemetry history from in-memory ring buffer."""
     return list(reversed(_telemetry_history[-limit:]))
 
 
 async def persist_telemetry_entry(entry: dict) -> None:
-    """Asynchronously persist telemetry reading to database."""
+    """Persist telemetry reading to database, updating in-memory cache as well."""
     record_telemetry(entry)
     try:
         async with _async_session_maker() as session:
@@ -265,15 +296,157 @@ async def persist_telemetry_entry(entry: dict) -> None:
                 timestamp=entry.get("timestamp", datetime.now(timezone.utc).isoformat()),
                 provider=entry.get("provider", "aws"),
                 region=entry.get("region", "us-east"),
-                source=entry.get("source", "SIMULATED_DEMO"),
+                account_id=entry.get("account_id"),
+                resource_id=entry.get("resource_id"),
+                resource_type=entry.get("resource_type", "instance"),
+                source=entry.get("source", "DEMO"),
                 cpu=float(entry.get("cpu", 0.0)),
-                memory=float(entry.get("memory", 0.0)),
-                storage=float(entry.get("storage", 0.0)),
-                network=float(entry.get("network", 0.0)),
-                cost_per_hour=float(entry.get("cost_per_hour", 0.0)),
-                carbon_intensity=float(entry.get("carbon_intensity", 0.0)),
+                memory=float(entry["memory"]) if entry.get("memory") is not None else None,
+                storage=float(entry["storage"]) if entry.get("storage") is not None else None,
+                network=float(entry["network"]) if entry.get("network") is not None else None,
+                network_in=float(entry["network_in"]) if entry.get("network_in") is not None else None,
+                network_out=float(entry["network_out"]) if entry.get("network_out") is not None else None,
+                cost_per_hour=float(entry.get("cost_usd_per_hour", 0.0)),
+                carbon_intensity=float(entry.get("carbon_gco2_per_hour", 0.0)),
+                status=entry.get("status", "running"),
+                memory_source=entry.get("memory_source", "DEMO"),
+                memory_note=entry.get("memory_note"),
             )
             session.add(record)
+            await session.commit()
+    except Exception:
+        pass
+
+
+async def query_telemetry_history(
+    limit: int = 100,
+    provider: str | None = None,
+    region: str | None = None,
+) -> list[dict]:
+    """Query telemetry history from database with in-memory fallback."""
+    try:
+        async with _async_session_maker() as session:
+            stmt = select(TelemetryRecord)
+            if provider:
+                stmt = stmt.where(TelemetryRecord.provider == provider.lower())
+            if region:
+                stmt = stmt.where(TelemetryRecord.region == region.lower())
+            stmt = stmt.order_by(TelemetryRecord.id.desc()).limit(limit)
+            res = await session.execute(stmt)
+            records = res.scalars().all()
+            if records:
+                return [r.to_dict() for r in records]
+    except Exception:
+        pass
+
+    # Fallback to in-memory buffer
+    entries = get_telemetry_history(limit)
+    if provider:
+        entries = [e for e in entries if e.get("provider", "").lower() == provider.lower()]
+    if region:
+        entries = [e for e in entries if e.get("region", "").lower() == region.lower()]
+    return entries[:limit]
+
+
+async def persist_prediction_entry(
+    target: str,
+    current_value: float,
+    predicted_value: float,
+    delta_pct: float,
+    anomaly: bool = False,
+    confidence: float = 0.85,
+    horizon_minutes: int = 60,
+) -> None:
+    """Persist ML model prediction record to database."""
+    try:
+        async with _async_session_maker() as session:
+            rec = PredictionRecord(
+                target=target,
+                current_value=current_value,
+                predicted_value=predicted_value,
+                delta_pct=delta_pct,
+                anomaly=anomaly,
+                confidence=confidence,
+                horizon_minutes=horizon_minutes,
+            )
+            session.add(rec)
+            await session.commit()
+    except Exception:
+        pass
+
+
+async def persist_recommendation_entry(rec_data: dict) -> None:
+    """Persist recommendation to database."""
+    try:
+        async with _async_session_maker() as session:
+            rec = RecommendationRecord(
+                id=rec_data["id"],
+                category=rec_data.get("category", "cost"),
+                priority=rec_data.get("priority", "medium"),
+                title=rec_data.get("title", ""),
+                description=rec_data.get("description", ""),
+                impact_summary=rec_data.get("impact_summary", ""),
+                estimated_monthly_savings_usd=float(rec_data.get("estimated_monthly_savings_usd", 0.0)),
+                estimated_carbon_reduction_pct=float(rec_data.get("estimated_carbon_reduction_pct", 0.0)),
+                effort=rec_data.get("effort", "medium"),
+                action=rec_data.get("action", ""),
+                evidence_json=json.dumps(rec_data.get("evidence", [])),
+                confidence=float(rec_data.get("confidence", 0.85)),
+                status=rec_data.get("status", "open"),
+            )
+            session.add(rec)
+            await session.commit()
+    except Exception:
+        pass
+
+
+async def persist_agent_result_entry(
+    run_id: str,
+    agent_name: str,
+    score: int,
+    findings: list,
+    recommendations_count: int = 0,
+) -> None:
+    """Persist agent run outcome to database."""
+    try:
+        async with _async_session_maker() as session:
+            rec = AgentResultRecord(
+                run_id=run_id,
+                agent_name=agent_name,
+                score=score,
+                findings_json=json.dumps(findings),
+                recommendations_count=recommendations_count,
+            )
+            session.add(rec)
+            await session.commit()
+    except Exception:
+        pass
+
+
+async def persist_simulation_entry(
+    sim_id: str,
+    changes: dict,
+    before: dict,
+    after: dict,
+    delta: dict,
+    risk_score: float,
+    recommendation: str,
+    confidence: float = 0.8,
+) -> None:
+    """Persist Digital Twin simulation result to database."""
+    try:
+        async with _async_session_maker() as session:
+            rec = SimulationRecord(
+                id=sim_id,
+                changes_json=json.dumps(changes),
+                before_json=json.dumps(before),
+                after_json=json.dumps(after),
+                delta_json=json.dumps(delta),
+                risk_score=risk_score,
+                recommendation=recommendation,
+                confidence=confidence,
+            )
+            session.add(rec)
             await session.commit()
     except Exception:
         pass

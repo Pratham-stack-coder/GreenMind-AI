@@ -158,13 +158,19 @@ class GCPCloudProvider(BaseCloudProvider):
                     "timestamp": now.isoformat(),
                     "provider": "gcp",
                     "region": region,
+                    "account_id": self.project_id,
+                    "resource_id": "gce-instance-agg",
+                    "resource_type": "gce_instance",
                     "cpu": cpu,
                     "memory": None,         # UNAVAILABLE without google-cloud-ops-agent
                     "storage": None,        # UNAVAILABLE
                     "network": None,        # UNAVAILABLE (requires separate Cloud Monitoring query)
+                    "network_in": None,
+                    "network_out": None,
                     "cost_usd_per_hour": cost,
                     "carbon_gco2_per_hour": carbon,
                     "instance_count": 1,
+                    "status": "running",
                     "source": "LIVE_GCP",
                     "cost_source": "ESTIMATED",
                     "memory_source": "UNAVAILABLE",
@@ -172,6 +178,7 @@ class GCPCloudProvider(BaseCloudProvider):
                         "Guest OS memory requires google-cloud-ops-agent per instance. "
                         "Install: https://cloud.google.com/stackdriver/docs/solutions/agents/ops-agent/installation"
                     ),
+                    "last_updated": now.isoformat(),
                 }
             elif live is not None:
                 # API worked but no timeSeries data (no GCE instances, or metric not published yet)
@@ -179,16 +186,23 @@ class GCPCloudProvider(BaseCloudProvider):
                     "timestamp": now.isoformat(),
                     "provider": "gcp",
                     "region": region,
+                    "account_id": self.project_id,
+                    "resource_id": "gce-instance-agg",
+                    "resource_type": "gce_instance",
                     "cpu": 0.0,
                     "memory": None,
                     "storage": None,
                     "network": None,
+                    "network_in": None,
+                    "network_out": None,
                     "cost_usd_per_hour": 0.0,
                     "carbon_gco2_per_hour": 0.0,
                     "instance_count": 0,
+                    "status": "idle",
                     "source": "LIVE_GCP",
                     "memory_source": "UNAVAILABLE",
                     "memory_note": "GCP Cloud Monitoring returned no CPU timeSeries. Check project and instance configuration.",
+                    "last_updated": now.isoformat(),
                 }
             else:
                 # fetch_live_metrics() returned None — API call failed
@@ -196,16 +210,23 @@ class GCPCloudProvider(BaseCloudProvider):
                     "timestamp": now.isoformat(),
                     "provider": "gcp",
                     "region": region,
+                    "account_id": self.project_id,
+                    "resource_id": "unknown",
+                    "resource_type": "gce_instance",
                     "cpu": 0.0,
                     "memory": None,
                     "storage": None,
                     "network": None,
+                    "network_in": None,
+                    "network_out": None,
                     "cost_usd_per_hour": 0.0,
                     "carbon_gco2_per_hour": 0.0,
                     "instance_count": 0,
+                    "status": "error",
                     "source": "ERROR",
                     "memory_source": "UNAVAILABLE",
                     "memory_note": "GCP Cloud Monitoring API call failed. Check service account permissions.",
+                    "last_updated": now.isoformat(),
                 }
 
         # Demo Mode adapter

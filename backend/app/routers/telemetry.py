@@ -130,22 +130,30 @@ def _generate_live_metrics(provider: str, region: str) -> CloudMetrics:
 def _provider_metrics_to_cloudmetrics(data: dict, provider: str, region: str) -> CloudMetrics:
     """Normalize a provider.get_metrics() dict to a CloudMetrics schema object."""
     raw_source = data.get("source", "DEMO")
-    # Map LIVE_AWS / LIVE_AZURE / LIVE_GCP → valid DataSourceType
-    # Already valid — schemas.py now accepts all of these
+    now_iso = datetime.now(timezone.utc).isoformat()
     return CloudMetrics(
-        timestamp=data.get("timestamp", datetime.now(timezone.utc).isoformat()),
+        timestamp=data.get("timestamp", now_iso),
         provider=data.get("provider", provider),
         region=data.get("region", region),
+        resource_id=data.get("resource_id"),
+        account_id=data.get("account_id"),
+        resource_type=data.get("resource_type", "instance"),
         cpu=float(data.get("cpu", 0.0)),
         memory=data.get("memory"),          # may be None (UNAVAILABLE)
         storage=data.get("storage"),        # may be None (UNAVAILABLE)
         network=data.get("network"),        # may be None (UNAVAILABLE)
+        network_in=data.get("network_in"),
+        network_out=data.get("network_out"),
         cost_usd_per_hour=float(data.get("cost_usd_per_hour", 0.0)),
         carbon_gco2_per_hour=float(data.get("carbon_gco2_per_hour", 0.0)),
         instance_count=int(data.get("instance_count", 1)),
+        status=data.get("status", "running"),
         source=raw_source,  # type: ignore[arg-type]
-        memory_source="UNAVAILABLE" if data.get("memory") is None else raw_source,  # type: ignore[arg-type]
+        cost_source=data.get("cost_source"),
+        memory_source="UNAVAILABLE" if data.get("memory") is None else data.get("memory_source", raw_source),  # type: ignore[arg-type]
+        network_source="UNAVAILABLE" if data.get("network") is None else data.get("network_source", raw_source),
         memory_note=data.get("memory_note"),
+        last_updated=data.get("last_updated", now_iso),
     )
 
 
@@ -177,9 +185,7 @@ def live_metrics(
         except Exception as e:
             logger.error(f"Live metrics collection failed for {provider}/{region}: {e}")
             # BUG-006 PREVENTION: Do NOT fall back to DEMO data when LIVE is expected.
-            # Return an ERROR-sourced response instead.
             now = datetime.now(timezone.utc)
-            intensity = get_carbon_intensity(region, now.hour)["carbon_intensity_gco2_per_kwh"]
             err_m = CloudMetrics(
                 timestamp=now.isoformat(),
                 provider=provider,
@@ -191,9 +197,11 @@ def live_metrics(
                 cost_usd_per_hour=0.0,
                 carbon_gco2_per_hour=0.0,
                 instance_count=0,
+                status="error",
                 source="ERROR",  # type: ignore[arg-type]
                 memory_source="ERROR",  # type: ignore[arg-type]
                 memory_note=f"Live metrics collection failed: {type(e).__name__}: {str(e)[:120]}",
+                last_updated=now.isoformat(),
             )
             record_telemetry(err_m.model_dump())
             return err_m
@@ -215,7 +223,24 @@ def live_all():
                     m = _provider_metrics_to_cloudmetrics(data, prov, region)
                 except Exception as e:
                     logger.error(f"Failed to collect live metrics for {prov}/{region}: {e}")
-                    m = _generate_live_metrics(prov, region)
+                    now = datetime.now(timezone.utc)
+                    m = CloudMetrics(
+                        timestamp=now.isoformat(),
+                        provider=prov,
+                        region=region,
+                        cpu=0.0,
+                        memory=None,
+                        storage=None,
+                        network=None,
+                        cost_usd_per_hour=0.0,
+                        carbon_gco2_per_hour=0.0,
+                        instance_count=0,
+                        status="error",
+                        source="ERROR",
+                        memory_source="ERROR",
+                        memory_note=f"Live collection failed: {e}",
+                        last_updated=now.isoformat(),
+                    )
             else:
                 m = _generate_live_metrics(prov, region)
             record_telemetry(m.model_dump())
@@ -224,8 +249,59 @@ def live_all():
 
 
 @router.get("/history", response_model=TelemetryHistoryResponse)
-def telemetry_history(limit: int = Query(50, le=500)):
-    """Recent telemetry history (in-memory ring buffer)."""
-    entries_raw = get_telemetry_history(limit)
-    entries = [CloudMetrics(**e) for e in entries_raw]
-    return TelemetryHistoryResponse(entries=entries, count=len(entries))
+def telemetry_history(
+    provider: str | None = Query(None, description="Filter by cloud provider"),
+    region: str | None = Query(None, description="Filter by region"),
+    granularity: str = Query("5m", pattern="^(5m|15m|1h|1d)$", description="Aggregation granularity"),
+    limit: int = Query(50, ge=1, le=500, description="Max history points"),
+):
+    """Timestamped telemetry history with multi-cloud filtering and granularity support."""
+    entries_raw = get_telemetry_history(limit * 6)
+    filtered = []
+    for e in entries_raw:
+        if provider and e.get("provider", "").lower() != provider.lower():
+            continue
+        if region and e.get("region", "").lower() != region.lower():
+            continue
+        filtered.append(e)
+
+    # Step down / sample by granularity
+    step = 1
+    if granularity == "15m":
+        step = 3
+    elif granularity == "1h":
+        step = 12
+    elif granularity == "1d":
+        step = 288
+
+    sampled = filtered[::step][:limit]
+    entries = [CloudMetrics(**e) for e in sampled]
+    dominant_source = entries[0].source if entries else "DEMO"
+
+    return TelemetryHistoryResponse(
+        entries=entries,
+        count=len(entries),
+        provider=provider,
+        region=region,
+        granularity=granularity,
+        source=dominant_source,
+    )
+
+
+async def collect_and_persist_telemetry() -> None:
+    """Periodic telemetry collection across configured providers/regions into database."""
+    from ..database import persist_telemetry_entry
+    from ..cloud import get_provider
+    for prov, regions in _PROVIDER_REGIONS.items():
+        p = get_provider(prov)
+        for region in regions[:1]:
+            try:
+                if p.is_live:
+                    data = p.get_metrics(region)
+                    m = _provider_metrics_to_cloudmetrics(data, prov, region)
+                else:
+                    m = _generate_live_metrics(prov, region)
+                await persist_telemetry_entry(m.model_dump())
+            except Exception as e:
+                logger.debug(f"Background telemetry collection error for {prov}/{region}: {e}")
+

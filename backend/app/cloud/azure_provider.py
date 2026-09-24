@@ -195,17 +195,24 @@ class AzureCloudProvider(BaseCloudProvider):
                         cost = round(0.184 * (1 + (cpu / 100) * 0.35), 4)
                         ci = get_carbon_intensity(region, hour)["carbon_intensity_gco2_per_kwh"]
                         carbon = round(0.35 * ci * (1 + (cpu / 100) * 0.35), 2)
+                        primary_vm = vm_uris[0].split("/")[-1] if vm_uris else "vm-cluster-agg"
                         return {
                             "timestamp": now.isoformat(),
                             "provider": "azure",
                             "region": region,
+                            "account_id": self.subscription_id,
+                            "resource_id": primary_vm,
+                            "resource_type": "virtual_machine",
                             "cpu": cpu,
                             "memory": None,        # UNAVAILABLE without Azure Monitor Agent
                             "storage": None,       # UNAVAILABLE without AMA Disk metrics
                             "network": net_mbps,   # None if no network data returned
+                            "network_in": None,
+                            "network_out": None,
                             "cost_usd_per_hour": cost,
                             "carbon_gco2_per_hour": carbon,
                             "instance_count": len(vm_uris),
+                            "status": "running",
                             "source": "LIVE_AZURE",
                             "cost_source": "ESTIMATED",
                             "memory_source": "UNAVAILABLE",
@@ -214,6 +221,7 @@ class AzureCloudProvider(BaseCloudProvider):
                                 "Guest OS memory requires Azure Monitor Agent (AMA) extension. "
                                 "Install: https://learn.microsoft.com/en-us/azure/azure-monitor/agents/azure-monitor-agent-manage"
                             ),
+                            "last_updated": now.isoformat(),
                         }
                     else:
                         logger.warning(f"Azure Monitor returned no CPU data for VM: {vm_uris[0]}")
@@ -221,16 +229,23 @@ class AzureCloudProvider(BaseCloudProvider):
                             "timestamp": now.isoformat(),
                             "provider": "azure",
                             "region": region,
+                            "account_id": self.subscription_id,
+                            "resource_id": vm_uris[0].split("/")[-1] if vm_uris else "unknown",
+                            "resource_type": "virtual_machine",
                             "cpu": 0.0,
                             "memory": None,
                             "storage": None,
                             "network": None,
+                            "network_in": None,
+                            "network_out": None,
                             "cost_usd_per_hour": 0.0,
                             "carbon_gco2_per_hour": 0.0,
                             "instance_count": len(vm_uris),
+                            "status": "error",
                             "source": "ERROR",
                             "memory_source": "UNAVAILABLE",
                             "memory_note": "Azure Monitor returned no CPU data. Verify monitoring is enabled on VM.",
+                            "last_updated": now.isoformat(),
                         }
                 else:
                     # Authenticated but no VMs found (empty subscription or no permissions)

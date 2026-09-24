@@ -66,17 +66,27 @@ class AWSCloudProvider(BaseCloudProvider):
 
                 carbon = round(0.35 * ci * (1 + (live_cpu / 100) * 0.35), 2)
 
+                instances = self.collector.list_ec2_instances()
+                res_id = instances[0]["id"] if instances else "i-cluster-agg"
+                acct = self.collector.get_account_info().get("account_id")
+
                 return {
                     "timestamp": now.isoformat(),
                     "provider": "aws",
                     "region": region,
+                    "account_id": acct,
+                    "resource_id": res_id,
+                    "resource_type": "ec2_instance",
                     "cpu": live_cpu,
                     "memory": live_mem,           # None if CWAgent not installed
                     "storage": None,              # UNAVAILABLE without CWAgent
                     "network": live_net,          # None if CloudWatch query returned nothing
+                    "network_in": None,
+                    "network_out": None,
                     "cost_usd_per_hour": cost_per_hr,
                     "carbon_gco2_per_hour": carbon,
-                    "instance_count": len(self.collector.list_ec2_instances()) or 1,
+                    "instance_count": len(instances) or 1,
+                    "status": "running",
                     "source": "LIVE_AWS",
                     "cost_source": cost_source,
                     "memory_source": "LIVE_AWS" if live_mem is not None else "UNAVAILABLE",
@@ -85,6 +95,7 @@ class AWSCloudProvider(BaseCloudProvider):
                         "Memory requires CloudWatch Agent (CWAgent/mem_used_percent namespace). "
                         "Install: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Install-CloudWatch-Agent.html"
                     ),
+                    "last_updated": now.isoformat(),
                 }
             else:
                 # CPU query failed despite credentials being present
@@ -93,13 +104,19 @@ class AWSCloudProvider(BaseCloudProvider):
                     "timestamp": now.isoformat(),
                     "provider": "aws",
                     "region": region,
+                    "account_id": self.collector.get_account_info().get("account_id"),
+                    "resource_id": "i-unknown",
+                    "resource_type": "ec2_instance",
                     "cpu": 0.0,
                     "memory": None,
                     "storage": None,
                     "network": None,
+                    "network_in": None,
+                    "network_out": None,
                     "cost_usd_per_hour": 0.0,
                     "carbon_gco2_per_hour": 0.0,
                     "instance_count": 0,
+                    "status": "error",
                     "source": "ERROR",
                     "memory_source": "UNAVAILABLE",
                     "memory_note": (
@@ -107,6 +124,7 @@ class AWSCloudProvider(BaseCloudProvider):
                         "no EC2 instances in this region, or detailed monitoring not enabled. "
                         "Enable per-instance detailed monitoring to see metrics."
                     ),
+                    "last_updated": now.isoformat(),
                 }
 
         # Not live (DEMO_MODE or unconfigured) — caller handles the demo path
