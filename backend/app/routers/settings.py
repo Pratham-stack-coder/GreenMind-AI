@@ -88,41 +88,10 @@ def test_provider_connection(req: TestConnectionRequest) -> dict[str, Any]:
     prov_name = req.provider.lower().strip()
     creds = req.credentials
 
-    if prov_name == "aws":
-        ak = creds.get("aws_access_key_id")
-        sk = creds.get("aws_secret_access_key")
-        rg = creds.get("aws_default_region")
-        st = creds.get("aws_session_token")
-        from ..services.aws_collector import AWSCollector
-        collector = AWSCollector()
-        res = collector.test_connection(access_key_id=ak, secret_access_key=sk, region_name=rg, session_token=st)
-        res["provider"] = "aws"
-        return res
-
-    elif prov_name == "azure":
-        from ..cloud.azure_provider import AzureCloudProvider
-        provider = get_provider("azure")
-        sub = creds.get("azure_subscription_id")
-        ten = creds.get("azure_tenant_id")
-        cid = creds.get("azure_client_id")
-        sec = creds.get("azure_client_secret")
-        if isinstance(provider, AzureCloudProvider):
-            res = provider.test_connection(subscription_id=sub, tenant_id=ten, client_id=cid, client_secret=sec)
-        else:
-            res = provider.test_connection()
-        res["provider"] = "azure"
-        return res
-
-    elif prov_name == "gcp":
-        from ..cloud.gcp_provider import GCPCloudProvider
-        provider = get_provider("gcp")
-        proj = creds.get("gcp_project_id")
-        sa_json = creds.get("gcp_service_account_json")
-        if isinstance(provider, GCPCloudProvider):
-            res = provider.test_connection(project_id=proj, service_account_json=sa_json)
-        else:
-            res = provider.test_connection()
-        res["provider"] = "gcp"
+    if prov_name in ["aws", "azure", "gcp"]:
+        provider = get_provider(prov_name)
+        res = provider.test_connection(credentials=creds)
+        res["provider"] = prov_name
         return res
 
     elif prov_name in ["gemini", "openai"]:
@@ -156,6 +125,32 @@ def test_provider_connection(req: TestConnectionRequest) -> dict[str, Any]:
         }
 
     raise HTTPException(status_code=400, detail=f"Unsupported provider: {req.provider}")
+
+
+@router.get("/account-info/{provider}")
+def get_provider_account_info(provider: str) -> dict[str, Any]:
+    """Return safe account / subscription / project metadata for provider (no secrets)."""
+    prov_name = provider.lower().strip()
+    if prov_name not in ["aws", "azure", "gcp"]:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+    p = get_provider(prov_name)
+    return p.get_account_info()
+
+
+@router.get("/regions/{provider}")
+def get_provider_regions(provider: str) -> list[dict[str, Any]]:
+    """Return supported or active regions for provider."""
+    prov_name = provider.lower().strip()
+    if prov_name not in ["aws", "azure", "gcp"]:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+    p = get_provider(prov_name)
+    return p.get_regions()
+
+
+@router.post("/validate-credentials")
+def validate_provider_credentials(req: TestConnectionRequest) -> dict[str, Any]:
+    """Validate credentials without modifying provider state."""
+    return test_provider_connection(req)
 
 
 @router.post("/configure")

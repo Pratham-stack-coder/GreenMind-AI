@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     # ── Cloud Providers (leave blank for DEMO mode) ───────────────────────────
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
+    aws_session_token: str = ""
     aws_default_region: str = "us-east-1"
 
     azure_subscription_id: str = ""

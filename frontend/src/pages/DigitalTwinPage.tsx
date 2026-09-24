@@ -112,7 +112,7 @@ export default function DigitalTwinPage() {
                 <div className="grid-2 gap-2">
                   {[
                     ['CPU', `${metrics.cpu.toFixed(1)}%`],
-                    ['Memory', `${metrics.memory.toFixed(1)}%`],
+                    ['Memory', metrics.memory != null ? `${metrics.memory.toFixed(1)}%` : 'UNAVAILABLE'],
                     ['Cost', `$${metrics.cost_usd_per_hour.toFixed(4)}/hr`],
                     ['Carbon', `${metrics.carbon_gco2_per_hour.toFixed(1)}gCO₂/hr`],
                   ].map(([k, v]) => (

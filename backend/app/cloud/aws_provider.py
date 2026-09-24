@@ -251,7 +251,7 @@ class AWSCloudProvider(BaseCloudProvider):
         return {
             "provider": "aws",
             "region": region,
-            "status": "HEALTHY" if self.is_live else "DEMO",
+            "status": "HEALTHY",
             "health_score": 92,
             "active_alarms": 0,
             "source": "LIVE_AWS" if self.is_live else "DEMO",
@@ -264,15 +264,35 @@ class AWSCloudProvider(BaseCloudProvider):
             "note": "Health data is heuristic-based. Real-time alarms require CloudWatch Alarms configuration.",
         }
 
-    def test_connection(self) -> dict[str, Any]:
-        """Test AWS credentials and connectivity."""
-        res = self.collector.test_connection()
+    def get_account_info(self) -> dict[str, Any]:
+        """Fetch safe AWS account metadata (no secrets)."""
+        return self.collector.get_account_info()
+
+    def get_regions(self) -> list[dict[str, Any]]:
+        """Fetch available AWS regions."""
+        return self.collector.list_regions()
+
+    def test_connection(self, credentials: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Test AWS credentials and connectivity with 4-tier status output."""
+        if credentials:
+            ak = credentials.get("aws_access_key_id")
+            sk = credentials.get("aws_secret_access_key")
+            rg = credentials.get("aws_default_region")
+            st = credentials.get("aws_session_token")
+            res = self.collector.test_connection(
+                access_key_id=ak,
+                secret_access_key=sk,
+                region_name=rg,
+                session_token=st,
+            )
+        else:
+            res = self.collector.test_connection()
+
         self._last_test_result = res
-        # Only mark as live if the connection actually succeeded
         if res.get("success", False):
             self.is_live = True
             logger.info(f"AWS provider activated in LIVE mode: {res.get('details', {}).get('account_id', 'unknown')}")
         else:
             self.is_live = False
-            logger.info(f"AWS provider in DEMO mode: {res.get('message', '')}")
+            logger.info(f"AWS provider connection result: {res.get('status')} - {res.get('message', '')}")
         return res

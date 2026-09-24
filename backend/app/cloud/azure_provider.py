@@ -342,26 +342,86 @@ class AzureCloudProvider(BaseCloudProvider):
             },
         }
 
+    def get_account_info(self) -> dict[str, Any]:
+        """Fetch safe Azure subscription and tenant metadata (no secrets)."""
+        masked_tenant = (self.tenant_id[:8] + "..." + self.tenant_id[-4:]) if len(self.tenant_id or "") > 12 else (self.tenant_id or "not_set")
+        if self.is_live and self.subscription_id:
+            return {
+                "provider": "azure",
+                "subscription_id": self.subscription_id,
+                "display_name": f"Azure Subscription ({self.subscription_id[:8]}...)",
+                "tenant_id": masked_tenant,
+                "auth_type": "ServicePrincipal/OAuth2",
+                "mode": "LIVE",
+            }
+        return {
+            "provider": "azure",
+            "subscription_id": "00000000-0000-0000-0000-000000000000",
+            "display_name": "Azure Pay-As-You-Go Demo",
+            "tenant_id": "demo-tenant-id",
+            "auth_type": "DEMO",
+            "mode": "DEMO",
+        }
+
+    def get_regions(self) -> list[dict[str, Any]]:
+        """Fetch available Azure regions."""
+        STANDARD_AZURE_REGIONS = [
+            {"id": "eastus", "name": "East US", "city": "Virginia", "country": "US"},
+            {"id": "eastus2", "name": "East US 2", "city": "Virginia", "country": "US"},
+            {"id": "westus2", "name": "West US 2", "city": "Washington", "country": "US"},
+            {"id": "westeurope", "name": "West Europe", "city": "Netherlands", "country": "NL"},
+            {"id": "northeurope", "name": "North Europe", "city": "Ireland", "country": "IE"},
+            {"id": "centralindia", "name": "Central India", "city": "Pune", "country": "IN"},
+            {"id": "southeastasia", "name": "Southeast Asia", "city": "Singapore", "country": "SG"},
+            {"id": "japaneast", "name": "Japan East", "city": "Tokyo", "country": "JP"},
+        ]
+        token = self._get_access_token()
+        if token and self.subscription_id:
+            try:
+                url = f"https://management.azure.com/subscriptions/{self.subscription_id}/locations?api-version=2020-01-01"
+                headers = {"Authorization": f"Bearer {token}"}
+                with httpx.Client(timeout=5.0) as client:
+                    resp = client.get(url, headers=headers)
+                    if resp.status_code == 200:
+                        locs = resp.json().get("value", [])
+                        regions = []
+                        for loc in locs:
+                            lid = loc.get("name", "")
+                            disp = loc.get("displayName", lid)
+                            regions.append({"id": lid, "name": disp, "city": disp, "country": "Global"})
+                        if regions:
+                            return regions
+            except Exception as e:
+                logger.warning(f"Could not query Azure locations: {e}")
+        return STANDARD_AZURE_REGIONS
+
     def test_connection(
         self,
+        credentials: dict[str, Any] | None = None,
         subscription_id: str | None = None,
         tenant_id: str | None = None,
         client_id: str | None = None,
         client_secret: str | None = None,
     ) -> dict[str, Any]:
-        """Validate live credentials and connectivity against Azure Monitor and ARM APIs."""
-        sub = subscription_id or self.subscription_id
-        ten = tenant_id or self.tenant_id
-        cid = client_id or self.client_id
-        sec = client_secret or self.client_secret
+        """Validate live credentials and connectivity against Azure Monitor and ARM APIs with 4-tier status output."""
+        creds = credentials or {}
+        sub = creds.get("azure_subscription_id") or subscription_id or self.subscription_id
+        ten = creds.get("azure_tenant_id") or tenant_id or self.tenant_id
+        cid = creds.get("azure_client_id") or client_id or self.client_id
+        sec = creds.get("azure_client_secret") or client_secret or self.client_secret
 
         if not (sub and ten and cid and sec):
             res = {
                 "success": False,
                 "status": "not_configured",
                 "mode": "DEMO",
-                "message": "Azure credentials not configured. Running in Demo mode.",
+                "credentials_status": "NOT_CONFIGURED",
+                "authentication_status": "NOT_CONFIGURED",
+                "api_reachability": "NOT_CONFIGURED",
+                "telemetry_status": "DEMO",
+                "message": "Azure credentials not configured. Operating in safe Demo mode.",
                 "details": {"subscription_id": sub or "not_set"},
+                "account_info": self.get_account_info(),
                 "last_tested": datetime.now(timezone.utc).isoformat(),
             }
             self._last_test_result = res
@@ -383,12 +443,25 @@ class AzureCloudProvider(BaseCloudProvider):
                     res = {
                         "success": False,
                         "status": "authentication_failed",
-                        "mode": "DEMO",
+                        "mode": "ERROR",
+                        "credentials_status": "CONFIGURED",
+                        "authentication_status": "FAILED",
+                        "api_reachability": "UNREACHABLE",
+                        "telemetry_status": "ERROR",
                         "message": f"Azure AD authentication failed: {err_desc[:120]}",
                         "details": {"status_code": resp.status_code},
+                        "account_info": {
+                            "provider": "azure",
+                            "subscription_id": sub,
+                            "display_name": "Authentication Failed",
+                            "tenant_id": ten[:8] + "...",
+                            "auth_type": "FAILED",
+                            "mode": "ERROR",
+                        },
                         "last_tested": datetime.now(timezone.utc).isoformat(),
                     }
                     self._last_test_result = res
+                    self.is_live = False
                     return res
 
                 token = resp.json().get("access_token")
@@ -404,41 +477,92 @@ class AzureCloudProvider(BaseCloudProvider):
                         "success": True,
                         "status": "connected",
                         "mode": "LIVE",
+                        "credentials_status": "CONFIGURED",
+                        "authentication_status": "SUCCESS",
+                        "api_reachability": "REACHABLE",
+                        "telemetry_status": "OPERATIONAL",
                         "message": f"Successfully authenticated with Azure subscription '{display_name}'.",
                         "details": {
                             "subscription_id": sub,
                             "display_name": display_name,
                             "state": sub_data.get("state", "Enabled"),
                         },
+                        "account_info": {
+                            "provider": "azure",
+                            "subscription_id": sub,
+                            "display_name": display_name,
+                            "tenant_id": ten[:8] + "...",
+                            "auth_type": "ServicePrincipal/OAuth2",
+                            "mode": "LIVE",
+                        },
                         "last_tested": datetime.now(timezone.utc).isoformat(),
                     }
                 elif sub_res.status_code == 403:
+                    self.is_live = False
                     res = {
                         "success": False,
                         "status": "permission_denied",
-                        "mode": "DEMO",
+                        "mode": "ERROR",
+                        "credentials_status": "CONFIGURED",
+                        "authentication_status": "SUCCESS",  # Auth succeeded, authorization failed
+                        "api_reachability": "UNREACHABLE",
+                        "telemetry_status": "ERROR",
                         "message": "Azure credentials authenticated, but client lacks Monitoring Reader permission on subscription.",
                         "details": {"status_code": 403},
+                        "account_info": {
+                            "provider": "azure",
+                            "subscription_id": sub,
+                            "display_name": "Permission Denied",
+                            "tenant_id": ten[:8] + "...",
+                            "auth_type": "ServicePrincipal/OAuth2",
+                            "mode": "ERROR",
+                        },
                         "last_tested": datetime.now(timezone.utc).isoformat(),
                     }
                 else:
+                    self.is_live = False
                     res = {
                         "success": False,
                         "status": "service_unavailable",
-                        "mode": "DEMO",
+                        "mode": "ERROR",
+                        "credentials_status": "CONFIGURED",
+                        "authentication_status": "FAILED",
+                        "api_reachability": "UNREACHABLE",
+                        "telemetry_status": "ERROR",
                         "message": f"Azure Resource Manager returned status {sub_res.status_code}.",
                         "details": {"status_code": sub_res.status_code},
+                        "account_info": {
+                            "provider": "azure",
+                            "subscription_id": sub,
+                            "display_name": "Error",
+                            "tenant_id": ten[:8] + "...",
+                            "auth_type": "FAILED",
+                            "mode": "ERROR",
+                        },
                         "last_tested": datetime.now(timezone.utc).isoformat(),
                     }
                 self._last_test_result = res
                 return res
         except Exception as e:
+            self.is_live = False
             res = {
                 "success": False,
                 "status": "service_unavailable",
-                "mode": "DEMO",
+                "mode": "ERROR",
+                "credentials_status": "CONFIGURED",
+                "authentication_status": "FAILED",
+                "api_reachability": "UNREACHABLE",
+                "telemetry_status": "ERROR",
                 "message": f"Network error connecting to Azure endpoints: {type(e).__name__}",
                 "details": {"error": str(e)[:100]},
+                "account_info": {
+                    "provider": "azure",
+                    "subscription_id": sub or "unknown",
+                    "display_name": "Connection Error",
+                    "tenant_id": "unknown",
+                    "auth_type": "FAILED",
+                    "mode": "ERROR",
+                },
                 "last_tested": datetime.now(timezone.utc).isoformat(),
             }
             self._last_test_result = res

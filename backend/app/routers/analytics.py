@@ -33,6 +33,13 @@ def cost_analytics(days: int = Query(7, ge=1, le=90), provider: str = Query("aws
     total = 0.0
     by_provider = {"aws": 0.0, "azure": 0.0, "gcp": 0.0}
 
+    if hasattr(provider, "default"):
+        provider = provider.default
+    provider = str(provider or "aws")
+    if hasattr(region, "default"):
+        region = region.default
+    region = str(region or "us-east-1")
+
     # Attempt to get real cost data from provider
     p = get_provider(provider)
     data_source = "DEMO"
@@ -126,6 +133,13 @@ def optimization_scores(
     - In DEMO mode: scores computed from synthetic DEMO metrics (clearly labeled)
     - Security and Reliability scores are always ESTIMATED (require live security posture data)
     """
+    if hasattr(provider, "default"):
+        provider = provider.default
+    provider = str(provider or "aws")
+    if hasattr(region, "default"):
+        region = region.default
+    region = str(region or "us-east-1")
+
     # BUG-009 FIX: Use provider factory instead of always calling _generate_live_metrics()
     p = get_provider(provider)
     if p.is_live:

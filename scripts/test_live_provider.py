@@ -34,6 +34,14 @@ import os
 import sys
 from pathlib import Path
 
+# Fix Windows console encoding for UTF-8 and unicode symbols
+if sys.platform == "win32":
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # Add backend to path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 BACKEND = REPO_ROOT / "backend"
@@ -95,22 +103,28 @@ def test_aws():
     # Test connection
     print("\n[1] Testing connection (STS + CloudWatch)...")
     result = provider.test_connection()
-    print(f"  Status: {result['status']}")
-    print(f"  Mode: {result['mode']}")
-    print(f"  Message: {result['message']}")
-    if result.get("details"):
-        details = result["details"].copy()
-        # Mask any sensitive values
-        for k in ["account_id", "region"]:
-            if k in details:
-                print(f"  {k}: {details[k]}")
+    print(f"  Status: {result.get('status')}")
+    print(f"  Mode: {result.get('mode')}")
+    print(f"  Message: {result.get('message')}")
+    print(f"  Credentials: {result.get('credentials_status')}")
+    print(f"  Authentication: {result.get('authentication_status')}")
+    print(f"  API Reachable: {result.get('api_reachability')}")
+    print(f"  Telemetry Status: {result.get('telemetry_status')}")
+
+    # Account metadata
+    acct = provider.get_account_info()
+    print(f"\n[2] Account Info: {acct.get('account_id')} ({acct.get('auth_type')})")
+
+    # Regions
+    regions = provider.get_regions()
+    print(f"[3] Available Regions: {len(regions)} regions found")
 
     if not result.get("success"):
         print("\n❌ Connection failed. Check credentials and try again.")
         return False
 
     # Test metrics
-    print("\n[2] Fetching live metrics from CloudWatch...")
+    print("\n[4] Fetching live metrics from CloudWatch...")
     metrics = provider.get_metrics("us-east-1")
     print(f"  source: {metrics.get('source')} ← must be LIVE_AWS")
     print(f"  cpu: {metrics.get('cpu')} %")
@@ -141,14 +155,14 @@ def test_aws():
         return False
 
     # Test resources
-    print("\n[3] Listing EC2 instances...")
+    print("\n[5] Listing EC2 instances...")
     resources = provider.get_resources("us-east-1")
     print(f"  Found {len(resources)} instances")
     for r in resources[:3]:
         print(f"    - {r.get('name')} ({r.get('type')}) | CPU={r.get('cpu_utilization')} | source={r.get('source')}")
 
     # Test Cost Explorer
-    print("\n[4] Testing Cost Explorer (may show UNAVAILABLE if no ce permission)...")
+    print("\n[6] Testing Cost Explorer (may show UNAVAILABLE if no ce permission)...")
     cost = provider.get_cost("us-east-1", days=7)
     print(f"  cost source: {cost.get('source')}")
     print(f"  total_usd: {cost.get('total_usd')}")
@@ -173,15 +187,25 @@ def test_azure():
 
     print("\n[1] Testing connection (Azure ARM)...")
     result = provider.test_connection()
-    print(f"  Status: {result['status']}")
-    print(f"  Mode: {result['mode']}")
-    print(f"  Message: {result['message']}")
+    print(f"  Status: {result.get('status')}")
+    print(f"  Mode: {result.get('mode')}")
+    print(f"  Message: {result.get('message')}")
+    print(f"  Credentials: {result.get('credentials_status')}")
+    print(f"  Authentication: {result.get('authentication_status')}")
+    print(f"  API Reachable: {result.get('api_reachability')}")
+    print(f"  Telemetry Status: {result.get('telemetry_status')}")
+
+    acct = provider.get_account_info()
+    print(f"\n[2] Account Info: {acct.get('display_name')} ({acct.get('subscription_id')})")
+
+    regions = provider.get_regions()
+    print(f"[3] Available Regions: {len(regions)} regions found")
 
     if not result.get("success"):
         print("\n❌ Connection failed.")
         return False
 
-    print("\n[2] Fetching live metrics from Azure Monitor...")
+    print("\n[4] Fetching live metrics from Azure Monitor...")
     metrics = provider.get_metrics("eastus")
     print(f"  source: {metrics.get('source')} ← must be LIVE_AZURE")
     print(f"  cpu: {metrics.get('cpu')} %")
@@ -221,15 +245,25 @@ def test_gcp():
 
     print("\n[1] Testing connection (Cloud Monitoring metricDescriptors)...")
     result = provider.test_connection()
-    print(f"  Status: {result['status']}")
-    print(f"  Mode: {result['mode']}")
-    print(f"  Message: {result['message']}")
+    print(f"  Status: {result.get('status')}")
+    print(f"  Mode: {result.get('mode')}")
+    print(f"  Message: {result.get('message')}")
+    print(f"  Credentials: {result.get('credentials_status')}")
+    print(f"  Authentication: {result.get('authentication_status')}")
+    print(f"  API Reachable: {result.get('api_reachability')}")
+    print(f"  Telemetry Status: {result.get('telemetry_status')}")
+
+    acct = provider.get_account_info()
+    print(f"\n[2] Account Info: {acct.get('project_id')} ({acct.get('client_email')})")
+
+    regions = provider.get_regions()
+    print(f"[3] Available Regions: {len(regions)} regions found")
 
     if not result.get("success"):
         print("\n❌ Connection failed.")
         return False
 
-    print("\n[2] Fetching live metrics from Cloud Monitoring...")
+    print("\n[4] Fetching live metrics from Cloud Monitoring...")
     metrics = provider.get_metrics("us-east4")
     print(f"  source: {metrics.get('source')} ← must be LIVE_GCP")
     print(f"  cpu: {metrics.get('cpu')} %")
@@ -250,6 +284,68 @@ def test_gcp():
         return False
 
     print("\n✅ GCP tests complete.")
+    return True
+
+
+def test_invalid_credentials_failure():
+    """Verify Section 58 & Data Truth rule: invalid credentials return explicit ERROR, never fake DEMO/LIVE."""
+    print("=" * 60)
+    print("TESTING: Invalid Credentials Failure Handling (Section 58)")
+    print("=" * 60)
+
+    from app.cloud.aws_provider import AWSCloudProvider
+    from app.cloud.azure_provider import AzureCloudProvider
+    from app.cloud.gcp_provider import GCPCloudProvider
+
+    # 1. AWS with invalid keys
+    aws_p = AWSCloudProvider()
+    aws_res = aws_p.test_connection(credentials={
+        "aws_access_key_id": "AKIA_INVALID_TEST_KEY",
+        "aws_secret_access_key": "invalid_secret_key_12345",
+        "aws_default_region": "us-east-1",
+    })
+    print("\n[1] AWS Invalid Key Test:")
+    print(f"    success: {aws_res.get('success')} (expected False)")
+    print(f"    status: {aws_res.get('status')} (expected authentication_failed)")
+    print(f"    mode: {aws_res.get('mode')} (expected ERROR)")
+    assert aws_res.get("success") is False, "AWS invalid credentials must return success=False"
+    assert aws_res.get("status") == "authentication_failed", "AWS invalid credentials must return authentication_failed"
+    assert aws_res.get("mode") == "ERROR", "AWS invalid credentials must return mode=ERROR, never DEMO or LIVE"
+    print("    ✅ PASS: AWS returned explicit authentication failure.")
+
+    # 2. Azure with invalid client credentials
+    az_p = AzureCloudProvider()
+    az_res = az_p.test_connection(credentials={
+        "azure_subscription_id": "00000000-0000-0000-0000-000000000000",
+        "azure_tenant_id": "00000000-0000-0000-0000-000000000000",
+        "azure_client_id": "00000000-0000-0000-0000-000000000000",
+        "azure_client_secret": "invalid_secret",
+    })
+    print("\n[2] Azure Invalid Credentials Test:")
+    print(f"    success: {az_res.get('success')} (expected False)")
+    print(f"    status: {az_res.get('status')} (expected authentication_failed)")
+    print(f"    mode: {az_res.get('mode')} (expected ERROR)")
+    assert az_res.get("success") is False, "Azure invalid credentials must return success=False"
+    assert az_res.get("status") == "authentication_failed", "Azure invalid credentials must return authentication_failed"
+    assert az_res.get("mode") == "ERROR", "Azure invalid credentials must return mode=ERROR"
+    print("    ✅ PASS: Azure returned explicit authentication failure.")
+
+    # 3. GCP with invalid service account JSON
+    gcp_p = GCPCloudProvider()
+    gcp_res = gcp_p.test_connection(credentials={
+        "gcp_project_id": "invalid-project",
+        "gcp_service_account_json": '{"type": "service_account", "project_id": "invalid-project", "private_key": "invalid"}',
+    })
+    print("\n[3] GCP Invalid Service Account Test:")
+    print(f"    success: {gcp_res.get('success')} (expected False)")
+    print(f"    status: {gcp_res.get('status')} (expected authentication_failed)")
+    print(f"    mode: {gcp_res.get('mode')} (expected ERROR)")
+    assert gcp_res.get("success") is False, "GCP invalid credentials must return success=False"
+    assert gcp_res.get("status") == "authentication_failed", "GCP invalid credentials must return authentication_failed"
+    assert gcp_res.get("mode") == "ERROR", "GCP invalid credentials must return mode=ERROR"
+    print("    ✅ PASS: GCP returned explicit authentication failure.")
+
+    print("\n✅ All failure tests passed! Invalid credentials reliably return explicit ERROR.")
     return True
 
 
@@ -292,6 +388,7 @@ def main():
     parser = argparse.ArgumentParser(description="GreenMind AI Live Provider Test Suite")
     parser.add_argument("--provider", choices=["aws", "azure", "gcp"], help="Test specific provider")
     parser.add_argument("--all", action="store_true", help="Test all providers")
+    parser.add_argument("--test-failure", action="store_true", help="Test invalid credentials failure handling")
     parser.add_argument("--security-check", action="store_true", default=True, help="Run credential security check")
     args = parser.parse_args()
 
@@ -303,6 +400,10 @@ def main():
 
     if args.security_check:
         check_env_security()
+
+    if args.test_failure:
+        success = test_invalid_credentials_failure()
+        sys.exit(0 if success else 1)
 
     results = {}
 
@@ -316,7 +417,7 @@ def main():
         results["gcp"] = test_gcp()
 
     if not results:
-        print("No provider specified. Use --provider [aws|azure|gcp] or --all")
+        print("No provider specified. Use --provider [aws|azure|gcp], --all, or --test-failure")
         parser.print_help()
         return
 

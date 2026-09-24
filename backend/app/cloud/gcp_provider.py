@@ -280,22 +280,72 @@ class GCPCloudProvider(BaseCloudProvider):
             },
         }
 
+    def get_account_info(self) -> dict[str, Any]:
+        """Fetch safe GCP project and service account metadata (no private keys)."""
+        email = "unknown"
+        if self.service_account_json:
+            try:
+                if self.service_account_json.strip().startswith("{"):
+                    data = json.loads(self.service_account_json)
+                else:
+                    with open(self.service_account_json, "r") as f:
+                        data = json.load(f)
+                email = data.get("client_email", "unknown")
+            except Exception:
+                email = "service-account@invalid-format"
+
+        if self.is_live and self.project_id:
+            return {
+                "provider": "gcp",
+                "project_id": self.project_id,
+                "client_email": email,
+                "auth_type": "ServiceAccount",
+                "mode": "LIVE",
+            }
+        return {
+            "provider": "gcp",
+            "project_id": "greenmind-demo-project",
+            "client_email": "greenmind-agent@demo.iam.gserviceaccount.com",
+            "auth_type": "DEMO",
+            "mode": "DEMO",
+        }
+
+    def get_regions(self) -> list[dict[str, Any]]:
+        """Fetch available GCP regions."""
+        return [
+            {"id": "us-central1", "name": "us-central1 (Iowa)", "city": "Iowa", "country": "US"},
+            {"id": "us-east1", "name": "us-east1 (S. Carolina)", "city": "South Carolina", "country": "US"},
+            {"id": "us-west1", "name": "us-west1 (Oregon)", "city": "Oregon", "country": "US"},
+            {"id": "europe-west1", "name": "europe-west1 (Belgium)", "city": "Belgium", "country": "BE"},
+            {"id": "europe-west3", "name": "europe-west3 (Frankfurt)", "city": "Frankfurt", "country": "DE"},
+            {"id": "asia-south1", "name": "asia-south1 (Mumbai)", "city": "Mumbai", "country": "IN"},
+            {"id": "asia-southeast1", "name": "asia-southeast1 (Singapore)", "city": "Singapore", "country": "SG"},
+            {"id": "asia-east1", "name": "asia-east1 (Taiwan)", "city": "Taiwan", "country": "TW"},
+        ]
+
     def test_connection(
         self,
+        credentials: dict[str, Any] | None = None,
         project_id: str | None = None,
         service_account_json: str | None = None,
     ) -> dict[str, Any]:
-        """Validate live credentials and connectivity against Google Cloud Monitoring v3 API."""
-        proj = project_id or self.project_id
-        sa_json = service_account_json or self.service_account_json
+        """Validate live credentials and connectivity against Google Cloud Monitoring v3 API with 4-tier status."""
+        creds = credentials or {}
+        proj = creds.get("gcp_project_id") or project_id or self.project_id
+        sa_json = creds.get("gcp_service_account_json") or service_account_json or self.service_account_json
 
         if not (proj and sa_json):
             res = {
                 "success": False,
                 "status": "not_configured",
                 "mode": "DEMO",
-                "message": "GCP credentials not configured. Running in Demo mode.",
+                "credentials_status": "NOT_CONFIGURED",
+                "authentication_status": "NOT_CONFIGURED",
+                "api_reachability": "NOT_CONFIGURED",
+                "telemetry_status": "DEMO",
+                "message": "GCP credentials not configured. Operating in safe Demo mode.",
                 "details": {"project_id": proj or "not_set"},
+                "account_info": self.get_account_info(),
                 "last_tested": datetime.now(timezone.utc).isoformat(),
             }
             self._last_test_result = res
@@ -312,13 +362,25 @@ class GCPCloudProvider(BaseCloudProvider):
             res = {
                 "success": False,
                 "status": "authentication_failed",
-                "mode": "DEMO",
+                "mode": "ERROR",
+                "credentials_status": "CONFIGURED",
+                "authentication_status": "FAILED",
+                "api_reachability": "UNREACHABLE",
+                "telemetry_status": "ERROR",
                 "message": "Google Cloud authentication failed: Invalid service account key format or expired certificate.",
                 "details": {"project_id": proj},
+                "account_info": {
+                    "provider": "gcp",
+                    "project_id": proj,
+                    "client_email": "unknown",
+                    "auth_type": "FAILED",
+                    "mode": "ERROR",
+                },
                 "last_tested": datetime.now(timezone.utc).isoformat(),
             }
             self.service_account_json = old_sa
             self.project_id = old_proj
+            self.is_live = False
             self._last_test_result = res
             return res
 
@@ -335,11 +397,17 @@ class GCPCloudProvider(BaseCloudProvider):
                         "success": True,
                         "status": "connected",
                         "mode": "LIVE",
+                        "credentials_status": "CONFIGURED",
+                        "authentication_status": "SUCCESS",
+                        "api_reachability": "REACHABLE",
+                        "telemetry_status": "OPERATIONAL",
                         "message": f"Successfully authenticated with GCP project '{proj}'.",
                         "details": {"project_id": proj},
+                        "account_info": self.get_account_info(),
                         "last_tested": datetime.now(timezone.utc).isoformat(),
                     }
                 elif resp.status_code == 403:
+                    self.is_live = False
                     body = resp.json()
                     err_msg = body.get("error", {}).get("message", "Permission denied.")
                     if "SERVICE_DISABLED" in err_msg or "has not been used in project" in err_msg:
@@ -352,29 +420,64 @@ class GCPCloudProvider(BaseCloudProvider):
                     res = {
                         "success": False,
                         "status": status,
-                        "mode": "DEMO",
+                        "mode": "ERROR",
+                        "credentials_status": "CONFIGURED",
+                        "authentication_status": "SUCCESS",  # Auth succeeded, permission denied
+                        "api_reachability": "UNREACHABLE",
+                        "telemetry_status": "ERROR",
                         "message": user_msg,
                         "details": {"status_code": 403},
+                        "account_info": {
+                            "provider": "gcp",
+                            "project_id": proj,
+                            "client_email": "authenticated",
+                            "auth_type": "ServiceAccount",
+                            "mode": "ERROR",
+                        },
                         "last_tested": datetime.now(timezone.utc).isoformat(),
                     }
                 else:
+                    self.is_live = False
                     res = {
                         "success": False,
                         "status": "authentication_failed" if resp.status_code == 404 else "service_unavailable",
-                        "mode": "DEMO",
+                        "mode": "ERROR",
+                        "credentials_status": "CONFIGURED",
+                        "authentication_status": "FAILED",
+                        "api_reachability": "UNREACHABLE",
+                        "telemetry_status": "ERROR",
                         "message": f"Google Cloud API returned status {resp.status_code}.",
                         "details": {"status_code": resp.status_code},
+                        "account_info": {
+                            "provider": "gcp",
+                            "project_id": proj,
+                            "client_email": "unknown",
+                            "auth_type": "FAILED",
+                            "mode": "ERROR",
+                        },
                         "last_tested": datetime.now(timezone.utc).isoformat(),
                     }
                 self._last_test_result = res
                 return res
         except Exception as e:
+            self.is_live = False
             res = {
                 "success": False,
                 "status": "service_unavailable",
-                "mode": "DEMO",
+                "mode": "ERROR",
+                "credentials_status": "CONFIGURED",
+                "authentication_status": "FAILED",
+                "api_reachability": "UNREACHABLE",
+                "telemetry_status": "ERROR",
                 "message": f"Network error connecting to Google Cloud APIs: {type(e).__name__}",
                 "details": {"error": str(e)[:100]},
+                "account_info": {
+                    "provider": "gcp",
+                    "project_id": proj,
+                    "client_email": "unknown",
+                    "auth_type": "FAILED",
+                    "mode": "ERROR",
+                },
                 "last_tested": datetime.now(timezone.utc).isoformat(),
             }
             self.service_account_json = old_sa

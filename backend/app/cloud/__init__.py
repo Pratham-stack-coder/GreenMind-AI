@@ -16,8 +16,12 @@ from .gcp_provider import GCPCloudProvider
 _PROVIDERS: dict[str, BaseCloudProvider] = {}
 
 
-def get_provider(name: str = "aws") -> BaseCloudProvider:
+def get_provider(name: Any = "aws") -> BaseCloudProvider:
     """Return singleton instance of the requested cloud provider."""
+    if hasattr(name, "default"):
+        name = name.default
+    if not isinstance(name, str):
+        name = str(name) if name is not None else "aws"
     name_clean = name.lower().strip()
     if name_clean not in _PROVIDERS:
         if name_clean == "azure":

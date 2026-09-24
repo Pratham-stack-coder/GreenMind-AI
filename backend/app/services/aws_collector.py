@@ -286,6 +286,71 @@ class AWSCollector:
             return None
 
 
+    def list_regions(self) -> list[dict[str, Any]]:
+        """List available AWS regions (from EC2 API if live, else canonical region list)."""
+        STANDARD_REGIONS = [
+            {"id": "us-east-1", "name": "US East (N. Virginia)", "city": "North Virginia", "country": "US"},
+            {"id": "us-east-2", "name": "US East (Ohio)", "city": "Ohio", "country": "US"},
+            {"id": "us-west-1", "name": "US West (N. California)", "city": "California", "country": "US"},
+            {"id": "us-west-2", "name": "US West (Oregon)", "city": "Oregon", "country": "US"},
+            {"id": "eu-west-1", "name": "Europe (Ireland)", "city": "Dublin", "country": "IE"},
+            {"id": "eu-central-1", "name": "Europe (Frankfurt)", "city": "Frankfurt", "country": "DE"},
+            {"id": "ap-south-1", "name": "Asia Pacific (Mumbai)", "city": "Mumbai", "country": "IN"},
+            {"id": "ap-southeast-1", "name": "Asia Pacific (Singapore)", "city": "Singapore", "country": "SG"},
+            {"id": "ap-northeast-1", "name": "Asia Pacific (Tokyo)", "city": "Tokyo", "country": "JP"},
+        ]
+        if self._ec2_client:
+            try:
+                resp = self._ec2_client.describe_regions()
+                regions = []
+                for r in resp.get("Regions", []):
+                    r_id = r.get("RegionName", "")
+                    matched = next((item for item in STANDARD_REGIONS if item["id"] == r_id), None)
+                    if matched:
+                        regions.append(matched)
+                    else:
+                        regions.append({"id": r_id, "name": r_id, "city": r_id, "country": "Unknown"})
+                if regions:
+                    return regions
+            except Exception as e:
+                logger.warning(f"Could not query EC2 describe_regions: {e}")
+        return STANDARD_REGIONS
+
+    def get_account_info(self) -> dict[str, Any]:
+        """Return safe AWS caller identity and account info (no secrets)."""
+        if self.is_configured:
+            try:
+                import boto3
+                session = boto3.Session(
+                    aws_access_key_id=settings.aws_access_key_id,
+                    aws_secret_access_key=settings.aws_secret_access_key,
+                    aws_session_token=getattr(settings, "aws_session_token", "") or None,
+                    region_name=settings.aws_default_region or self.region,
+                )
+                sts = session.client("sts")
+                caller = sts.get_caller_identity()
+                account = caller.get("Account", "unknown")
+                arn = caller.get("Arn", "")
+                masked_arn = arn[:25] + "..." if len(arn) > 25 else arn
+                return {
+                    "provider": "aws",
+                    "account_id": account,
+                    "arn": masked_arn,
+                    "region": settings.aws_default_region or self.region,
+                    "auth_type": "IAM/STS",
+                    "mode": "LIVE",
+                }
+            except Exception:
+                pass
+        return {
+            "provider": "aws",
+            "account_id": "123456789012",
+            "arn": "arn:aws:iam::123456789012:role/greenmind-demo-role",
+            "region": settings.aws_default_region or self.region,
+            "auth_type": "DEMO",
+            "mode": "DEMO",
+        }
+
     def test_connection(
         self,
         access_key_id: str | None = None,
@@ -293,9 +358,17 @@ class AWSCollector:
         region_name: str | None = None,
         session_token: str | None = None,
     ) -> dict[str, Any]:
-        """Test AWS credentials and connectivity using STS and CloudWatch read calls."""
+        """Test AWS credentials and connectivity using STS and CloudWatch read calls.
+        
+        Implements the 4-tier model:
+        - credentials_status: CONFIGURED / NOT_CONFIGURED
+        - authentication_status: SUCCESS / FAILED / NOT_CONFIGURED
+        - api_reachability: REACHABLE / UNREACHABLE / NOT_CONFIGURED
+        - telemetry_status: OPERATIONAL / DEGRADED / UNAVAILABLE / ERROR / DEMO
+        """
         ak = access_key_id or settings.aws_access_key_id
         sk = secret_access_key or settings.aws_secret_access_key
+        st = session_token or getattr(settings, "aws_session_token", "") or None
         rg = region_name or settings.aws_default_region or self.region
 
         if not (ak and sk):
@@ -303,8 +376,13 @@ class AWSCollector:
                 "success": False,
                 "status": "not_configured",
                 "mode": "DEMO",
-                "message": "AWS credentials not provided. Running in Demo mode.",
+                "credentials_status": "NOT_CONFIGURED",
+                "authentication_status": "NOT_CONFIGURED",
+                "api_reachability": "NOT_CONFIGURED",
+                "telemetry_status": "DEMO",
+                "message": "AWS credentials not configured. Operating in safe Demo mode.",
                 "details": {"region": rg},
+                "account_info": self.get_account_info(),
                 "last_tested": datetime.now(timezone.utc).isoformat(),
             }
 
@@ -315,28 +393,52 @@ class AWSCollector:
             session = boto3.Session(
                 aws_access_key_id=ak,
                 aws_secret_access_key=sk,
-                aws_session_token=session_token,
+                aws_session_token=st,
                 region_name=rg,
             )
             sts = session.client("sts")
             caller = sts.get_caller_identity()
             account = caller.get("Account", "unknown")
             arn = caller.get("Arn", "")
-            masked_arn = arn[:20] + "..." if len(arn) > 20 else arn
+            masked_arn = arn[:25] + "..." if len(arn) > 25 else arn
 
+            # Test EC2 reachability
+            ec2 = session.client("ec2")
+            try:
+                ec2.describe_regions()
+                ec2_reachable = True
+            except Exception:
+                ec2_reachable = False
+
+            # Test CloudWatch reachability
             cw = session.client("cloudwatch")
             cw.list_metrics(Namespace="AWS/EC2")
+
+            account_data = {
+                "provider": "aws",
+                "account_id": account,
+                "arn": masked_arn,
+                "region": rg,
+                "auth_type": "IAM/STS",
+                "mode": "LIVE",
+                "ec2_reachable": ec2_reachable,
+            }
 
             return {
                 "success": True,
                 "status": "connected",
                 "mode": "LIVE",
-                "message": f"Successfully authenticated with AWS Account {account} ({rg}).",
+                "credentials_status": "CONFIGURED",
+                "authentication_status": "SUCCESS",
+                "api_reachability": "REACHABLE",
+                "telemetry_status": "OPERATIONAL",
+                "message": f"Successfully authenticated with AWS Account {account} in region {rg}.",
                 "details": {
                     "account_id": account,
                     "region": rg,
                     "arn": masked_arn,
                 },
+                "account_info": account_data,
                 "last_tested": datetime.now(timezone.utc).isoformat(),
             }
 
@@ -345,38 +447,80 @@ class AWSCollector:
             msg = e.response.get("Error", {}).get("Message", str(e))
             if code in ["InvalidClientTokenId", "AuthFailure", "SignatureDoesNotMatch", "UnrecognizedClientException"]:
                 status = "authentication_failed"
+                auth_status = "FAILED"
+                reach_status = "UNREACHABLE"
                 user_msg = f"AWS authentication failed: {code}."
             elif code in ["AccessDenied", "UnauthorizedOperation", "AccessDeniedException"]:
                 status = "permission_denied"
+                auth_status = "SUCCESS"  # STS authenticated caller, but read permissions missing
+                reach_status = "UNREACHABLE"
                 user_msg = f"AWS credentials valid, but missing required read permissions: {code}."
             else:
                 status = "service_unavailable"
+                auth_status = "FAILED"
+                reach_status = "UNREACHABLE"
                 user_msg = f"AWS service error ({code}): {msg}"
 
             return {
                 "success": False,
                 "status": status,
-                "mode": "DEMO",
+                "mode": "ERROR",
+                "credentials_status": "CONFIGURED",
+                "authentication_status": auth_status,
+                "api_reachability": reach_status,
+                "telemetry_status": "ERROR",
                 "message": user_msg,
                 "details": {"code": code, "region": rg},
+                "account_info": {
+                    "provider": "aws",
+                    "account_id": "unknown",
+                    "arn": "",
+                    "region": rg,
+                    "auth_type": "FAILED",
+                    "mode": "ERROR",
+                },
                 "last_tested": datetime.now(timezone.utc).isoformat(),
             }
         except EndpointConnectionError:
             return {
                 "success": False,
                 "status": "service_unavailable",
-                "mode": "DEMO",
+                "mode": "ERROR",
+                "credentials_status": "CONFIGURED",
+                "authentication_status": "FAILED",
+                "api_reachability": "UNREACHABLE",
+                "telemetry_status": "ERROR",
                 "message": f"Could not connect to AWS endpoint in region {rg}. Check network or region.",
                 "details": {"region": rg},
+                "account_info": {
+                    "provider": "aws",
+                    "account_id": "unknown",
+                    "arn": "",
+                    "region": rg,
+                    "auth_type": "FAILED",
+                    "mode": "ERROR",
+                },
                 "last_tested": datetime.now(timezone.utc).isoformat(),
             }
         except Exception as e:
             return {
                 "success": False,
                 "status": "service_unavailable",
-                "mode": "DEMO",
+                "mode": "ERROR",
+                "credentials_status": "CONFIGURED",
+                "authentication_status": "FAILED",
+                "api_reachability": "UNREACHABLE",
+                "telemetry_status": "ERROR",
                 "message": f"Unexpected error testing AWS connection: {type(e).__name__}",
                 "details": {"error": str(e)[:100]},
+                "account_info": {
+                    "provider": "aws",
+                    "account_id": "unknown",
+                    "arn": "",
+                    "region": rg,
+                    "auth_type": "FAILED",
+                    "mode": "ERROR",
+                },
                 "last_tested": datetime.now(timezone.utc).isoformat(),
             }
 

@@ -19,6 +19,11 @@ ProviderStatus = Literal[
     "demo",
 ]
 
+CredentialsStatus = Literal["CONFIGURED", "NOT_CONFIGURED"]
+AuthenticationStatus = Literal["SUCCESS", "FAILED", "NOT_CONFIGURED"]
+ReachabilityStatus = Literal["REACHABLE", "UNREACHABLE", "NOT_CONFIGURED"]
+TelemetryStatus = Literal["OPERATIONAL", "DEGRADED", "UNAVAILABLE", "ERROR", "DEMO"]
+
 
 @dataclass
 class NormalizedCloudMetric:
@@ -73,32 +78,53 @@ class BaseCloudProvider(ABC):
         pass
 
     @abstractmethod
-    def test_connection(self) -> dict[str, Any]:
+    def get_account_info(self) -> dict[str, Any]:
+        """Fetch safe account / subscription / project metadata (no secrets)."""
+        pass
+
+    @abstractmethod
+    def get_regions(self) -> list[dict[str, Any]]:
+        """Fetch list of available cloud regions for this provider."""
+        pass
+
+    @abstractmethod
+    def test_connection(self, credentials: dict[str, Any] | None = None) -> dict[str, Any]:
         """
         Validate live credentials and connectivity against the cloud provider API.
-        Returns:
-            dict containing:
-            - success: bool
-            - status: ProviderStatus ('connected', 'not_configured', 'authentication_failed', etc.)
-            - mode: 'LIVE' or 'DEMO'
-            - message: human-readable status explanation (safe, no secret exposure)
-            - last_tested: ISO-8601 timestamp
+        Must distinguish the 4-tier model:
+        - credentials_status: CONFIGURED / NOT_CONFIGURED
+        - authentication_status: SUCCESS / FAILED / NOT_CONFIGURED
+        - api_reachability: REACHABLE / UNREACHABLE / NOT_CONFIGURED
+        - telemetry_status: OPERATIONAL / DEGRADED / UNAVAILABLE / ERROR / DEMO
         """
         pass
 
+    def validate_credentials(self, credentials: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Validate credentials dictionary without permanently modifying current provider state."""
+        return self.test_connection(credentials=credentials)
+
     def get_status(self) -> dict[str, Any]:
-        """Return cached or active status summary for the provider."""
+        """Return cached or active 4-tier status summary for the provider."""
         if self._last_test_result:
             return self._last_test_result
 
         mode = "LIVE" if self.is_live else "DEMO"
         status = "connected" if self.is_live else "demo"
-        msg = f"{self.provider_name.upper()} active in Live mode" if self.is_live else f"{self.provider_name.upper()} operating in safe Demo mode"
+        msg = (
+            f"{self.provider_name.upper()} active in Live mode"
+            if self.is_live
+            else f"{self.provider_name.upper()} operating in safe Demo mode"
+        )
         return {
             "provider": self.provider_name,
             "success": True,
             "status": status,
             "mode": mode,
+            "credentials_status": "CONFIGURED" if self.is_live else "NOT_CONFIGURED",
+            "authentication_status": "SUCCESS" if self.is_live else "NOT_CONFIGURED",
+            "api_reachability": "REACHABLE" if self.is_live else "NOT_CONFIGURED",
+            "telemetry_status": "OPERATIONAL" if self.is_live else "DEMO",
             "message": msg,
+            "account_info": self.get_account_info(),
             "last_tested": datetime.now(timezone.utc).isoformat(),
         }
