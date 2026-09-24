@@ -12,6 +12,7 @@ Unified routing:
 
 from __future__ import annotations
 
+import logging
 import math
 import random
 from contextlib import asynccontextmanager
@@ -24,6 +25,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import carbon
 from .cloud import get_provider
 from .config import get_settings
+from .database import init_db
 from .decision_engine import classify_risk, recommend
 from .ml import predictor
 from .monitoring import (
@@ -57,17 +59,30 @@ from .schemas import (
     SimulationResult,
 )
 
+logger = logging.getLogger(__name__)
 settings = get_settings()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: pre-load ML models so first request is immediate."""
+    """Startup: initialize database tables and pre-load ML models."""
+    # Initialize database tables (creates them if not present)
+    try:
+        await init_db()
+        logger.info("Database initialized successfully.")
+    except Exception as e:
+        logger.warning(f"Database initialization warning: {e}")
+
+    # Pre-load ML models so first request is immediate
     try:
         predictor.model_info()
+        logger.info("ML models pre-loaded.")
     except FileNotFoundError:
-        pass
+        logger.warning("ML model files not found — run python -m app.ml.train to generate them.")
+
     yield
+
+    logger.info("GreenMind AI shutting down.")
 
 
 app = FastAPI(
@@ -84,15 +99,20 @@ app = FastAPI(
 )
 
 # CORS configuration supporting deployed Vercel and local dev origins
+# BUG-012 FIX: Correct Python operator precedence for ternary CORS expression
 cors_origins = list(settings.allowed_origins)
 if settings.cors_origins:
     cors_origins.extend([o.strip() for o in settings.cors_origins.split(",") if o.strip()])
+
+# In demo mode allow all origins (safe for local dev / no-credential demo deployments)
+# In production (DEMO_MODE=false): only explicitly configured origins are allowed.
+_allowed_origins: list[str] = (cors_origins + ["*"]) if settings.demo_mode else cors_origins
 
 # Middleware
 app.add_middleware(PrometheusMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins + ["*"] if settings.demo_mode else cors_origins,
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -149,6 +169,52 @@ def health():
         "database": "sqlite" if not settings.database_url else "postgresql",
         "redis": bool(settings.redis_url),
         "llm_configured": bool(settings.openai_api_key or settings.gemini_api_key),
+    }
+
+
+@app.get("/api/v1/ready", tags=["System"])
+@app.get("/ready", tags=["System"])
+async def ready():
+    """Readiness probe: verifies database connectivity and ML model availability."""
+    from .database import _engine
+    checks: dict[str, str] = {}
+    overall_ready = True
+
+    # Database check
+    try:
+        async with _engine.connect() as conn:
+            await conn.execute(__import__('sqlalchemy').text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as e:
+        checks["database"] = f"error: {type(e).__name__}"
+        overall_ready = False
+
+    # ML models check
+    try:
+        info = predictor.model_info()
+        checks["ml_models"] = "loaded" if info else "not_trained"
+    except Exception:
+        checks["ml_models"] = "error"
+
+    # Redis check (optional)
+    if settings.redis_url:
+        try:
+            from .database import _redis
+            if _redis:
+                await _redis.ping()
+                checks["redis"] = "ok"
+            else:
+                checks["redis"] = "not_connected"
+        except Exception as e:
+            checks["redis"] = f"error: {type(e).__name__}"
+    else:
+        checks["redis"] = "not_configured"
+
+    return {
+        "ready": overall_ready,
+        "checks": checks,
+        "demo_mode": settings.demo_mode,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 

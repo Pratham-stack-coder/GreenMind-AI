@@ -33,6 +33,7 @@ class AWSCollector:
         self.region = region
         self._cw_client = None
         self._ec2_client = None
+        self._ce_client = None  # AWS Cost Explorer (requires ce:GetCostAndUsage)
         self.is_configured = bool(
             settings.aws_access_key_id and settings.aws_secret_access_key
         )
@@ -47,6 +48,8 @@ class AWSCollector:
                 )
                 self._cw_client = session.client("cloudwatch")
                 self._ec2_client = session.client("ec2")
+                # Cost Explorer is global (us-east-1) — always use that region
+                self._ce_client = session.client("ce", region_name="us-east-1")
             except Exception as e:
                 logger.warning(f"Failed to initialize AWS boto3 clients: {e}")
                 self.is_configured = False
@@ -196,7 +199,8 @@ class AWSCollector:
             instances = []
             for res in resp.get("Reservations", []):
                 for inst in res.get("Instances", []):
-                    name_tag = next((t["Value"] for t in inst.get("Tags", []) if t["Key"] == "Name"), inst["InstanceId"])
+                    tags = inst.get("Tags", [])
+                    name_tag = next((t["Value"] for t in tags if t["Key"] == "Name"), inst["InstanceId"])
                     instances.append({
                         "id": inst["InstanceId"],
                         "name": name_tag,
@@ -205,11 +209,82 @@ class AWSCollector:
                         "launch_time": str(inst.get("LaunchTime", "")),
                         "private_ip": inst.get("PrivateIpAddress", ""),
                         "public_ip": inst.get("PublicIpAddress", ""),
+                        "tags": tags,  # raw [{"Key": ..., "Value": ...}] list
                     })
             return instances
         except Exception as e:
             logger.warning(f"Error querying EC2 describe_instances: {e}")
             return []
+
+    def collect_daily_cost(self) -> float | None:
+        """Fetch yesterday's total AWS cost via Cost Explorer.
+
+        Returns the total USD cost for yesterday, or None if:
+        - No Cost Explorer client (no credentials)
+        - Missing ce:GetCostAndUsage permission
+        - Any API error
+
+        This method NEVER raises — always returns None on any failure.
+        """
+        if not self._ce_client:
+            return None
+
+        from datetime import date, timedelta
+        end = date.today()
+        start = end - timedelta(days=1)
+
+        try:
+            resp = self._ce_client.get_cost_and_usage(
+                TimePeriod={"Start": str(start), "End": str(end)},
+                Granularity="DAILY",
+                Metrics=["AmortizedCost"],
+            )
+            results = resp.get("ResultsByTime", [])
+            if results:
+                total = float(results[0]["Total"]["AmortizedCost"]["Amount"])
+                return round(total, 4)
+            return 0.0
+        except Exception as e:
+            logger.warning(f"AWS Cost Explorer query failed (this is OK if no ce permission): {type(e).__name__}: {e}")
+            return None
+
+    def collect_cost_explorer(self, days: int = 7) -> dict[str, Any] | None:
+        """Fetch N-day cost breakdown via Cost Explorer with service-level granularity.
+
+        Returns dict with total_usd and top_services, or None on any failure.
+        Requires ce:GetCostAndUsage with GROUP_BY Service.
+        """
+        if not self._ce_client:
+            return None
+
+        from datetime import date, timedelta
+        end = date.today()
+        start = end - timedelta(days=days)
+
+        try:
+            resp = self._ce_client.get_cost_and_usage(
+                TimePeriod={"Start": str(start), "End": str(end)},
+                Granularity="MONTHLY",
+                Metrics=["AmortizedCost"],
+                GroupBy=[{"Type": "DIMENSION", "Key": "SERVICE"}],
+            )
+
+            total = 0.0
+            top_services: list[dict[str, Any]] = []
+            for period in resp.get("ResultsByTime", []):
+                for group in period.get("Groups", []):
+                    service_name = group["Keys"][0]
+                    amount = float(group["Metrics"]["AmortizedCost"]["Amount"])
+                    total += amount
+                    top_services.append({"service": service_name, "cost_usd": round(amount, 4), "source": "LIVE_AWS"})
+
+            # Sort by cost desc, keep top 10
+            top_services = sorted(top_services, key=lambda x: -x["cost_usd"])[:10]
+            return {"total_usd": round(total, 4), "top_services": top_services}
+        except Exception as e:
+            logger.warning(f"AWS Cost Explorer breakdown failed: {type(e).__name__}: {e}")
+            return None
+
 
     def test_connection(
         self,

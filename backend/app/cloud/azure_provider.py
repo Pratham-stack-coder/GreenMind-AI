@@ -69,11 +69,53 @@ class AzureCloudProvider(BaseCloudProvider):
                     self._token_expires_at = time.time() + expires_in - 60
                     return self._cached_token
                 else:
-                    logger.warning(f"Azure token request failed: {res.status_code} {res.text}")
+                    logger.warning(f"Azure token request failed: {res.status_code} {res.text[:200]}")
         except Exception as e:
             logger.warning(f"Failed to obtain Azure token: {e}")
 
         return None
+
+    def _discover_vm_resources(self, token: str) -> list[str]:
+        """Discover VM resource URIs via Azure Resource Manager API.
+
+        BUG-003 FIX: replaces hardcoded 'default-rg/default-vm' with
+        actual VM discovery from the subscription's resource list.
+
+        Returns list of resource URIs suitable for fetch_live_metrics().
+        Returns [] if discovery fails or no VMs exist.
+        """
+        if not self.subscription_id:
+            return []
+
+        url = f"https://management.azure.com/subscriptions/{self.subscription_id}/resources"
+        params = {
+            "api-version": "2021-04-01",
+            "$filter": "resourceType eq 'Microsoft.Compute/virtualMachines'",
+            "$top": 5,  # Limit to first 5 VMs
+        }
+        headers = {"Authorization": f"Bearer {token}"}
+
+        try:
+            with httpx.Client(timeout=8.0) as client:
+                res = client.get(url, params=params, headers=headers)
+                if res.status_code == 200:
+                    data = res.json()
+                    # Extract the path portion of each resource ID (strip leading /subscriptions/...)
+                    uris = []
+                    for item in data.get("value", []):
+                        rid = item.get("id", "")
+                        if rid:
+                            uris.append(rid)  # full resource ID already starts with /subscriptions
+                    logger.info(f"Azure: discovered {len(uris)} VMs in subscription.")
+                    return uris
+                elif res.status_code == 403:
+                    logger.warning("Azure: permission denied on resource list. Assign 'Reader' role on subscription.")
+                else:
+                    logger.warning(f"Azure resource discovery returned {res.status_code}")
+        except Exception as e:
+            logger.warning(f"Azure resource discovery failed: {e}")
+        return []
+
 
     def fetch_live_metrics(self, resource_uri: str) -> dict[str, Any] | None:
         """Fetch real-time metrics from Azure Monitor for a specific resource URI."""
@@ -125,34 +167,107 @@ class AzureCloudProvider(BaseCloudProvider):
         return None
 
     def get_metrics(self, region: str) -> dict[str, Any]:
-        """Fetch current telemetry metrics for Azure."""
+        """Fetch current telemetry metrics for Azure.
+
+        DATA TRUTH:
+        - cpu, network: LIVE from Azure Monitor API (if VMs discovered)
+        - memory: UNAVAILABLE (requires Azure Monitor Agent (AMA) extension)
+        - storage: UNAVAILABLE (requires AMA Disk metrics extension)
+        - cost: UNAVAILABLE (requires Azure Cost Management API)
+        """
         now = datetime.now(timezone.utc)
         hour = now.hour
 
         if self.is_live:
-            # Query default VM if configured
-            resource_uri = f"/subscriptions/{self.subscription_id}/resourceGroups/default-rg/providers/Microsoft.Compute/virtualMachines/default-vm"
-            live = self.fetch_live_metrics(resource_uri)
-            if live and "cpu" in live:
-                cpu = live["cpu"]
-                net_mbps = round((live.get("network_in", 0) + live.get("network_out", 0)) / (5 * 60 * 125000), 2)
-                net = max(net_mbps, 50.0)
-                cost = round(0.184 * (1 + (cpu / 100) * 0.35), 4)
-                ci = get_carbon_intensity(region, hour)["carbon_intensity_gco2_per_kwh"]
-                carbon = round(0.35 * ci * (1 + (cpu / 100) * 0.35), 2)
+            token = self._get_access_token()
+            if token:
+                # BUG-003 FIX: Discover real VM resource URIs instead of hardcoded default-rg/default-vm
+                vm_uris = self._discover_vm_resources(token)
+
+                if vm_uris:
+                    # Query the first discovered VM
+                    live = self.fetch_live_metrics(vm_uris[0])
+                    if live and "cpu" in live:
+                        cpu = live["cpu"]
+                        net_bytes = live.get("network_in", 0) + live.get("network_out", 0)
+                        # Convert bytes/5min-interval to Mbps
+                        net_mbps = round(net_bytes / (5 * 60 * 125000), 2) if net_bytes else None
+                        cost = round(0.184 * (1 + (cpu / 100) * 0.35), 4)
+                        ci = get_carbon_intensity(region, hour)["carbon_intensity_gco2_per_kwh"]
+                        carbon = round(0.35 * ci * (1 + (cpu / 100) * 0.35), 2)
+                        return {
+                            "timestamp": now.isoformat(),
+                            "provider": "azure",
+                            "region": region,
+                            "cpu": cpu,
+                            "memory": None,        # UNAVAILABLE without Azure Monitor Agent
+                            "storage": None,       # UNAVAILABLE without AMA Disk metrics
+                            "network": net_mbps,   # None if no network data returned
+                            "cost_usd_per_hour": cost,
+                            "carbon_gco2_per_hour": carbon,
+                            "instance_count": len(vm_uris),
+                            "source": "LIVE_AZURE",
+                            "cost_source": "ESTIMATED",
+                            "memory_source": "UNAVAILABLE",
+                            "network_source": "LIVE_AZURE" if net_mbps is not None else "UNAVAILABLE",
+                            "memory_note": (
+                                "Guest OS memory requires Azure Monitor Agent (AMA) extension. "
+                                "Install: https://learn.microsoft.com/en-us/azure/azure-monitor/agents/azure-monitor-agent-manage"
+                            ),
+                        }
+                    else:
+                        logger.warning(f"Azure Monitor returned no CPU data for VM: {vm_uris[0]}")
+                        return {
+                            "timestamp": now.isoformat(),
+                            "provider": "azure",
+                            "region": region,
+                            "cpu": 0.0,
+                            "memory": None,
+                            "storage": None,
+                            "network": None,
+                            "cost_usd_per_hour": 0.0,
+                            "carbon_gco2_per_hour": 0.0,
+                            "instance_count": len(vm_uris),
+                            "source": "ERROR",
+                            "memory_source": "UNAVAILABLE",
+                            "memory_note": "Azure Monitor returned no CPU data. Verify monitoring is enabled on VM.",
+                        }
+                else:
+                    # Authenticated but no VMs found (empty subscription or no permissions)
+                    return {
+                        "timestamp": now.isoformat(),
+                        "provider": "azure",
+                        "region": region,
+                        "cpu": 0.0,
+                        "memory": None,
+                        "storage": None,
+                        "network": None,
+                        "cost_usd_per_hour": 0.0,
+                        "carbon_gco2_per_hour": 0.0,
+                        "instance_count": 0,
+                        "source": "LIVE_AZURE",
+                        "memory_source": "UNAVAILABLE",
+                        "memory_note": (
+                            "No VMs found in subscription. "
+                            "Create VMs or ensure Reader role on subscription to discover resources."
+                        ),
+                    }
+            else:
+                # Token acquisition failed despite credentials being configured
                 return {
                     "timestamp": now.isoformat(),
                     "provider": "azure",
                     "region": region,
-                    "cpu": cpu,
-                    "memory": 52.0,  # Standard Azure Monitor VM host metric does not include in-guest memory
-                    "storage": 40.0,
-                    "network": net,
-                    "cost_usd_per_hour": cost,
-                    "carbon_gco2_per_hour": carbon,
-                    "instance_count": 1,
-                    "source": "LIVE_AZURE",
-                    "memory_note": "Guest OS memory metrics require Azure Monitor Agent (AMA) extension.",
+                    "cpu": 0.0,
+                    "memory": None,
+                    "storage": None,
+                    "network": None,
+                    "cost_usd_per_hour": 0.0,
+                    "carbon_gco2_per_hour": 0.0,
+                    "instance_count": 0,
+                    "source": "ERROR",
+                    "memory_source": "UNAVAILABLE",
+                    "memory_note": "Azure OAuth2 token acquisition failed. Check AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID.",
                 }
 
         # Demo Mode adapter
@@ -161,6 +276,7 @@ class AzureCloudProvider(BaseCloudProvider):
         d = m.model_dump()
         d["source"] = "DEMO"
         return d
+
 
     def get_resources(self, region: str) -> list[dict[str, Any]]:
         """Fetch Azure resource inventory."""

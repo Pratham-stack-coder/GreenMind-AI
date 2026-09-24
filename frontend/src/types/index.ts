@@ -1,18 +1,40 @@
 // ── API Types ──────────────────────────────────────────────────────────────
 
+/** Data source types — non-negotiable data truth labels */
+export type DataSourceType =
+  | 'LIVE'
+  | 'LIVE_AWS'
+  | 'LIVE_AZURE'
+  | 'LIVE_GCP'
+  | 'DEMO'
+  | 'ESTIMATED'
+  | 'SIMULATED'
+  | 'UNAVAILABLE'
+  | 'ERROR'
+
 export interface CloudMetrics {
   timestamp: string
   provider: string
   region: string
   cpu: number
-  memory: number
-  storage: number
-  network: number
+  /** Null when UNAVAILABLE (requires CloudWatch Agent / google-cloud-ops-agent) */
+  memory: number | null
+  /** Null when UNAVAILABLE (requires CloudWatch Agent) */
+  storage: number | null
+  /** Null when UNAVAILABLE (provider did not return network data) */
+  network: number | null
   cost_usd_per_hour: number
   carbon_gco2_per_hour: number
   instance_count: number
-  source: 'DEMO' | 'LIVE' | 'LIVE_AWS' | string
+  source: DataSourceType
+  /** Source of memory metric specifically (may differ from main source) */
+  memory_source?: DataSourceType
+  /** Explains why memory may be UNAVAILABLE */
+  memory_note?: string
+  /** Source of cost data (LIVE_AWS if Cost Explorer, ESTIMATED otherwise) */
+  cost_source?: DataSourceType
 }
+
 
 export interface MetricForecast {
   current: number

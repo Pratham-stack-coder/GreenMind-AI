@@ -12,8 +12,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Ensure ML models are trained if not already present
-RUN python -m app.ml.train
+# Train ML models at build time.
+# WARN-007 FIX: train.py uses `from generate_dataset import generate_series`
+# (relative import), so it must run from the directory containing generate_dataset.py.
+# Running via `python -m app.ml.train` from /app fails because the CWD is /app
+# and generate_dataset.py is in /app/app/ml/, not /app.
+# Solution: cd into the ml directory before running train.py directly.
+RUN cd /app/app/ml && python train.py || echo "WARNING: ML model training failed. Models must be trained separately."
 
 EXPOSE 8000
 

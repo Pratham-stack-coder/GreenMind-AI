@@ -9,9 +9,9 @@ from fastapi import APIRouter, HTTPException, Query
 
 from .. import carbon
 from ..agents import orchestrator
+from ..cloud import get_provider
 from ..decision_engine import right_size, scaling_advice
 from ..ml import predictor
-from ..routers.telemetry import _generate_live_metrics
 from ..schemas import (
     ApplyRequest,
     ApplyResponse,
@@ -33,7 +33,22 @@ _dismissed_ids: set[str] = set()
 
 
 def _build_recommendations(provider: str, region: str) -> tuple[list[RecommendationItem], int]:
-    metrics = _generate_live_metrics(provider, region)
+    """Fetch real or DEMO metrics from the provider factory and run agent analysis.
+
+    DATA TRUTH:
+    - In LIVE mode: uses real cloud metrics from provider API (source=LIVE_AWS/AZURE/GCP)
+    - In DEMO mode or if provider is unconfigured: uses DEMO synthetic metrics (source=DEMO)
+    - Agent analysis is always clearly labeled based on metrics source
+    """
+    p = get_provider(provider)
+    if p.is_live:
+        raw = p.get_metrics(region)
+        from ..schemas import CloudMetrics
+        metrics = CloudMetrics(**raw)
+    else:
+        from ..routers.telemetry import _generate_live_metrics
+        metrics = _generate_live_metrics(provider, region)
+
     result = orchestrator.run(metrics)
     global _last_recommendations, _last_score, _last_generated
     _last_recommendations = result.unified_recommendations

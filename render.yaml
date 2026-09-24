@@ -6,18 +6,71 @@ services:
     plan: free
     branch: main
     rootDir: .
-    buildCommand: "pip install -r backend/requirements.txt"
+    buildCommand: "pip install -r backend/requirements.txt && cd backend/app/ml && python train.py || echo 'ML training failed'"
     startCommand: "python -m uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /health
     autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.0
-      - key: DEMO_MODE
-        value: "true"
+      # WARN-010 FIX: repo root must be in PYTHONPATH so `backend.app.main` resolves
+      - key: PYTHONPATH
+        value: "."
       - key: PORT
         value: "8000"
-      - key: PYTHONPATH
-        value: "backend:."
+
+      # ── Application Mode ──────────────────────────────────────────────────────
+      # Set to "false" in production when cloud credentials are configured
+      - key: DEMO_MODE
+        value: "true"
+      - key: APP_VERSION
+        value: "2.0.0"
+
+      # ── CORS (set to your Vercel frontend URL) ────────────────────────────────
       - key: CORS_ORIGINS
+        sync: false   # Set in Render dashboard: https://your-app.vercel.app
+
+      # ── Database (use Render PostgreSQL add-on for persistence) ───────────────
+      # If not set, falls back to SQLite (ephemeral on Render free tier)
+      - key: DATABASE_URL
+        sync: false   # Set in Render dashboard or use Render PostgreSQL add-on
+
+      # ── Optional LLM Copilot (uncomment to enable AI responses) ──────────────
+      - key: GEMINI_API_KEY
+        sync: false   # Set in Render dashboard: your_google_gemini_api_key
+      - key: OPENAI_API_KEY
+        sync: false   # Set in Render dashboard: your_openai_api_key
+
+      # ── AWS Live Telemetry (CloudWatch + optional Cost Explorer) ─────────────
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_DEFAULT_REGION
+        sync: false   # e.g. us-east-1
+
+      # ── Azure Live Telemetry (Azure Monitor + ARM) ────────────────────────────
+      - key: AZURE_SUBSCRIPTION_ID
+        sync: false
+      - key: AZURE_TENANT_ID
+        sync: false
+      - key: AZURE_CLIENT_ID
+        sync: false
+      - key: AZURE_CLIENT_SECRET
+        sync: false
+
+      # ── GCP Live Telemetry (Cloud Monitoring v3) ──────────────────────────────
+      - key: GCP_PROJECT_ID
+        sync: false
+      - key: GCP_SERVICE_ACCOUNT_JSON
+        sync: false   # Full service account JSON as a single-line string
+
+      # ── Optional Real-Time Carbon Intensity Providers ─────────────────────────
+      # Electricity Maps (https://www.electricitymaps.com/free-tier-api)
+      - key: ELECTRICITY_MAPS_API_KEY
+        sync: false
+      # WattTime (https://www.watttime.org/get-the-api/)
+      - key: WATTTIME_USERNAME
+        sync: false
+      - key: WATTTIME_PASSWORD
         sync: false

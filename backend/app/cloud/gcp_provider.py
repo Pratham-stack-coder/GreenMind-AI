@@ -33,8 +33,11 @@ class GCPCloudProvider(BaseCloudProvider):
         self.project_id = settings.gcp_project_id
         self.service_account_json = settings.gcp_service_account_json
         
+        # BUG-004 FIX: Require BOTH project_id AND service_account_json for is_configured.
+        # Previously: `self.service_account_json or settings.gcp_project_id != ""` was always
+        # True when project_id was set, so is_configured=True even with no SA JSON.
         self.is_configured = bool(
-            self.project_id and (self.service_account_json or settings.gcp_project_id != "")
+            self.project_id and self.service_account_json
         )
         is_live = not settings.demo_mode and self.is_configured
         super().__init__(provider_name="gcp", is_live=is_live)
@@ -80,11 +83,21 @@ class GCPCloudProvider(BaseCloudProvider):
 
 
     def fetch_live_metrics(self) -> dict[str, Any] | None:
-        """Fetch live CPU and network time series from Google Cloud Monitoring v3 API."""
+        """Fetch live CPU time series from Google Cloud Monitoring v3 API.
+
+        Returns None if token is unavailable (short-circuits rather than
+        making an unauthenticated request to the API).
+        """
         if not self.project_id:
             return None
 
+        # BUG-009 FIX: Obtain token first. If None, do NOT make an unauthenticated
+        # API call (which would waste a round-trip and return a confusing 401).
         token = self._get_access_token()
+        if not token:
+            logger.warning("GCP: No access token available — skipping Cloud Monitoring API call.")
+            return None
+
         now = datetime.now(timezone.utc)
         start_time = (now - timedelta(minutes=15)).isoformat().replace("+00:00", "Z")
         end_time = now.isoformat().replace("+00:00", "Z")
@@ -97,9 +110,7 @@ class GCPCloudProvider(BaseCloudProvider):
             "aggregation.alignmentPeriod": "300s",
             "aggregation.perSeriesAligner": "ALIGN_MEAN",
         }
-        headers = {}
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
+        headers = {"Authorization": f"Bearer {token}"}
 
         try:
             with httpx.Client(timeout=8.0) as client:
@@ -113,24 +124,34 @@ class GCPCloudProvider(BaseCloudProvider):
                             val = points[0].get("value", {}).get("doubleValue", 0.0)
                             cpu_pct = round(val * 100, 2)
                             return {"cpu": cpu_pct}
+                    # Empty timeSeries: project has no Compute Engine instances
+                    logger.info("GCP Monitoring returned empty timeSeries (no GCE instances found).")
+                    return {"cpu": None, "empty": True}
                 else:
-                    logger.warning(f"GCP Monitoring API returned status {res.status_code}: {res.text}")
+                    logger.warning(f"GCP Monitoring API returned status {res.status_code}: {res.text[:200]}")
         except Exception as e:
             logger.warning(f"Error querying Google Cloud Monitoring: {e}")
 
         return None
 
+
     def get_metrics(self, region: str) -> dict[str, Any]:
-        """Fetch current telemetry metrics for GCP."""
+        """Fetch current telemetry metrics for GCP.
+
+        DATA TRUTH:
+        - cpu: LIVE from Cloud Monitoring compute.googleapis.com/instance/cpu/utilization
+        - memory: UNAVAILABLE (requires google-cloud-ops-agent per-VM)
+        - network: UNAVAILABLE (requires additional Cloud Monitoring metric queries)
+        - cost: UNAVAILABLE (requires Cloud Billing API integration)
+        """
         now = datetime.now(timezone.utc)
         hour = now.hour
 
         if self.is_live:
             live = self.fetch_live_metrics()
-            if live and "cpu" in live:
+            if live and live.get("cpu") is not None:
                 cpu = live["cpu"]
-                net = 310.0
-                cost = round(0.178 * (1 + (cpu / 100) * 0.35), 4)
+                cost = round(0.178 * (1 + (cpu / 100) * 0.35), 4)  # ESTIMATED only
                 ci = get_carbon_intensity(region, hour)["carbon_intensity_gco2_per_kwh"]
                 carbon = round(0.35 * ci * (1 + (cpu / 100) * 0.35), 2)
                 return {
@@ -138,14 +159,53 @@ class GCPCloudProvider(BaseCloudProvider):
                     "provider": "gcp",
                     "region": region,
                     "cpu": cpu,
-                    "memory": 48.0,
-                    "storage": 35.0,
-                    "network": net,
+                    "memory": None,         # UNAVAILABLE without google-cloud-ops-agent
+                    "storage": None,        # UNAVAILABLE
+                    "network": None,        # UNAVAILABLE (requires separate Cloud Monitoring query)
                     "cost_usd_per_hour": cost,
                     "carbon_gco2_per_hour": carbon,
                     "instance_count": 1,
                     "source": "LIVE_GCP",
-                    "memory_note": "Guest OS memory requires Ops Agent (google-cloud-ops-agent).",
+                    "cost_source": "ESTIMATED",
+                    "memory_source": "UNAVAILABLE",
+                    "memory_note": (
+                        "Guest OS memory requires google-cloud-ops-agent per instance. "
+                        "Install: https://cloud.google.com/stackdriver/docs/solutions/agents/ops-agent/installation"
+                    ),
+                }
+            elif live is not None:
+                # API worked but no timeSeries data (no GCE instances, or metric not published yet)
+                return {
+                    "timestamp": now.isoformat(),
+                    "provider": "gcp",
+                    "region": region,
+                    "cpu": 0.0,
+                    "memory": None,
+                    "storage": None,
+                    "network": None,
+                    "cost_usd_per_hour": 0.0,
+                    "carbon_gco2_per_hour": 0.0,
+                    "instance_count": 0,
+                    "source": "LIVE_GCP",
+                    "memory_source": "UNAVAILABLE",
+                    "memory_note": "GCP Cloud Monitoring returned no CPU timeSeries. Check project and instance configuration.",
+                }
+            else:
+                # fetch_live_metrics() returned None — API call failed
+                return {
+                    "timestamp": now.isoformat(),
+                    "provider": "gcp",
+                    "region": region,
+                    "cpu": 0.0,
+                    "memory": None,
+                    "storage": None,
+                    "network": None,
+                    "cost_usd_per_hour": 0.0,
+                    "carbon_gco2_per_hour": 0.0,
+                    "instance_count": 0,
+                    "source": "ERROR",
+                    "memory_source": "UNAVAILABLE",
+                    "memory_note": "GCP Cloud Monitoring API call failed. Check service account permissions.",
                 }
 
         # Demo Mode adapter
@@ -154,6 +214,7 @@ class GCPCloudProvider(BaseCloudProvider):
         d = m.model_dump()
         d["source"] = "DEMO"
         return d
+
 
     def get_resources(self, region: str) -> list[dict[str, Any]]:
         """Fetch GCP resource inventory."""

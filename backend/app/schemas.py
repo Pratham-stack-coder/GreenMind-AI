@@ -11,18 +11,37 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # ── Telemetry ─────────────────────────────────────────────────────────────────
 
+# Valid data-source states (Non-negotiable data truth rule)
+# LIVE       — data confirmed from real cloud provider API
+# DEMO       — deterministic synthetic demo data
+# ESTIMATED  — calculated estimate derived from real data (e.g. carbon from utilization)
+# SIMULATED  — Digital Twin scenario output
+# UNAVAILABLE— provider does not expose this metric / monitoring agent not installed
+# ERROR      — provider configured but API request failed
+DataSourceType = Literal[
+    "LIVE", "LIVE_AWS", "LIVE_AZURE", "LIVE_GCP",
+    "DEMO",
+    "ESTIMATED",
+    "SIMULATED",
+    "UNAVAILABLE",
+    "ERROR",
+]
+
+
 class CloudMetrics(BaseModel):
     timestamp: str
     provider: str = "aws"
     region: str
     cpu: float
-    memory: float
-    storage: float
-    network: float
+    memory: float | None = None
+    storage: float | None = None
+    network: float | None = None
     cost_usd_per_hour: float = 0.0
     carbon_gco2_per_hour: float = 0.0
     instance_count: int = 1
-    source: Literal["DEMO", "LIVE"] = "DEMO"
+    source: DataSourceType = "DEMO"
+    memory_source: DataSourceType = "DEMO"
+    memory_note: str | None = None  # explains why memory may be UNAVAILABLE
 
 
 class TelemetryHistoryResponse(BaseModel):

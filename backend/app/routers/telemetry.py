@@ -1,20 +1,33 @@
-"""Telemetry router — live metrics and historical data with realistic time-of-day patterns."""
+"""Telemetry router — live metrics and historical data with realistic time-of-day patterns.
+
+DATA TRUTH RULE:
+- DEMO_MODE=true  : all endpoints return deterministic synthetic data labeled source=DEMO
+- DEMO_MODE=false : endpoints route through the provider factory.
+  If the provider has valid credentials → source=LIVE_AWS/LIVE_AZURE/LIVE_GCP
+  If credentials fail               → source=ERROR (never silently returns fake LIVE data)
+  If provider is unconfigured       → source=DEMO  (explicitly labeled)
+"""
 
 from __future__ import annotations
 
+import logging
 import math
 import random
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from ..carbon import get_carbon_intensity
+from ..cloud import get_provider
+from ..config import get_settings
 from ..database import get_telemetry_history, record_telemetry
 from ..schemas import CloudMetrics, TelemetryHistoryResponse
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/telemetry", tags=["Telemetry"])
+settings = get_settings()
 
-# Simulated per-provider base costs (USD/hr)
+# Simulated per-provider base costs (USD/hr) — only used for DEMO mode
 _PROVIDER_COSTS = {"aws": 0.192, "azure": 0.184, "gcp": 0.178}
 _PROVIDER_REGIONS = {
     "aws": ["us-east", "us-west", "eu-west", "ap-southeast", "ca-central", "in-north"],
@@ -22,7 +35,7 @@ _PROVIDER_REGIONS = {
     "gcp": ["us-east", "us-west", "eu-west"],
 }
 
-# Region-specific CPU base offsets (simulate regional workload differences)
+# Region-specific CPU base offsets (simulate regional workload differences in DEMO mode)
 _REGION_OFFSETS = {
     "us-east": 8.0,
     "us-west": 4.0,
@@ -50,6 +63,11 @@ def _business_hour_factor(hour: float, day: int) -> float:
 
 
 def _generate_live_metrics(provider: str, region: str) -> CloudMetrics:
+    """Generate deterministic DEMO metrics with realistic time-of-day patterns.
+
+    NOTE: This function is ONLY for DEMO mode. It MUST never be called when
+    the system is in LIVE mode with real provider credentials.
+    """
     now = datetime.now(timezone.utc)
     hour = now.hour + now.minute / 60.0
     day = now.weekday()
@@ -85,7 +103,7 @@ def _generate_live_metrics(provider: str, region: str) -> CloudMetrics:
     load_multiplier = 1.0 + (cpu / 100.0) * 0.35  # up to +35% at 100% CPU
     cost = round(base_cost * load_multiplier, 4)
 
-    # Carbon: from regional grid intensity × power draw
+    # Carbon: from regional grid intensity × power draw (ESTIMATED from DEMO curves)
     intensity = get_carbon_intensity(region, now.hour)["carbon_intensity_gco2_per_kwh"]
     power_kw = 0.35 * load_multiplier  # simplified server power model
     carbon = round(power_kw * intensity, 2)
@@ -102,27 +120,106 @@ def _generate_live_metrics(provider: str, region: str) -> CloudMetrics:
         carbon_gco2_per_hour=carbon,
         instance_count=random.choice([1, 1, 1, 2, 3]),
         source="DEMO",
+        memory_source="DEMO",
+        memory_note="Synthetic DEMO data — configure cloud credentials for live telemetry.",
     )
     record_telemetry(m.model_dump())
     return m
 
 
+def _provider_metrics_to_cloudmetrics(data: dict, provider: str, region: str) -> CloudMetrics:
+    """Normalize a provider.get_metrics() dict to a CloudMetrics schema object."""
+    raw_source = data.get("source", "DEMO")
+    # Map LIVE_AWS / LIVE_AZURE / LIVE_GCP → valid DataSourceType
+    # Already valid — schemas.py now accepts all of these
+    return CloudMetrics(
+        timestamp=data.get("timestamp", datetime.now(timezone.utc).isoformat()),
+        provider=data.get("provider", provider),
+        region=data.get("region", region),
+        cpu=float(data.get("cpu", 0.0)),
+        memory=data.get("memory"),          # may be None (UNAVAILABLE)
+        storage=data.get("storage"),        # may be None (UNAVAILABLE)
+        network=data.get("network"),        # may be None (UNAVAILABLE)
+        cost_usd_per_hour=float(data.get("cost_usd_per_hour", 0.0)),
+        carbon_gco2_per_hour=float(data.get("carbon_gco2_per_hour", 0.0)),
+        instance_count=int(data.get("instance_count", 1)),
+        source=raw_source,  # type: ignore[arg-type]
+        memory_source="UNAVAILABLE" if data.get("memory") is None else raw_source,  # type: ignore[arg-type]
+        memory_note=data.get("memory_note"),
+    )
+
+
 @router.get("/live", response_model=CloudMetrics)
 def live_metrics(
-    provider: str = Query("aws", description="Cloud provider"),
+    provider: str = Query("aws", description="Cloud provider (aws, azure, gcp)"),
     region: str = Query("us-east", description="Region"),
 ):
-    """Real-time cloud metrics (DEMO: synthetic with realistic patterns; LIVE: replace _generate_live_metrics)."""
-    return _generate_live_metrics(provider, region)
+    """Real-time cloud metrics.
+
+    DATA TRUTH:
+    - DEMO_MODE=true or unconfigured credentials → source=DEMO (clearly labeled)
+    - Configured live credentials → source=LIVE_AWS / LIVE_AZURE / LIVE_GCP
+    - Credentials configured but API failed → source=ERROR (never falls back to fake LIVE data)
+    """
+    p = get_provider(provider)
+
+    if p.is_live:
+        # Provider has valid credentials → call real API
+        try:
+            data = p.get_metrics(region)
+            m = _provider_metrics_to_cloudmetrics(data, provider, region)
+            record_telemetry(m.model_dump())
+            logger.info(
+                "Live telemetry collected",
+                extra={"provider": provider, "region": region, "source": m.source}
+            )
+            return m
+        except Exception as e:
+            logger.error(f"Live metrics collection failed for {provider}/{region}: {e}")
+            # BUG-006 PREVENTION: Do NOT fall back to DEMO data when LIVE is expected.
+            # Return an ERROR-sourced response instead.
+            now = datetime.now(timezone.utc)
+            intensity = get_carbon_intensity(region, now.hour)["carbon_intensity_gco2_per_kwh"]
+            err_m = CloudMetrics(
+                timestamp=now.isoformat(),
+                provider=provider,
+                region=region,
+                cpu=0.0,
+                memory=None,
+                storage=None,
+                network=None,
+                cost_usd_per_hour=0.0,
+                carbon_gco2_per_hour=0.0,
+                instance_count=0,
+                source="ERROR",  # type: ignore[arg-type]
+                memory_source="ERROR",  # type: ignore[arg-type]
+                memory_note=f"Live metrics collection failed: {type(e).__name__}: {str(e)[:120]}",
+            )
+            record_telemetry(err_m.model_dump())
+            return err_m
+    else:
+        # Provider is not live (DEMO_MODE or unconfigured) → return correctly labeled DEMO data
+        return _generate_live_metrics(provider, region)
 
 
 @router.get("/live/all")
 def live_all():
     """Live metrics from all providers and their primary regions."""
     results = []
-    for provider, regions in _PROVIDER_REGIONS.items():
+    for prov, regions in _PROVIDER_REGIONS.items():
+        p = get_provider(prov)
         for region in regions[:2]:  # first 2 per provider to keep response lean
-            results.append(_generate_live_metrics(provider, region))
+            if p.is_live:
+                try:
+                    data = p.get_metrics(region)
+                    m = _provider_metrics_to_cloudmetrics(data, prov, region)
+                except Exception as e:
+                    logger.error(f"Failed to collect live metrics for {prov}/{region}: {e}")
+                    m = _generate_live_metrics(prov, region)
+            else:
+                m = _generate_live_metrics(prov, region)
+            record_telemetry(m.model_dump())
+            results.append(m)
     return {"providers": results}
 
 
