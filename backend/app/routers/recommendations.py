@@ -119,6 +119,30 @@ def _execute_apply(rec: RecommendationItem, dry_run: bool = False, operator_note
     now_iso = datetime.now(timezone.utc).isoformat()
 
     if dry_run:
+        try:
+            import asyncio
+            from ..database import persist_audit_log
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(
+                    persist_audit_log(
+                        rec_id=rec.id,
+                        title=rec.title,
+                        action=rec.action,
+                        status="simulated",
+                        monthly_savings=rec.estimated_monthly_savings_usd,
+                        carbon_reduction=rec.estimated_carbon_reduction_pct,
+                        new_score=_last_score,
+                        steps_taken=[f"[DRY-RUN] {s}" for s in steps],
+                        dry_run=True,
+                        operator_notes=operator_notes,
+                    )
+                )
+            except RuntimeError:
+                pass
+        except Exception:
+            pass
+
         return ApplyResponse(
             recommendation_id=rec.id,
             title=rec.title,
@@ -142,6 +166,31 @@ def _execute_apply(rec: RecommendationItem, dry_run: bool = False, operator_note
     # Score improvement (+3 to +5 per applied recommendation, up to 98)
     boost = 4 if rec.priority in ("critical", "high") else 2
     _last_score = min(98, _last_score + boost)
+
+    # Persist to database audit log
+    try:
+        import asyncio
+        from ..database import persist_audit_log
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(
+                persist_audit_log(
+                    rec_id=rec.id,
+                    title=rec.title,
+                    action=rec.action,
+                    status="applied",
+                    monthly_savings=rec.estimated_monthly_savings_usd,
+                    carbon_reduction=rec.estimated_carbon_reduction_pct,
+                    new_score=_last_score,
+                    steps_taken=steps,
+                    dry_run=False,
+                    operator_notes=operator_notes,
+                )
+            )
+        except RuntimeError:
+            pass
+    except Exception:
+        pass
 
     resp = ApplyResponse(
         recommendation_id=rec.id,

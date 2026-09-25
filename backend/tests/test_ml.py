@@ -139,3 +139,26 @@ def test_legacy_predictor_compatibility():
     assert "predicted_cpu" in result
     assert "risk" in result
     assert result["risk"] in ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+
+
+def test_temporal_persistence_baselines():
+    """Verify temporal persistence baseline calculations in baseline.py."""
+    from app.ml.baseline import (
+        evaluate_temporal_persistence,
+        evaluate_rolling_mean,
+        evaluate_seasonal,
+    )
+    series = np.array([10.0, 12.0, 15.0, 14.0, 16.0, 18.0, 20.0, 19.0])
+    y_true = series[1:]
+    y_prev = series[:-1]
+
+    persistence = evaluate_temporal_persistence(y_true, y_prev)
+    assert persistence.mae > 0
+    assert persistence.rmse >= persistence.mae
+
+    rolling = evaluate_rolling_mean(series, window=3)
+    assert rolling.mae > 0
+
+    seasonal = evaluate_seasonal(series, period=2)
+    assert seasonal.mae > 0
+

@@ -115,3 +115,28 @@ def test_conflict_resolution_low_cpu():
     cost_agent_res = next(a for a in result.agents if "cost" in a.agent.lower())
     assert cost_agent_res is not None
     assert len(cost_agent_res.findings) > 0
+
+
+def test_agents_with_unavailable_memory():
+    """Verify that all 5 agents and orchestrator execute cleanly when memory and network are UNAVAILABLE."""
+    metrics = CloudMetrics(
+        timestamp="2026-09-24T12:00:00Z",
+        provider="aws",
+        region="us-east-1",
+        cpu=45.0,
+        memory=None,
+        storage=None,
+        network=None,
+        cost_usd_per_hour=0.192,
+        carbon_gco2_per_hour=35.0,
+        instance_count=1,
+        source="LIVE_AWS",
+        memory_source="UNAVAILABLE",
+        memory_note="CloudWatch OS memory requires CloudWatch agent",
+    )
+    result = run_orchestrator(metrics=metrics)
+    assert len(result.agents) == 5
+    assert result.overall_score >= 0
+    # Check that performance and cost agents noted unavailable memory
+    findings_all = [f for a in result.agents for f in a.findings]
+    assert any("UNAVAILABLE" in f for f in findings_all)

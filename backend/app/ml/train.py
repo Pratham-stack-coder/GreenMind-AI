@@ -16,6 +16,10 @@ from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.metrics import mean_absolute_error, r2_score
 
 from generate_dataset import generate_series
+try:
+    from .baseline import evaluate_temporal_persistence, evaluate_rolling_mean
+except ImportError:
+    from baseline import evaluate_temporal_persistence, evaluate_rolling_mean
 
 HERE = Path(__file__).resolve().parent
 
@@ -26,12 +30,13 @@ NETWORK_FEATURES = ["network", "hour", "day_of_week", "network_rolling_avg_1h", 
 COST_FEATURES = ["cpu", "memory", "cost_usd", "hour", "day_of_week"]
 CARBON_FEATURES = ["carbon_intensity_gco2_per_kwh", "hour", "day_of_week", "cpu"]
 
+# (features, target_col, baseline_persistence_col)
 TARGETS = {
-    "cpu": (CPU_FEATURES, "future_cpu"),
-    "memory": (MEMORY_FEATURES, "future_memory"),
-    "network": (NETWORK_FEATURES, "future_network"),
-    "cost": (COST_FEATURES, "future_cost_usd"),
-    "carbon": (CARBON_FEATURES, "future_carbon_gco2"),
+    "cpu": (CPU_FEATURES, "future_cpu", "cpu"),
+    "memory": (MEMORY_FEATURES, "future_memory", "memory"),
+    "network": (NETWORK_FEATURES, "future_network", "network"),
+    "cost": (COST_FEATURES, "future_cost_usd", "cost_usd"),
+    "carbon": (CARBON_FEATURES, "future_carbon_gco2", "carbon_gco2"),
 }
 
 
@@ -40,7 +45,7 @@ def chronological_split(df, test_frac: float = 0.2):
     return df.iloc[:idx], df.iloc[idx:]
 
 
-def train_model(df, features: list[str], target: str) -> tuple:
+def train_model(df, features: list[str], target: str, baseline_col: str) -> tuple:
     train, test = chronological_split(df)
     X_train, y_train = train[features], train[target]
     X_test, y_test = test[features], test[target]
@@ -52,7 +57,11 @@ def train_model(df, features: list[str], target: str) -> tuple:
 
     preds = model.predict(X_test)
     mae = float(mean_absolute_error(y_test, preds))
-    naive_mae = float(mean_absolute_error(y_test, X_test[features[0]].values))
+
+    # True temporal persistence baseline: \hat{y}_t = y_{t-1} on the target's own historical values
+    persistence_baseline = evaluate_temporal_persistence(y_test.values, test[baseline_col].values)
+    rolling_baseline = evaluate_rolling_mean(test[baseline_col].values, window=4)
+    naive_mae = persistence_baseline.mae
     improvement = round(100 * (1 - mae / naive_mae), 1) if naive_mae > 0 else 0.0
 
     # Calculate RMSE & R²
@@ -70,6 +79,7 @@ def train_model(df, features: list[str], target: str) -> tuple:
         "rmse": round(rmse, 3),
         "r2": round(r2, 3),
         "naive_mae": round(naive_mae, 3),
+        "rolling_mae": round(rolling_baseline.mae, 3),
         "improvement_pct": improvement,
         "n_train": len(train),
         "n_test": len(test),
@@ -86,9 +96,9 @@ def main():
     all_metrics = {}
     feature_importances = {}
 
-    for name, (features, target) in TARGETS.items():
+    for name, (features, target, baseline_col) in TARGETS.items():
         print(f"  Training {name} forecaster…")
-        model, metrics = train_model(df, features, target)
+        model, metrics = train_model(df, features, target, baseline_col)
         joblib.dump(model, HERE / f"{name}_model.pkl")
         if name == "cpu":
             joblib.dump(model, HERE / "model.pkl")  # legacy compatibility
@@ -115,3 +125,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

@@ -23,7 +23,7 @@ _INSTANCE_KWH = {
 
 
 def _compute_metrics(
-    cpu: float, memory: float, instance_type: str, count: int, region: str, hours: float
+    cpu: float, memory: float | None, instance_type: str, count: int, region: str, hours: float
 ) -> SimulationMetrics:
     from datetime import datetime, timezone
     hour = datetime.now(timezone.utc).hour
@@ -40,12 +40,18 @@ def _compute_metrics(
         carbon_gco2_per_hour=carbon_hr,
         monthly_cost_usd=monthly_cost,
         monthly_carbon_kgco2=monthly_carbon_kg,
+        source="SIMULATED",
     )
 
 
 @router.post("/simulate", response_model=SimulationResult)
 def simulate(req: SimulationRequest):
-    """Simulate one or more infrastructure changes and return before/after impact."""
+    """Simulate one or more infrastructure changes and return before/after impact.
+
+    DATA TRUTH:
+    - Output source is always strictly SIMULATED
+    - Baseline source reflects true metric source (LIVE or DEMO)
+    """
     m = req.baseline_metrics
     current_instance = "m5.xlarge"  # demo default
     count = m.instance_count
@@ -82,14 +88,15 @@ def simulate(req: SimulationRequest):
     # After state
     if sim_count == 0:
         after = SimulationMetrics(
-            cpu=0, memory=0, cost_usd_per_hour=0, carbon_gco2_per_hour=0,
+            cpu=0, memory=0 if m.memory is not None else None, cost_usd_per_hour=0, carbon_gco2_per_hour=0,
             monthly_cost_usd=0, monthly_carbon_kgco2=0,
+            source="SIMULATED",
         )
     else:
         # Estimate cpu/memory shift from resize
         cpu_factor = _INSTANCE_KWH.get(sim_instance, 0.35) / _INSTANCE_KWH.get(current_instance, 0.35)
         new_cpu = round(min(98, m.cpu / cpu_factor), 1)
-        new_mem = round(min(95, m.memory * 0.9), 1)  # resize generally improves headroom
+        new_mem = round(min(95, m.memory * 0.9), 1) if m.memory is not None else None
         after = _compute_metrics(new_cpu, new_mem, sim_instance, sim_count, sim_region, req.simulation_hours)
 
     def pct(a, b):
@@ -115,15 +122,42 @@ def simulate(req: SimulationRequest):
         parts.append("Minimal impact on cost and carbon — change may be beneficial for performance.")
 
     confidence = 0.82 if len(req.changes) == 1 else 0.72
+    sim_id = str(uuid.uuid4())[:8]
+    rec_text = " ".join(parts)
+
+    # Persist simulation to database asynchronously
+    try:
+        import asyncio
+        from ..database import persist_simulation_entry
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(
+                persist_simulation_entry(
+                    sim_id=sim_id,
+                    changes={"changes": [c.model_dump() for c in req.changes]},
+                    before=before.model_dump(),
+                    after=after.model_dump(),
+                    delta=delta,
+                    risk_score=0.15 if delta["monthly_cost_pct"] <= 0 else 0.40,
+                    recommendation=rec_text,
+                    confidence=confidence,
+                )
+            )
+        except RuntimeError:
+            pass
+    except Exception:
+        pass
 
     return SimulationResult(
-        simulation_id=str(uuid.uuid4())[:8],
+        simulation_id=sim_id,
         before=before,
         after=after,
         delta=delta,
-        recommendation=" ".join(parts),
+        recommendation=rec_text,
         confidence=confidence,
         warnings=warnings,
+        source="SIMULATED",
+        baseline_source=m.source,
     )
 
 

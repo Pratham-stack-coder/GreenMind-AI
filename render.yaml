@@ -16,8 +16,6 @@ services:
       # WARN-010 FIX: repo root must be in PYTHONPATH so `backend.app.main` resolves
       - key: PYTHONPATH
         value: "."
-      - key: PORT
-        value: "8000"
 
       # ── Application Mode ──────────────────────────────────────────────────────
       # Set to "false" in production when cloud credentials are configured

@@ -276,11 +276,12 @@ class SimulationRequest(BaseModel):
 
 class SimulationMetrics(BaseModel):
     cpu: float
-    memory: float
+    memory: float | None = None
     cost_usd_per_hour: float
     carbon_gco2_per_hour: float
     monthly_cost_usd: float
     monthly_carbon_kgco2: float
+    source: DataSourceType = "SIMULATED"
 
 
 class SimulationResult(BaseModel):
@@ -291,6 +292,8 @@ class SimulationResult(BaseModel):
     recommendation: str
     confidence: float
     warnings: list[str] = []
+    source: DataSourceType = "SIMULATED"
+    baseline_source: DataSourceType = "DEMO"
 
 
 # ── Copilot ───────────────────────────────────────────────────────────────────
@@ -332,6 +335,7 @@ class CostDataPoint(BaseModel):
     provider: str
     region: str
     category: str = "compute"
+    source: DataSourceType = "DEMO"
 
 
 class CarbonDataPoint(BaseModel):
@@ -340,6 +344,9 @@ class CarbonDataPoint(BaseModel):
     provider: str
     region: str
     intensity_gco2_per_kwh: float
+    power_draw_watts: float | None = None
+    pue: float | None = None
+    source: DataSourceType = "ESTIMATED"
 
 
 class OptimizationScores(BaseModel):
@@ -350,6 +357,7 @@ class OptimizationScores(BaseModel):
     security: int
     reliability: int
     trend: Literal["improving", "stable", "declining"] = "stable"
+    source: DataSourceType = "DEMO"
 
 
 class CostAnalyticsResponse(BaseModel):
@@ -358,6 +366,9 @@ class CostAnalyticsResponse(BaseModel):
     data_points: list[CostDataPoint]
     breakdown_by_provider: dict[str, float]
     top_cost_drivers: list[str]
+    source: DataSourceType = "DEMO"
+    estimation_method: str | None = None
+    confidence: float = 1.0
 
 
 class CarbonAnalyticsResponse(BaseModel):
@@ -366,3 +377,6 @@ class CarbonAnalyticsResponse(BaseModel):
     data_points: list[CarbonDataPoint]
     breakdown_by_region: dict[str, float]
     green_hours_pct: float
+    source: DataSourceType = "ESTIMATED"
+    methodology: str = "GHG_PROTOCOL_SCOPE_2_3"
+    confidence: float = 0.88

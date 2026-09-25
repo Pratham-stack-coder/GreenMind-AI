@@ -150,15 +150,97 @@ def instance_kwh(instance_type: str) -> float:
     return _INSTANCE_KWH.get(instance_type, _INSTANCE_KWH["default"])
 
 
+# ── PUE & TDP Modeling (GHG Protocol Scope 2 & 3) ───────────────────────────
+
+_PUE_MAP: dict[str, float] = {
+    "us-east-1": 1.15,
+    "us-east": 1.15,
+    "us-west-2": 1.12,
+    "us-west": 1.12,
+    "eu-west-1": 1.11,
+    "eu-west": 1.11,
+    "ap-south-1": 1.20,
+    "in-north": 1.20,
+    "ap-southeast-1": 1.16,
+    "ap-southeast": 1.16,
+    "ca-central-1": 1.10,
+    "ca-central": 1.10,
+}
+
+_TDP_WATTS: dict[str, float] = {
+    "t3.micro": 25.0,
+    "t3.small": 35.0,
+    "t3.medium": 55.0,
+    "m5.large": 80.0,
+    "m5.xlarge": 150.0,
+    "m5.2xlarge": 280.0,
+    "c5.large": 70.0,
+    "c5.xlarge": 130.0,
+    "r5.large": 90.0,
+    "r5.xlarge": 170.0,
+}
+
+
+def get_pue(region: str) -> float:
+    """Regional Power Usage Effectiveness (PUE) factor."""
+    resolved = _resolve_region(region)
+    return _PUE_MAP.get(resolved, _PUE_MAP.get(region, 1.15))
+
+
+def compute_power_watts(instance_type: str = "m5.large", cpu_util_pct: float = 50.0) -> float:
+    """Dynamic power draw: P_idle + (P_max - P_idle) * (cpu / 100)."""
+    tdp = _TDP_WATTS.get(instance_type, 80.0)
+    p_idle = 0.5 * tdp
+    p_max = tdp
+    util = max(0.0, min(100.0, cpu_util_pct))
+    return round(p_idle + (p_max - p_idle) * (util / 100.0), 1)
+
+
+def compute_carbon_breakdown(
+    region: str,
+    hour: int,
+    cpu_util_pct: float = 50.0,
+    instance_type: str = "m5.large",
+    duration_hours: float = 1.0,
+) -> dict:
+    """Calculate operational and embodied carbon emissions under GHG Protocol Scope 2 & 3."""
+    grid_ci = get_carbon_intensity(region, hour)["carbon_intensity_gco2_per_kwh"]
+    pue = get_pue(region)
+    power_w = compute_power_watts(instance_type, cpu_util_pct)
+    # Energy in kWh = (Watts * PUE / 1000) * hours
+    kwh = (power_w * pue / 1000.0) * duration_hours
+    operational_co2 = kwh * grid_ci
+    # Embodied emissions: ~1000 kg CO2 amortized over 4-year lifecycle (~28.5 gCO2 per server hour)
+    embodied_co2 = 28.5 * duration_hours
+    total_co2 = operational_co2 + embodied_co2
+    return {
+        "carbon_intensity_gco2_per_kwh": grid_ci,
+        "power_draw_watts": power_w,
+        "pue": pue,
+        "kwh": round(kwh, 4),
+        "operational_gco2": round(operational_co2, 2),
+        "embodied_gco2": round(embodied_co2, 2),
+        "total_gco2": round(total_co2, 2),
+        "methodology": "GHG_PROTOCOL_SCOPE_2_3",
+        "source": "ESTIMATED",
+        "confidence": 0.88,
+    }
+
+
 def estimate_carbon_gco2(
     region: str,
     hour: int,
     duration_hours: float,
     instance_type: str = "m5.large",
 ) -> float:
-    intensity = get_carbon_intensity(region, hour)["carbon_intensity_gco2_per_kwh"]
-    kwh = instance_kwh(instance_type) * duration_hours
-    return round(kwh * intensity, 2)
+    breakdown = compute_carbon_breakdown(
+        region=region,
+        hour=hour,
+        cpu_util_pct=50.0,
+        instance_type=instance_type,
+        duration_hours=duration_hours,
+    )
+    return breakdown["total_gco2"]
 
 
 def region_green_score(region: str) -> float:
@@ -169,3 +251,4 @@ def region_green_score(region: str) -> float:
     worst, best = 720, 79
     score = 100 * (1 - (avg - best) / (worst - best))
     return round(max(0, min(100, score)), 1)
+

@@ -16,6 +16,9 @@ export interface CloudMetrics {
   timestamp: string
   provider: string
   region: string
+  resource_id?: string | null
+  account_id?: string | null
+  resource_type?: string
   cpu: number
   /** Null when UNAVAILABLE (requires CloudWatch Agent / google-cloud-ops-agent) */
   memory: number | null
@@ -23,9 +26,12 @@ export interface CloudMetrics {
   storage: number | null
   /** Null when UNAVAILABLE (provider did not return network data) */
   network: number | null
+  network_in?: number | null
+  network_out?: number | null
   cost_usd_per_hour: number
   carbon_gco2_per_hour: number
   instance_count: number
+  status?: string
   source: DataSourceType
   /** Source of memory metric specifically (may differ from main source) */
   memory_source?: DataSourceType
@@ -33,6 +39,9 @@ export interface CloudMetrics {
   memory_note?: string
   /** Source of cost data (LIVE_AWS if Cost Explorer, ESTIMATED otherwise) */
   cost_source?: DataSourceType
+  /** Source of network data specifically */
+  network_source?: DataSourceType
+  last_updated?: string | null
 }
 
 
@@ -136,30 +145,35 @@ export interface OptimizationScores {
   security: number
   reliability: number
   trend: 'improving' | 'stable' | 'declining'
+  source?: DataSourceType
 }
 
 export interface SimulationResult {
   simulation_id: string
   before: {
     cpu: number
-    memory: number
+    memory: number | null
     cost_usd_per_hour: number
     carbon_gco2_per_hour: number
     monthly_cost_usd: number
     monthly_carbon_kgco2: number
+    source?: DataSourceType
   }
   after: {
     cpu: number
-    memory: number
+    memory: number | null
     cost_usd_per_hour: number
     carbon_gco2_per_hour: number
     monthly_cost_usd: number
     monthly_carbon_kgco2: number
+    source?: DataSourceType
   }
   delta: Record<string, number>
   recommendation: string
   confidence: number
   warnings: string[]
+  source?: DataSourceType
+  baseline_source?: DataSourceType
 }
 
 export interface CarbonPoint {

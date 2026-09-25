@@ -18,13 +18,15 @@
 
 ### 🟢 IMPLEMENTED
 - **CI/CD Automation Pipeline**: GitHub Actions workflows ([.github/workflows/ci.yml](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/.github/workflows/ci.yml) & [deploy.yml](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/.github/workflows/deploy.yml)) validating Python 3.11/3.12 backend unit/ML tests, Node 20 frontend TypeScript typecheck and Vite build, Docker compose validation, and container image publishing.
-- **Automated Test Suite (51 Tests Passing)**:
-  - `test_ml.py`: Validates all 5 trained Gradient Boosting models (`cpu_model.pkl`, `memory_model.pkl`, `network_model.pkl`, `cost_model.pkl`, `carbon_model.pkl`), feature importances, and chronological validation criteria (CPU MAE < 4%).
-  - `test_agents.py`: Validates individual execution of all 5 domain agents (Cost, Performance, Sustainability, Security, Reliability) and transparent conflict resolution.
-  - `test_digital_twin.py`: Validates mathematical calculations for `RIGHT_SIZE`, `SCALE_UP`, `SCALE_DOWN`, `CONSOLIDATE`, and `REGION_MIGRATION`.
+- **Automated Test Suite (69 Tests Passing)**:
+  - `test_ml.py`: Validates all 5 trained Gradient Boosting models (`cpu_model.pkl`, `memory_model.pkl`, `network_model.pkl`, `cost_model.pkl`, `carbon_model.pkl`), temporal persistence baselines ($\hat{y}_t = y_{t-1}$), feature importances, and chronological validation criteria.
+  - `test_agents.py`: Validates individual execution of all 5 domain agents (Cost, Performance, Sustainability, Security, Reliability), nullable guest OS memory handling, and transparent conflict resolution.
+  - `test_digital_twin.py`: Validates mathematical calculations for `RIGHT_SIZE`, `SCALE_UP`, `SCALE_DOWN`, `CONSOLIDATE`, and `REGION_MIGRATION` scenarios with simulation persistence.
   - `test_copilot.py`: Validates contextual Copilot question answering, tool execution across all 8 tools, evidence citation, and action recommendation triggers.
   - `test_cloud_connectors.py`: Validates provider factory, demo mode fallback, and live API mock parsing for AWS, Azure, and GCP.
+  - `test_cloud_providers.py`: Validates 4-tier provider status (`NOT_CONFIGURED`, `CONNECTED_DEMO`, `CONNECTED_LIVE`, `ERROR`), live STS/OAuth/JWT authentication, and credential validation.
   - `test_settings.py`: Validates zero-secret-leakage status endpoint, live provider connection test execution, session credential configuration, disconnect resets, and dual `/api/v1` path routing.
+  - `test_telemetry_persistence.py`: Validates async DB persistence, ring buffer ingestion loop, and multi-granularity history queries (`5m`, `15m`, `1h`, `1d`).
   - `test_api.py`: Full API router integration coverage across all endpoints.
 - **Multi-Cloud Telemetry Connectors & Live Verification**:
   - **AWS**: CloudWatch EC2 metrics via `boto3` ([aws_collector.py](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/backend/app/services/aws_collector.py)). Real connection test using `sts:GetCallerIdentity` and `cloudwatch:ListMetrics`. Minimum IAM: `ec2:DescribeInstances`, `cloudwatch:GetMetricData`, `cloudwatch:ListMetrics`.
@@ -133,13 +135,15 @@ The ML pipeline forecasts cloud demand across 5 dimensions 60 minutes into the f
 
 ### Model Evaluation Telemetry (Test Set)
 
+Evaluated chronologically against genuine temporal persistence baselines ($\hat{y}_t = y_{t-1}$ on the metric's own historical values):
+
 | Target Metric | Model Architecture | MAE | RMSE | R² Score | Baseline Improvement |
 | :--- | :--- | :---: | :---: | :---: | :---: |
-| **CPU Utilization (%)** | GradientBoostingRegressor | **3.809%** | 4.811% | 0.855 | +41.4% vs naive |
-| **Memory Utilization (%)** | GradientBoostingRegressor | **2.979%** | 3.704% | 0.636 | +25.4% vs naive |
-| **Network Traffic (Mbps)** | GradientBoostingRegressor | **43.876** | 55.328 | 0.871 | +45.4% vs naive |
-| **Hourly Cost (USD/hr)** | GradientBoostingRegressor | **$0.009** | $0.011 | 0.474 | +100.0% vs naive |
-| **Carbon Intensity (gCO₂/hr)** | GradientBoostingRegressor | **4.061** | 5.087 | 0.391 | +98.9% vs naive |
+| **CPU Utilization (%)** | GradientBoostingRegressor | **3.809%** | 4.811% | 0.855 | **+41.4%** vs persistence (6.500) |
+| **Memory Utilization (%)** | GradientBoostingRegressor | **2.979%** | 3.704% | 0.636 | **+25.4%** vs persistence (3.996) |
+| **Network Traffic (Mbps)** | GradientBoostingRegressor | **43.876** | 55.328 | 0.871 | **+45.4%** vs persistence (80.346) |
+| **Hourly Cost (USD/hr)** | GradientBoostingRegressor | **$0.009** | $0.011 | 0.474 | **+29.7%** vs persistence ($0.013) |
+| **Carbon Intensity (gCO₂/hr)** | GradientBoostingRegressor | **4.061** | 5.087 | 0.391 | **+30.5%** vs persistence (5.846) |
 
 ---
 

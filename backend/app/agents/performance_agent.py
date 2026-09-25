@@ -56,42 +56,45 @@ def analyze(metrics: CloudMetrics, context: dict | None = None) -> dict:
         ))
 
     # ── Memory pressure ───────────────────────────────────────────────────────
-    if memory > 88:
-        score -= 30
-        findings.append(f"Memory CRITICAL: {memory:.0f}% — OOM risk")
-        recs.append(RecommendationItem(
-            id="perf-003",
-            category="performance",
-            priority="critical",
-            title="Memory pressure critical — risk of OOM kill",
-            description=f"Memory utilization is {memory:.0f}%. Above 88%, the OS kernel may "
-                        "begin killing processes to free memory.",
-            impact_summary="OOM kill risk — upgrade instance memory tier immediately",
-            estimated_monthly_savings_usd=0,
-            effort="medium",
-            action="upgrade_memory_tier",
-            evidence=[f"Memory: {memory:.1f}%", "OOM threshold: 88%"],
-            confidence=0.95,
-        ))
-    elif memory > 75:
-        score -= 15
-        findings.append(f"Memory elevated: {memory:.0f}%")
-        recs.append(RecommendationItem(
-            id="perf-004",
-            category="performance",
-            priority="medium",
-            title="Memory utilization trending high",
-            description=f"Memory at {memory:.0f}% — investigate memory leaks or plan upgrade.",
-            impact_summary="Prevent OOM events — investigate and right-size",
-            estimated_monthly_savings_usd=0,
-            effort="medium",
-            action="investigate_memory",
-            evidence=[f"Memory: {memory:.1f}%"],
-            confidence=0.82,
-        ))
+    if memory is not None:
+        if memory > 88:
+            score -= 30
+            findings.append(f"Memory CRITICAL: {memory:.0f}% — OOM risk")
+            recs.append(RecommendationItem(
+                id="perf-003",
+                category="performance",
+                priority="critical",
+                title="Memory pressure critical — risk of OOM kill",
+                description=f"Memory utilization is {memory:.0f}%. Above 88%, the OS kernel may "
+                            "begin killing processes to free memory.",
+                impact_summary="OOM kill risk — upgrade instance memory tier immediately",
+                estimated_monthly_savings_usd=0,
+                effort="medium",
+                action="upgrade_memory_tier",
+                evidence=[f"Memory: {memory:.1f}%", "OOM threshold: 88%"],
+                confidence=0.95,
+            ))
+        elif memory > 75:
+            score -= 15
+            findings.append(f"Memory elevated: {memory:.0f}%")
+            recs.append(RecommendationItem(
+                id="perf-004",
+                category="performance",
+                priority="medium",
+                title="Memory utilization trending high",
+                description=f"Memory at {memory:.0f}% — investigate memory leaks or plan upgrade.",
+                impact_summary="Prevent OOM events — investigate and right-size",
+                estimated_monthly_savings_usd=0,
+                effort="medium",
+                action="investigate_memory",
+                evidence=[f"Memory: {memory:.1f}%"],
+                confidence=0.82,
+            ))
+    else:
+        findings.append("Guest OS memory telemetry is UNAVAILABLE (CWAgent not detected). Performance analysis operating in CPU-telemetry mode.")
 
     # ── Network saturation ────────────────────────────────────────────────────
-    if network > 1500:
+    if network is not None and network > 1500:
         score -= 15
         findings.append(f"Network throughput high: {network:.0f} Mbps")
         recs.append(RecommendationItem(
@@ -110,7 +113,8 @@ def analyze(metrics: CloudMetrics, context: dict | None = None) -> dict:
 
     # ── Healthy state ─────────────────────────────────────────────────────────
     if not findings:
-        findings.append(f"All performance metrics nominal: CPU {cpu:.0f}%, Memory {memory:.0f}%")
+        mem_info = f", Memory {memory:.0f}%" if memory is not None else ""
+        findings.append(f"All performance metrics nominal: CPU {cpu:.0f}%{mem_info}")
 
     return {
         "agent": "PerformanceAgent",

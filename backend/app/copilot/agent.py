@@ -209,11 +209,12 @@ class CopilotAgent:
         elif "underutilized" in msg:
             if metrics:
                 cpu = metrics.get("cpu", 0)
-                mem = metrics.get("memory", 0)
+                mem = metrics.get("memory")
+                mem_str = f"{mem}%" if mem is not None else "UNAVAILABLE (Guest OS agent not installed)"
                 parts.append(
                     f"**Underutilization Detection**:\n"
                     f"- CPU Utilization: **{cpu}%**\n"
-                    f"- Memory Utilization: **{mem}%**\n\n"
+                    f"- Memory Utilization: **{mem_str}**\n\n"
                     f"Resources averaging below 25% CPU for sustained intervals are flagged as underutilized candidates for right-sizing or consolidation."
                 )
             else:
@@ -235,9 +236,14 @@ class CopilotAgent:
 
         else:
             if metrics:
+                mem = metrics.get("memory")
+                mem_str = f"{mem}%" if mem is not None else "UNAVAILABLE"
+                net = metrics.get("network")
+                net_str = f"{net} Mbps" if net is not None else "UNAVAILABLE"
+                src = metrics.get("source", "DEMO")
                 parts.append(
-                    f"GreenMind AI is monitoring **{metrics.get('provider', 'aws').upper()} ({metrics.get('region', 'us-east')})**.\n"
-                    f"Current status: CPU **{metrics.get('cpu')}%**, Memory **{metrics.get('memory')}%**, Network **{metrics.get('network')} Mbps**, "
+                    f"GreenMind AI is monitoring **{metrics.get('provider', 'aws').upper()} ({metrics.get('region', 'us-east')})** [Source: `{src}`].\n"
+                    f"Current status: CPU **{metrics.get('cpu')}%**, Memory **{mem_str}**, Network **{net_str}**, "
                     f"Cost **${metrics.get('cost_usd_per_hour')}/hr**, Carbon **{metrics.get('carbon_gco2_per_hour')} gCO₂/hr**."
                 )
             else:
@@ -250,19 +256,34 @@ class CopilotAgent:
 
     def _generate_with_llm(self, query: str, data: dict[str, Any], kb: list[dict[str, Any]]) -> str:
         """Call Gemini or OpenAI if API key is present."""
-        context_str = f"Live Cloud Telemetry & Data:\n{data}\n\nRelevant Rules:\n{kb}"
-        prompt = (
-            "You are GreenMind AI Cloud Copilot. Answer the user question based STRICTLY on the provided live cloud data. "
-            "If data is missing or unavailable, state that it is unavailable. Do NOT hallucinate.\n\n"
-            f"{context_str}\n\nUser Question: {query}"
+        from datetime import datetime, timezone
+        from ..cloud import get_provider
+        metrics = data.get("metrics") or {}
+        prov_name = metrics.get("provider", "aws")
+        p = get_provider(prov_name)
+        status_mode = p.status.get("mode", "DEMO")
+        now_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+        system_instruction = (
+            f"You are GreenMind AI Cloud Copilot.\n"
+            f"Current Provider: {prov_name.upper()} (Connection Status: {status_mode})\n"
+            f"Current Region: {metrics.get('region', 'us-east')}\n"
+            f"Current Time: {now_utc}\n"
+            f"Active Telemetry Summary: CPU={metrics.get('cpu')}%, Cost=${metrics.get('cost_usd_per_hour')}/hr, "
+            f"Carbon={metrics.get('carbon_gco2_per_hour')} gCO2/hr, Memory={metrics.get('memory')}\n"
+            f"DATA TRUTH RULES:\n"
+            f"1. Never state an estimated or demo value is a live measurement.\n"
+            f"2. When memory or other metrics are unavailable/None, explicitly state that the guest OS agent is not installed.\n"
+            f"3. Ground all answers strictly in the provided data. Do not hallucinate."
         )
+        context_str = f"Live Cloud Telemetry & Data:\n{data}\n\nRelevant Rules & Knowledge:\n{kb}"
 
         if self.gemini_key:
             try:
                 import google.generativeai as genai
                 genai.configure(api_key=self.gemini_key)
                 model = genai.GenerativeModel("gemini-1.5-flash")
-                resp = model.generate_content(prompt)
+                resp = model.generate_content(f"{system_instruction}\n\n{context_str}\n\nUser Question: {query}")
                 if resp.text:
                     return resp.text
             except Exception as e:
@@ -275,8 +296,8 @@ class CopilotAgent:
                 resp = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[
-                        {"role": "system", "content": "You are GreenMind AI Cloud Copilot. Ground all answers in real application data."},
-                        {"role": "user", "content": prompt},
+                        {"role": "system", "content": system_instruction},
+                        {"role": "user", "content": f"{context_str}\n\nUser Question: {query}"},
                     ],
                     max_tokens=600,
                 )

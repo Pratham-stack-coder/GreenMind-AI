@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { LucideIcon } from 'lucide-react'
+import SourceBadge, { DataSourceType } from '../SourceBadge'
 
 interface MetricCardProps {
   label: string
@@ -10,6 +11,8 @@ interface MetricCardProps {
   color: 'emerald' | 'blue' | 'indigo' | 'amber' | 'purple' | 'red'
   delta?: number
   subtext?: string
+  source?: DataSourceType | string
+  sourceNote?: string
 }
 
 function useCountUp(target: number, duration = 800) {
@@ -44,6 +47,8 @@ export default function MetricCard({
   color,
   delta,
   subtext,
+  source,
+  sourceNote,
 }: MetricCardProps) {
   const numVal = typeof value === 'number' ? value : 0
   const animated = useCountUp(numVal)
@@ -66,7 +71,12 @@ export default function MetricCard({
     >
       <div className="flex items-center justify-between">
         <span className="metric-label">{label}</span>
-        <Icon size={18} color={colorMap[color] || 'var(--emerald-400)'} />
+        <div className="flex items-center gap-1.5">
+          {source && (
+            <SourceBadge source={source} note={sourceNote} size="sm" variant="compact" />
+          )}
+          <Icon size={18} color={colorMap[color] || 'var(--emerald-400)'} />
+        </div>
       </div>
       <div className="metric-value">
         {typeof value === 'number'

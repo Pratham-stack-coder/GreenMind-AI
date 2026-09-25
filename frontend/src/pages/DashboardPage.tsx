@@ -259,30 +259,36 @@ export default function DashboardPage() {
           icon={Cpu}
           color="emerald"
           delta={2.4}
+          source={metrics?.source || 'DEMO'}
         />
         <MetricCard
           label="Memory Used"
-          value={metrics?.memory ?? 55.0}
-          unit="%"
+          value={metrics?.memory != null ? metrics.memory : 'N/A'}
+          unit={metrics?.memory != null ? '%' : ''}
           icon={MemoryStick}
-          color="blue"
-          delta={-1.2}
+          color={metrics?.memory != null ? 'blue' : 'amber'}
+          delta={metrics?.memory != null ? -1.2 : undefined}
+          subtext={metrics?.memory == null ? 'Requires CloudWatch/OS Agent' : undefined}
+          source={metrics?.memory != null ? (metrics.memory_source || metrics.source) : 'UNAVAILABLE'}
+          sourceNote={metrics?.memory_note || undefined}
         />
         <MetricCard
           label="Storage In-Use"
-          value={metrics?.storage ?? 48.0}
-          unit="%"
+          value={metrics?.storage != null ? metrics.storage : 'N/A'}
+          unit={metrics?.storage != null ? '%' : ''}
           icon={HardDrive}
           color="indigo"
           delta={0.5}
+          source={metrics?.storage != null ? metrics.source : 'UNAVAILABLE'}
         />
         <MetricCard
           label="Network I/O"
-          value={metrics?.network ?? 420.0}
-          unit="Mbps"
+          value={metrics?.network != null ? metrics.network : 'N/A'}
+          unit={metrics?.network != null ? 'Mbps' : ''}
           icon={Network}
           color="purple"
           delta={4.8}
+          source={metrics?.network != null ? (metrics.network_source || metrics.source) : 'UNAVAILABLE'}
         />
       </div>
 
@@ -295,6 +301,7 @@ export default function DashboardPage() {
           color="amber"
           delta={-3.1}
           subtext={`Est. $${((metrics?.cost_usd_per_hour ?? 0.192) * 24 * 30).toFixed(0)}/month`}
+          source={metrics?.cost_source || (isLive ? 'ESTIMATED' : 'DEMO')}
         />
         <MetricCard
           label="Emissions Rate"
@@ -303,7 +310,8 @@ export default function DashboardPage() {
           icon={Leaf}
           color="emerald"
           delta={-6.4}
-          subtext="Scope 2 grid emissions"
+          subtext="GHG Scope 2/3 power model"
+          source="ESTIMATED"
         />
         <MetricCard
           label="Cloud Health"
@@ -312,6 +320,7 @@ export default function DashboardPage() {
           icon={Activity}
           color="emerald"
           subtext="0 active alarm disruptions"
+          source={isLive ? 'LIVE' : 'DEMO'}
         />
         <MetricCard
           label="Opt. Score"
@@ -320,6 +329,7 @@ export default function DashboardPage() {
           icon={ShieldCheck}
           color="blue"
           subtext="Composite efficiency"
+          source={scores?.source || (isLive ? 'ESTIMATED' : 'DEMO')}
         />
       </div>
 
