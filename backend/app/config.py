@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     app_name: str = "GreenMind AI"
     app_version: str = "2.0.0"
     debug: bool = False
-    demo_mode: bool = True  # False → try real cloud provider APIs
+    demo_mode: bool = False  # False → try real cloud provider APIs
 
     # ── Database (optional — falls back to in-memory if not set) ─────────────
     database_url: str = ""         # e.g. postgresql+asyncpg://user:pass@localhost/greenmind

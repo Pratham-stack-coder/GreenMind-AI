@@ -2,7 +2,7 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from app.main import app
+from app.main import app, settings
 
 client = TestClient(app)
 
@@ -15,7 +15,7 @@ def test_health():
     assert "version" in data
     assert "timestamp" in data
     assert "demo_mode" in data
-    assert data["demo_mode"] is True
+    assert data["demo_mode"] == settings.demo_mode
 
 
 def test_cloud_metrics():
