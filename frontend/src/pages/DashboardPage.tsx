@@ -31,10 +31,10 @@ function ScoreRadar({ scores }: { scores: OptimizationScores }) {
   ]
 
   return (
-    <ResponsiveContainer width="100%" height={210}>
-      <RadarChart data={data}>
+    <ResponsiveContainer width="100%" height={230}>
+      <RadarChart data={data} margin={{ top: 12, right: 38, bottom: 12, left: 38 }}>
         <PolarGrid stroke="rgba(255,255,255,0.08)" />
-        <PolarAngleAxis dataKey="subject" tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
+        <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: 'var(--text-secondary)' }} />
         <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
         <Radar
           name="Optimization Score"
@@ -149,17 +149,17 @@ export default function DashboardPage() {
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <div>
+      <div className="dashboard-header mb-4">
+        <div className="dashboard-header-title">
           <h1 style={{ fontSize: 22, fontWeight: 800 }}>Cloud Overview Dashboard</h1>
           <p className="text-secondary text-sm mt-1">
             Telemetry ingestion &amp; autonomous green cloud management · {provider.toUpperCase()} · {region}
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="dashboard-header-badges">
           {/* Multi-cloud provider mini pills */}
-          <div className="flex items-center gap-1.5 mr-1">
+          <div className="provider-pills-row">
             {(['aws', 'azure', 'gcp'] as const).map(p => {
               const pStatus = settingsStatus?.providers?.[p]
               const isConnected = pStatus?.status === 'connected'
@@ -167,7 +167,7 @@ export default function DashboardPage() {
                 <span
                   key={p}
                   className={`badge ${isConnected ? 'badge-emerald' : 'badge-muted'}`}
-                  style={{ fontSize: 10, padding: '2px 7px' }}
+                  style={{ fontSize: 10, padding: '2px 7px', flexShrink: 0 }}
                   title={pStatus?.message || p.toUpperCase()}
                 >
                   <span className={`status-dot ${isConnected ? 'online' : 'muted'}`} style={{ width: 5, height: 5 }} />
@@ -180,7 +180,7 @@ export default function DashboardPage() {
           {/* Current Provider Telemetry Source badge */}
           <span
             className={`badge ${isLive ? 'badge-emerald' : 'badge-blue'}`}
-            style={{ fontWeight: 700, letterSpacing: '0.05em' }}
+            style={{ fontWeight: 700, letterSpacing: '0.05em', flexShrink: 0 }}
           >
             <span
               className={`status-dot ${isLive ? 'online' : 'muted'}`}
@@ -190,7 +190,7 @@ export default function DashboardPage() {
           </span>
 
           {criticalCount > 0 && (
-            <span className="badge badge-red">
+            <span className="badge badge-red" style={{ flexShrink: 0 }}>
               <AlertTriangle size={10} />
               {criticalCount} CRITICAL
             </span>
@@ -201,8 +201,8 @@ export default function DashboardPage() {
       {/* Domain Score & Radar Banner */}
       {scores && typeof scores.overall === 'number' && (
         <div className="card card-accent-emerald mb-4">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
+          <div className="score-banner-content">
+            <div className="score-banner-text">
               <div className="text-xs text-muted mb-1 font-bold uppercase tracking-wider">
                 Overall Optimization Score
               </div>
@@ -243,7 +243,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div style={{ width: 340, maxWidth: '100%' }}>
+            <div className="score-banner-radar">
               <ScoreRadar scores={scores} />
             </div>
           </div>
