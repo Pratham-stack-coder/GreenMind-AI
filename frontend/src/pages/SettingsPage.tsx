@@ -439,7 +439,7 @@ export default function SettingsPage() {
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 style={{ fontSize: 24, fontWeight: 800 }}>Multi-Cloud Settings & Security</h1>
             <span
               className={`badge ${isDemo ? 'badge-blue' : 'badge-emerald'}`}
@@ -475,7 +475,7 @@ export default function SettingsPage() {
         <div className="flex items-start gap-3">
           <Shield size={20} color="var(--emerald-400)" style={{ flexShrink: 0, marginTop: 2 }} />
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--emerald-400)' }}>
                 Safe Mode Policy & Zero-Secret-Leakage Guarantee
               </h4>

@@ -15,7 +15,7 @@ export default function AgentCard({ agent }: AgentCardProps) {
       className="card mb-4"
       whileHover={{ y: -2, transition: { duration: 0.2 } }}
     >
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div className="flex items-center gap-2">
           <div
             style={{
@@ -29,7 +29,7 @@ export default function AgentCard({ agent }: AgentCardProps) {
           </div>
           <div>
             <h4 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>{agent.agent} Agent</h4>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className="badge badge-emerald">
                 <CheckCircle2 size={10} />
                 {agent.status.toUpperCase()}

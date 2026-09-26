@@ -111,9 +111,9 @@ export default function CopilotPage() {
   }, [messages, isPending])
 
   return (
-    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 112px)' }}>
+    <div className="animate-fade-in copilot-page-layout">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4" style={{ flexShrink: 0 }}>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3" style={{ flexShrink: 0 }}>
         <div>
           <h1 style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Sparkles size={22} color="var(--emerald-400)" />
@@ -123,7 +123,7 @@ export default function CopilotPage() {
             Natural language interface to your cloud environment
           </p>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
           <div className="badge badge-emerald">
             <span className="status-dot online animate-pulse-glow" style={{ width: 6, height: 6 }} />
             Rule-based · No API key needed

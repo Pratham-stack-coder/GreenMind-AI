@@ -1070,3 +1070,224 @@ img, svg, canvas {
     font-size: 13px;
   }
 }
+
+/* ── Recommendation Card Responsive Layout ─────────────────── */
+.rec-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.rec-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.rec-card-mobile-toggle {
+  display: none;
+}
+
+.rec-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.rec-card-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.35;
+}
+
+.rec-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.rec-card-metrics {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.rec-card-desktop-toggle {
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .rec-card-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .rec-card-meta {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .rec-card-mobile-toggle {
+    display: flex;
+    margin-left: auto;
+    align-items: center;
+  }
+  .rec-card-info {
+    width: 100%;
+  }
+  .rec-card-title {
+    font-size: 13.5px;
+    line-height: 1.4;
+  }
+  .rec-card-actions {
+    width: 100%;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .rec-card-desktop-toggle {
+    display: none;
+  }
+}
+
+/* ── Agent Card Responsive Layout ───────────────────────────── */
+.agent-card-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  width: 100%;
+}
+
+.agent-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.agent-card-mobile-toggle {
+  display: none;
+}
+
+.agent-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.agent-card-score-area {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.agent-card-desktop-toggle {
+  display: flex;
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  .agent-card-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .agent-card-meta {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .agent-card-mobile-toggle {
+    display: flex;
+    margin-left: auto;
+    align-items: center;
+  }
+  .agent-card-info {
+    width: 100%;
+  }
+  .agent-card-score-area {
+    width: 100%;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+  }
+  .agent-card-score-area > div:first-child {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-align: left !important;
+  }
+  .agent-card-desktop-toggle {
+    display: none;
+  }
+}
+
+/* ── Cloud Resources Filter Bar ─────────────────────────────── */
+.resource-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+@media (max-width: 640px) {
+  .resource-filter-row {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+  .resource-filter-row > div,
+  .resource-filter-row > button {
+    width: 100%;
+  }
+}
+
+/* ── Prediction Risk Banner ─────────────────────────────────── */
+.prediction-risk-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.prediction-risk-metrics {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+@media (max-width: 640px) {
+  .prediction-risk-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .prediction-risk-metrics {
+    width: 100%;
+    justify-content: space-between;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+  }
+}
+
+/* ── Copilot Page Layout ────────────────────────────────────── */
+.copilot-page-layout {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 120px);
+  height: calc(100dvh - 120px);
+}
+
+@media (max-width: 768px) {
+  .copilot-page-layout {
+    height: calc(100dvh - 150px);
+  }
+}
+

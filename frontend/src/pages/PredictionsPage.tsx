@@ -76,7 +76,7 @@ export default function PredictionsPage() {
 
   return (
     <div className="animate-fade-in">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
           <h1>ML Predictions</h1>
           <p className="text-secondary text-sm mt-1">5-model forecast engine · 60-minute horizon</p>
@@ -90,7 +90,7 @@ export default function PredictionsPage() {
       {/* Risk badge */}
       {forecast && (
         <div className="card mb-4" style={{ padding: '16px 20px' }}>
-          <div className="flex items-center gap-4">
+          <div className="prediction-risk-banner">
             <div>
               <div className="text-xs text-muted mb-1" style={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Predicted Risk Level</div>
               <div style={{ fontSize: 36, fontWeight: 900, color: riskColors[forecast.risk] || 'var(--text-primary)' }}>
@@ -103,17 +103,19 @@ export default function PredictionsPage() {
                 Action recommended
               </div>
             )}
-            <div className="flex-1" />
-            <div className="text-right">
-              <div className="text-xs text-muted mb-1">Model MAE</div>
-              <div className="font-mono text-emerald" style={{ fontSize: 18, fontWeight: 700 }}>
-                {forecast.model_mae?.toFixed(3) || '–'}%
+            <div className="flex-1 hidden-sm" />
+            <div className="prediction-risk-metrics">
+              <div className="text-right">
+                <div className="text-xs text-muted mb-1">Model MAE</div>
+                <div className="font-mono text-emerald" style={{ fontSize: 18, fontWeight: 700 }}>
+                  {forecast.model_mae?.toFixed(3) || '–'}%
+                </div>
               </div>
-            </div>
-            <div className="text-right">
-              <div className="text-xs text-muted mb-1">Horizon</div>
-              <div className="font-mono text-indigo" style={{ fontSize: 18, fontWeight: 700 }}>
-                {forecast.horizon_minutes}min
+              <div className="text-right">
+                <div className="text-xs text-muted mb-1">Horizon</div>
+                <div className="font-mono text-indigo" style={{ fontSize: 18, fontWeight: 700 }}>
+                  {forecast.horizon_minutes}min
+                </div>
               </div>
             </div>
           </div>
@@ -240,7 +242,7 @@ export default function PredictionsPage() {
 
       {/* Carbon intensity curve */}
       <div className="card">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div>
             <h3 style={{ fontSize: 14, fontWeight: 700 }}>24h Carbon Intensity — {region}</h3>
             <p className="text-xs text-muted mt-1">Lower is greener · gCO₂ per kWh · DEMO data</p>
@@ -270,7 +272,7 @@ export default function PredictionsPage() {
             </BarChart>
           </ResponsiveContainer>
         </div>
-        <div className="flex gap-3 mt-2" style={{ justifyContent: 'flex-end' }}>
+        <div className="flex gap-3 mt-2 flex-wrap" style={{ justifyContent: 'flex-end' }}>
           <div className="flex items-center gap-1"><div style={{ width: 10, height: 10, borderRadius: 2, background: '#10b981' }} /><span className="text-xs text-muted">Clean (&lt;250)</span></div>
           <div className="flex items-center gap-1"><div style={{ width: 10, height: 10, borderRadius: 2, background: '#3b82f6' }} /><span className="text-xs text-muted">Moderate</span></div>
           <div className="flex items-center gap-1"><div style={{ width: 10, height: 10, borderRadius: 2, background: '#ef4444' }} /><span className="text-xs text-muted">High</span></div>

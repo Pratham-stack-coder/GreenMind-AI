@@ -40,7 +40,7 @@ export default function RecommendationCard({
       animate={{ opacity: 1, y: 0 }}
       whileHover={{ borderColor: 'var(--emerald-500)', transition: { duration: 0.2 } }}
     >
-      <div className="flex items-start justify-between gap-3 mb-2">
+      <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
         <div className="flex items-center gap-2">
           <div
             style={{
@@ -54,7 +54,7 @@ export default function RecommendationCard({
           </div>
           <div>
             <h4 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>{rec.title}</h4>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className={`badge ${priorityColor}`}>
                 {rec.priority.toUpperCase()}
               </span>
@@ -68,7 +68,7 @@ export default function RecommendationCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {onExplain && (
             <button
               onClick={() => onExplain(rec.id)}

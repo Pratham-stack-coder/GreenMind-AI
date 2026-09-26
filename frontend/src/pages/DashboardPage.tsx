@@ -338,7 +338,7 @@ export default function DashboardPage() {
       <div className="grid-2 mb-4">
         {/* 1. CPU History */}
         <div className="card">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Cpu size={16} color="var(--emerald-400)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>CPU History (Last 24 Readings)</h3>
@@ -366,7 +366,7 @@ export default function DashboardPage() {
 
         {/* 2. Memory History */}
         <div className="card">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <MemoryStick size={16} color="var(--blue-400)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>Memory History</h3>
@@ -397,7 +397,7 @@ export default function DashboardPage() {
       <div className="grid-2 mb-4">
         {/* 3. Cost Trend */}
         <div className="card">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <DollarSign size={16} color="var(--amber-400)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>Cost Trend ($/hr)</h3>
@@ -425,7 +425,7 @@ export default function DashboardPage() {
 
         {/* 4. Carbon Trend */}
         <div className="card">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Leaf size={16} color="var(--emerald-400)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>Carbon Emissions Trend (gCO₂/hr)</h3>
@@ -456,7 +456,7 @@ export default function DashboardPage() {
       <div className="grid-2 mb-4">
         {/* 5. Network Usage */}
         <div className="card">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Network size={16} color="var(--purple-400)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>Network Usage (Mbps)</h3>
@@ -478,7 +478,7 @@ export default function DashboardPage() {
 
         {/* 6. Predicted CPU */}
         <div className="card">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <TrendingUp size={16} color="var(--emerald-400)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>Predicted CPU Load (60-Min ML Forecast)</h3>
@@ -501,7 +501,7 @@ export default function DashboardPage() {
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex items-center justify-between text-xs text-muted mt-2">
+          <div className="flex items-center justify-between text-xs text-muted mt-2 flex-wrap gap-2">
             <span>Current: <strong>{metrics?.cpu ?? 45}%</strong></span>
             <span>Forecast +60m: <strong className="text-emerald-400">{forecast?.cpu?.predicted ?? 48}%</strong></span>
             <span>Confidence: <strong>{((forecast?.cpu?.confidence ?? 0.88) * 100).toFixed(0)}%</strong></span>
@@ -512,7 +512,7 @@ export default function DashboardPage() {
       {/* Top AI Recommendation Spotlight */}
       {topRec && (
         <div className="card mb-4" style={{ background: 'rgba(16, 185, 129, 0.03)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Sparkles size={16} color="var(--emerald-400)" />
               <h3 style={{ fontSize: 15, fontWeight: 700 }}>Priority AI Recommendation</h3>
@@ -529,7 +529,7 @@ export default function DashboardPage() {
             </button>
           </div>
           <p className="text-sm text-secondary mb-2">{topRec.description}</p>
-          <div className="flex items-center gap-4 text-xs font-semibold">
+          <div className="flex items-center gap-4 text-xs font-semibold flex-wrap">
             {topRec.estimated_monthly_savings_usd > 0 && (
               <span className="text-emerald-400">Save ${topRec.estimated_monthly_savings_usd.toFixed(0)}/month</span>
             )}

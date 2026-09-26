@@ -41,7 +41,7 @@ export default function CloudResourcesPage() {
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800 }}>Cloud Resources Inventory</h1>
           <p className="text-secondary text-sm mt-1">
@@ -99,8 +99,8 @@ export default function CloudResourcesPage() {
       {/* Filter and Search Bar */}
       <div className="card mb-4">
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-2 flex-1 min-w-[280px]">
-            <div className="relative flex-1">
+          <div className="resource-filter-row">
+            <div className="relative flex-1" style={{ minWidth: 200 }}>
               <Search
                 size={14}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
@@ -118,6 +118,7 @@ export default function CloudResourcesPage() {
             <button
               onClick={() => setFilterCandidate(!filterCandidate)}
               className={`btn text-xs ${filterCandidate ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ whiteSpace: 'nowrap' }}
             >
               <Filter size={12} className="mr-1 inline" />
               Right-Size Candidates Only ({rightSizeCount})

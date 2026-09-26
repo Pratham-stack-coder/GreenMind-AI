@@ -55,7 +55,7 @@ export default function CostOptimizationPage() {
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800 }}>Cost Optimization Intelligence</h1>
           <p className="text-secondary text-sm mt-1">
@@ -109,7 +109,7 @@ export default function CostOptimizationPage() {
 
       {/* Cost Trend Chart */}
       <div className="card mb-4">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <DollarSign size={16} color="var(--amber-400)" />
             <h3 style={{ fontSize: 15, fontWeight: 700 }}>Cloud Cost Spend Curve (${days}d Period)</h3>
@@ -143,7 +143,7 @@ export default function CostOptimizationPage() {
 
       {/* Interactive Right-Sizing Simulator Quick Panel */}
       <div className="card mb-4 card-accent-emerald">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <Sparkles size={16} color="var(--emerald-400)" />
             <h3 style={{ fontSize: 15, fontWeight: 700 }}>Instant Scenario Simulation (Digital Twin)</h3>
@@ -198,18 +198,18 @@ export default function CostOptimizationPage() {
           {costRecs.map(rec => (
             <div
               key={rec.id}
-              className="p-3 rounded flex items-center justify-between"
+              className="p-3 rounded flex items-center justify-between flex-wrap gap-3"
               style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}
             >
-              <div>
+              <div style={{ flex: '1 1 240px' }}>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{rec.title}</div>
                 <div className="text-xs text-secondary mt-1">{rec.impact_summary}</div>
-                <div className="flex items-center gap-2 mt-2">
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <span className="badge badge-amber text-xs font-mono">{rec.action}</span>
                   <span className="text-xs text-muted">Confidence: {(rec.confidence * 100).toFixed(0)}%</span>
                 </div>
               </div>
-              <div className="text-right">
+              <div className="text-right" style={{ flexShrink: 0 }}>
                 <div className="text-lg font-bold text-emerald-400">
                   +${rec.estimated_monthly_savings_usd.toFixed(0)}/mo
                 </div>

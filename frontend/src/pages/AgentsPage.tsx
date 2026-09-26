@@ -20,25 +20,34 @@ function AgentCard({ agent }: { agent: AgentResult }) {
 
   return (
     <motion.div className={`card`} layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-      <div className="flex items-center gap-3" style={{ cursor: 'pointer' }} onClick={() => setExpanded(v => !v)}>
-        <div className={`badge badge-${color}`}>
-          <Bot size={12} />
-          {agent.agent}
+      <div className="agent-card-header" onClick={() => setExpanded(v => !v)}>
+        <div className="agent-card-meta">
+          <div className={`badge badge-${color}`}>
+            <Bot size={12} />
+            {agent.agent}
+          </div>
+          <span className="badge badge-emerald">{agent.recommendations.length} recs</span>
+          <div className="agent-card-mobile-toggle">
+            {expanded ? <ChevronUp size={16} color="var(--text-muted)" /> : <ChevronDown size={16} color="var(--text-muted)" />}
+          </div>
         </div>
-        <div className="flex-1">
+
+        <div className="agent-card-info">
           <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
             {agent.findings[0] || 'Analysis complete'}
           </div>
         </div>
-        <div className="flex items-center gap-3">
+
+        <div className="agent-card-score-area">
           <div style={{ textAlign: 'right' }}>
             <div className="text-xs text-muted">Domain Score</div>
             <div style={{ fontWeight: 800, fontSize: 20, color: agent.score >= 70 ? 'var(--emerald-400)' : agent.score >= 50 ? 'var(--amber-400)' : 'var(--red-400)' }}>
               {agent.score}
             </div>
           </div>
-          <span className="badge badge-emerald">{agent.recommendations.length} recs</span>
-          {expanded ? <ChevronUp size={16} color="var(--text-muted)" /> : <ChevronDown size={16} color="var(--text-muted)" />}
+          <div className="agent-card-desktop-toggle">
+            {expanded ? <ChevronUp size={16} color="var(--text-muted)" /> : <ChevronDown size={16} color="var(--text-muted)" />}
+          </div>
         </div>
       </div>
 
@@ -213,7 +222,7 @@ export default function AgentsPage() {
 
   return (
     <div className="animate-fade-in">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
           <h1>Multi-Agent AI</h1>
           <p className="text-secondary text-sm mt-1">5 specialized agents collaborate to produce unified optimization plans</p>
@@ -254,7 +263,7 @@ export default function AgentsPage() {
       {display && (
         <>
           <div className="card card-accent-emerald mb-4">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
               <div>
                 <div className="text-xs text-muted mb-1" style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Overall Score</div>
                 <div style={{ fontSize: 40, fontWeight: 900, color: display.overall_score >= 70 ? 'var(--emerald-400)' : 'var(--amber-400)', lineHeight: 1 }}>
@@ -262,7 +271,7 @@ export default function AgentsPage() {
                   <span style={{ fontSize: 16, color: 'var(--text-muted)', fontWeight: 400 }}>/100</span>
                 </div>
               </div>
-              <div className="flex-1">
+              <div className="flex-1" style={{ minWidth: 200 }}>
                 <p className="text-secondary text-sm" style={{ lineHeight: 1.6 }}>{display.summary}</p>
                 <div className="flex gap-2 mt-2">
                   <div className="flex items-center gap-1 text-xs text-muted">

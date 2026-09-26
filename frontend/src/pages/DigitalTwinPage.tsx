@@ -54,7 +54,7 @@ export default function DigitalTwinPage() {
 
   return (
     <div className="animate-fade-in">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
           <h1>Digital Twin Simulator</h1>
           <p className="text-secondary text-sm mt-1">Simulate infrastructure changes and estimate impact before applying</p>
@@ -142,7 +142,7 @@ export default function DigitalTwinPage() {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0 }}
               >
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                   <h3 style={{ fontSize: 14, fontWeight: 700 }}>Simulation Results</h3>
                   <div className="flex gap-2">
                     <span className="badge badge-muted">ID: {result.simulation_id}</span>
@@ -160,7 +160,7 @@ export default function DigitalTwinPage() {
                   ].map(({ label, before, after, delta }) => (
                     <div key={label} className="card" style={{ padding: '12px 14px' }}>
                       <div className="text-xs text-muted mb-2" style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-mono text-secondary" style={{ fontSize: 13 }}>{before}</span>
                         <ArrowRight size={12} color="var(--text-muted)" />
                         <span className="font-mono text-primary" style={{ fontSize: 13, fontWeight: 700 }}>{after}</span>

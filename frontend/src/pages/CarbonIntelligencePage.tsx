@@ -44,7 +44,7 @@ export default function CarbonIntelligencePage() {
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800 }}>Carbon Intelligence &amp; Green Scheduling</h1>
           <p className="text-secondary text-sm mt-1">
@@ -105,7 +105,7 @@ export default function CarbonIntelligencePage() {
 
       {/* 24-Hour Carbon Intensity Curve Chart */}
       <div className="card mb-4">
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <Leaf size={16} color="var(--emerald-400)" />
             <h3 style={{ fontSize: 15, fontWeight: 700 }}>24-Hour Carbon Intensity Curve ({region})</h3>
@@ -155,7 +155,7 @@ export default function CarbonIntelligencePage() {
             ].map(r => (
               <div
                 key={r.name}
-                className="p-2 rounded flex items-center justify-between"
+                className="p-2 rounded flex items-center justify-between flex-wrap gap-2"
                 style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}
               >
                 <div>

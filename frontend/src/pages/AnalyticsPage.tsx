@@ -110,7 +110,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="animate-fade-in">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
           <h1>Analytics</h1>
           <p className="text-secondary text-sm mt-1">Cost, carbon and sustainability over time</p>
@@ -196,11 +196,13 @@ export default function AnalyticsPage() {
 
       {/* Cost chart */}
       <div className="card mb-4">
-        <div className="flex items-center gap-2 mb-3">
-          <DollarSign size={16} color="var(--amber-400)" />
-          <h3 style={{ fontSize: 14, fontWeight: 700 }}>Hourly Cost ($/hr)</h3>
+        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <DollarSign size={16} color="var(--amber-400)" />
+            <h3 style={{ fontSize: 14, fontWeight: 700 }}>Hourly Cost ($/hr)</h3>
+          </div>
           {costAvgLine != null && (
-            <span className="badge badge-amber" style={{ marginLeft: 'auto' }}>
+            <span className="badge badge-amber">
               avg ${costAvgLine}
             </span>
           )}
@@ -229,11 +231,13 @@ export default function AnalyticsPage() {
 
       {/* Carbon chart */}
       <div className="card mb-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Leaf size={16} color="var(--emerald-400)" />
-          <h3 style={{ fontSize: 14, fontWeight: 700 }}>Carbon Emissions & Intensity</h3>
+        <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Leaf size={16} color="var(--emerald-400)" />
+            <h3 style={{ fontSize: 14, fontWeight: 700 }}>Carbon Emissions & Intensity</h3>
+          </div>
           {avgCarbon != null && (
-            <span className="badge badge-emerald" style={{ marginLeft: 'auto' }}>
+            <span className="badge badge-emerald">
               avg {avgCarbon.toFixed(1)} gCO₂
             </span>
           )}

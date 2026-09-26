@@ -83,7 +83,7 @@ function ExplainModal({ rec, onClose, onApplySuccess }: ExplainModalProps) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 20,
+        padding: '12px 10px',
       }}
       onClick={onClose}
     >
@@ -95,12 +95,12 @@ function ExplainModal({ rec, onClose, onApplySuccess }: ExplainModalProps) {
         style={{
           width: '100%',
           maxWidth: 680,
-          maxHeight: '90vh',
+          maxHeight: '92vh',
           overflowY: 'auto',
           background: 'var(--bg-panel-solid, #11141c)',
           borderColor: 'var(--border-focus, rgba(16, 185, 129, 0.4))',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-          padding: 24,
+          padding: '18px 16px',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -339,37 +339,41 @@ function RecCard({
       }}
     >
       <div
-        className="flex items-center gap-3"
-        style={{ cursor: 'pointer' }}
+        className="rec-card-header"
         onClick={() => setExpanded((v) => !v)}
       >
-        <div className={`badge badge-${color}`} style={{ flexShrink: 0 }}>
-          {categoryIcons[rec.category]}
-          {rec.category}
-        </div>
-
-        <div className="flex-1 truncate">
-          <div className="flex items-center gap-2">
-            <span style={{ fontWeight: 600, fontSize: 14 }}>{rec.title}</span>
-            {isApplied && (
-              <span className="badge badge-emerald" style={{ fontSize: 10, padding: '1px 6px' }}>
-                <CheckCircle2 size={11} /> Applied
-              </span>
-            )}
+        <div className="rec-card-meta">
+          <div className={`badge badge-${color}`}>
+            {categoryIcons[rec.category]}
+            {rec.category}
           </div>
-          <div className="text-secondary text-xs mt-1">{rec.impact_summary}</div>
-        </div>
-
-        <div className="flex items-center gap-3" style={{ flexShrink: 0 }}>
-          {rec.estimated_monthly_savings_usd > 0 && (
-            <span className="text-emerald font-mono" style={{ fontWeight: 700, fontSize: 13 }}>
-              ${rec.estimated_monthly_savings_usd.toFixed(0)}/mo
+          <span className={`badge badge-${prioColor}`}>{rec.priority}</span>
+          {isApplied && (
+            <span className="badge badge-emerald" style={{ fontSize: 10, padding: '1px 6px' }}>
+              <CheckCircle2 size={11} /> Applied
             </span>
           )}
-          {rec.estimated_carbon_reduction_pct > 0 && (
-            <span className="text-emerald text-xs">-{rec.estimated_carbon_reduction_pct.toFixed(0)}% CO₂</span>
-          )}
-          <span className={`badge badge-${prioColor}`}>{rec.priority}</span>
+          <div className="rec-card-mobile-toggle">
+            {expanded ? <ChevronUp size={16} color="var(--text-muted)" /> : <ChevronDown size={16} color="var(--text-muted)" />}
+          </div>
+        </div>
+
+        <div className="rec-card-info">
+          <div className="rec-card-title">{rec.title}</div>
+          <div className="text-secondary text-xs mt-0.5">{rec.impact_summary}</div>
+        </div>
+
+        <div className="rec-card-actions">
+          <div className="rec-card-metrics">
+            {rec.estimated_monthly_savings_usd > 0 && (
+              <span className="text-emerald font-mono" style={{ fontWeight: 700, fontSize: 13 }}>
+                ${rec.estimated_monthly_savings_usd.toFixed(0)}/mo
+              </span>
+            )}
+            {rec.estimated_carbon_reduction_pct > 0 && (
+              <span className="text-emerald text-xs">-{rec.estimated_carbon_reduction_pct.toFixed(0)}% CO₂</span>
+            )}
+          </div>
 
           {/* Quick Apply / Rollback Buttons right in row */}
           {!isApplied ? (
@@ -413,7 +417,9 @@ function RecCard({
             </div>
           )}
 
-          {expanded ? <ChevronUp size={16} color="var(--text-muted)" /> : <ChevronDown size={16} color="var(--text-muted)" />}
+          <div className="rec-card-desktop-toggle">
+            {expanded ? <ChevronUp size={16} color="var(--text-muted)" /> : <ChevronDown size={16} color="var(--text-muted)" />}
+          </div>
         </div>
       </div>
 
@@ -590,7 +596,7 @@ export default function RecommendationsPage() {
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
           <h1>AI Recommendations & Remediation</h1>
           <p className="text-secondary text-sm mt-1">
