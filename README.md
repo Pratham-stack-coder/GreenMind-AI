@@ -49,7 +49,8 @@
   9. `AI Copilot` ([CopilotPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/CopilotPage.tsx)): Natural language interface citing real backend metrics and providing quick actions.
   10. `Analytics` ([AnalyticsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/AnalyticsPage.tsx)): Historical spend and carbon analytics with provider breakdowns.
   11. `Settings` ([SettingsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/SettingsPage.tsx)): Fully functional credentials tester, provider connector, and architecture inspector.
-- **Production Deployment Blueprints**:
+- **Production Deployment Blueprints & Guides**:
+  - **Render & Vercel Connection Guide** ([DEPLOYMENT.md](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/DEPLOYMENT.md)): Complete step-by-step walkthrough to deploy and connect Render.com backend with Vercel.com frontend.
   - **Render Backend Blueprint** (`render.yaml`): Automated deployment on Render binding to dynamic `$PORT` with healthcheck at `/health`.
   - **Vercel Frontend Configuration** (`vercel.json` and `frontend/vercel.json`): SPA routing with client-side history rewrites and dynamic `VITE_API_BASE_URL` support.
 - **5-Metric ML Forecasting Pipeline**: Separate Gradient Boosting models for CPU, Memory, Network, Cost, and Carbon. Chronological train/test split without data leakage. Real MAE, RMSE, and R² scores recorded and exported.

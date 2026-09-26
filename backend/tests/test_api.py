@@ -222,3 +222,27 @@ def test_prometheus_metrics():
     assert response.status_code == 200
     assert "greenmind_api_requests_total" in response.text
     assert "greenmind_cloud_collections_total" in response.text
+
+
+def test_cors_vercel_origin():
+    """Verify that requests from any *.vercel.app domain receive correct CORS headers with credentials."""
+    response = client.get("/health", headers={"Origin": "https://my-preview-app.vercel.app"})
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "https://my-preview-app.vercel.app"
+    assert response.headers.get("access-control-allow-credentials") == "true"
+
+
+def test_cors_preflight_options():
+    """Verify OPTIONS preflight request from Vercel is authorized cleanly."""
+    response = client.options(
+        "/api/v1/telemetry/live",
+        headers={
+            "Origin": "https://greenmind-dashboard.vercel.app",
+            "Access-Control-Request-Method": "GET",
+            "Access-Control-Request-Headers": "content-type",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == "https://greenmind-dashboard.vercel.app"
+    assert "GET" in response.headers.get("access-control-allow-methods", "")
+

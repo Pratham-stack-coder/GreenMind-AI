@@ -20,7 +20,7 @@ services:
       # ── Application Mode ──────────────────────────────────────────────────────
       # Set to "false" in production when cloud credentials are configured
       - key: DEMO_MODE
-        value: "true"
+        value: "false"
       - key: APP_VERSION
         value: "2.0.0"
 

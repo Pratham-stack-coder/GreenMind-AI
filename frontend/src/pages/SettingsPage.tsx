@@ -3,13 +3,20 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Settings, Cloud, Brain, Shield, RefreshCw, CheckCircle2,
-  AlertCircle, Info, Lock, Eye, EyeOff, Trash2, Zap, Server, Database
+  AlertCircle, Info, Lock, Eye, EyeOff, Trash2, Zap, Server, Database,
+  Globe, ExternalLink, Activity, ArrowRight
 } from 'lucide-react'
 import {
   fetchSettingsStatus,
   testProviderConnection,
   configureProvider,
-  disconnectProvider
+  disconnectProvider,
+  getActiveBackendUrl,
+  setActiveBackendUrl,
+  resetActiveBackendUrl,
+  testBackendConnection,
+  normalizeApiBaseUrl,
+  type BackendHealthCheckResult,
 } from '../api/client'
 import type { ProviderConnectionStatus, TestConnectionResponse } from '../types'
 
@@ -22,6 +29,46 @@ export default function SettingsPage() {
     queryFn: fetchSettingsStatus,
     refetchInterval: 15000,
   })
+
+  // ── Backend API & Deployment State ──────────────────────────────────────────
+  const [backendUrlInput, setBackendUrlInput] = useState(getActiveBackendUrl())
+  const [backendTesting, setBackendTesting] = useState(false)
+  const [backendTestResult, setBackendTestResult] = useState<BackendHealthCheckResult | null>(null)
+  const [backendSuccessMsg, setBackendSuccessMsg] = useState<string | null>(null)
+
+  const handleTestBackend = async (urlToTest?: string) => {
+    setBackendTesting(true)
+    setBackendSuccessMsg(null)
+    try {
+      const result = await testBackendConnection(urlToTest ?? backendUrlInput)
+      setBackendTestResult(result)
+      if (result.connected) {
+        setBackendSuccessMsg(`Backend connected (${result.latencyMs}ms)! FastAPI v${result.version} running in ${result.cloud_mode?.toUpperCase() || 'DEMO'} mode.`)
+      }
+    } finally {
+      setBackendTesting(false)
+    }
+  }
+
+  const handleSaveBackend = async () => {
+    setBackendSuccessMsg(null)
+    setActiveBackendUrl(backendUrlInput)
+    await handleTestBackend(backendUrlInput)
+    queryClient.invalidateQueries({ queryKey: ['health'] })
+    queryClient.invalidateQueries({ queryKey: ['settings-status'] })
+    queryClient.invalidateQueries({ queryKey: ['topbar-live'] })
+    setBackendSuccessMsg(`Active backend URL updated to: ${normalizeApiBaseUrl(backendUrlInput)}`)
+  }
+
+  const handleResetBackend = () => {
+    resetActiveBackendUrl()
+    const envUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined) || ''
+    setBackendUrlInput(envUrl)
+    setBackendTestResult(null)
+    setBackendSuccessMsg(envUrl ? `Reset to environment variable: ${envUrl}` : 'Reset to relative proxy default (/api/v1)')
+    queryClient.invalidateQueries({ queryKey: ['health'] })
+    queryClient.invalidateQueries({ queryKey: ['settings-status'] })
+  }
 
   // ── AWS Form State ──────────────────────────────────────────────────────────
   const [awsKeyId, setAwsKeyId] = useState('')
@@ -445,6 +492,186 @@ export default function SettingsPage() {
       </div>
 
       <div className="flex-col gap-6" style={{ maxWidth: 880 }}>
+
+        {/* ── Render Backend & Deployment Connection ─────────────────────────── */}
+        <div className="card" style={{ borderColor: 'rgba(56, 189, 248, 0.35)', background: 'linear-gradient(180deg, rgba(14, 165, 233, 0.04) 0%, rgba(15, 23, 42, 0.4) 100%)' }}>
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Server size={18} color="var(--sky-400, #38bdf8)" />
+              <h3 style={{ fontSize: 16, fontWeight: 700 }}>FastAPI Backend Connection (Render.com)</h3>
+            </div>
+            {backendTestResult ? (
+              backendTestResult.connected ? (
+                <span className="badge badge-emerald flex items-center gap-1">
+                  <CheckCircle2 size={11} /> LIVE CONNECTED ({backendTestResult.latencyMs}ms)
+                </span>
+              ) : (
+                <span className="badge badge-red flex items-center gap-1">
+                  <AlertCircle size={11} /> UNREACHABLE / ERROR
+                </span>
+              )
+            ) : statusData ? (
+              <span className="badge badge-emerald flex items-center gap-1">
+                <CheckCircle2 size={11} /> ACTIVE ({getActiveBackendUrl() ? 'RENDER' : 'LOCAL'})
+              </span>
+            ) : (
+              <span className="badge badge-blue flex items-center gap-1">
+                DEMO FALLBACK
+              </span>
+            )}
+          </div>
+
+          <p className="text-xs text-secondary mb-4 leading-relaxed">
+            Connect this Vercel-deployed frontend cockpit to your FastAPI backend running on Render.com
+            (or local dev server). You can test connectivity, update the target URL on the fly, or configure build-time variables.
+          </p>
+
+          {/* Active URL Status Box */}
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 8,
+              background: 'rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              marginBottom: 16,
+              fontSize: 12,
+            }}
+            className="flex items-center justify-between flex-wrap gap-2"
+          >
+            <div>
+              <span className="text-muted" style={{ fontWeight: 600, marginRight: 8 }}>EFFECTIVE API ENDPOINT:</span>
+              <code style={{ color: 'var(--sky-400, #38bdf8)', background: 'transparent', padding: 0 }}>
+                {normalizeApiBaseUrl(getActiveBackendUrl())}
+              </code>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-secondary">Source:</span>
+              <span className="badge badge-muted" style={{ fontSize: 10 }}>
+                {typeof window !== 'undefined' && localStorage.getItem('greenmind_backend_url')
+                  ? 'Runtime Override (Local Storage)'
+                  : (import.meta.env.VITE_API_BASE_URL ? 'Vite Environment Variable' : 'Default / Relative Proxy')}
+              </span>
+            </div>
+          </div>
+
+          {/* Input & Action Buttons */}
+          <div className="flex-col gap-3">
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
+                Render Backend Service URL
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                <input
+                  type="text"
+                  placeholder="https://greenmind-backend.onrender.com"
+                  value={backendUrlInput}
+                  onChange={(e) => setBackendUrlInput(e.target.value)}
+                  style={{
+                    flex: '1 1 320px',
+                    padding: '8px 12px',
+                    borderRadius: 6,
+                    fontSize: 13,
+                    background: 'rgba(15, 23, 42, 0.6)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    color: 'var(--text-primary)',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleTestBackend(backendUrlInput)}
+                  disabled={backendTesting}
+                  className="btn btn-secondary btn-sm flex items-center gap-1.5"
+                >
+                  <RefreshCw size={13} className={backendTesting ? 'spin' : ''} />
+                  {backendTesting ? 'Pinging...' : 'Test Connection'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveBackend}
+                  disabled={backendTesting}
+                  className="btn btn-primary btn-sm flex items-center gap-1.5"
+                >
+                  <Zap size={13} />
+                  Save & Connect
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetBackend}
+                  disabled={backendTesting}
+                  className="btn btn-ghost btn-sm text-muted"
+                  title="Reset to environment variable or default relative route"
+                >
+                  Reset
+                </button>
+              </div>
+              <span className="text-xs text-muted mt-1 block">
+                Trailing slashes and duplicate <code>/api/v1</code> suffixes are normalized automatically.
+              </span>
+            </div>
+
+            {/* Test Feedback Messages */}
+            <AnimatePresence>
+              {backendSuccessMsg && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="p-3 rounded text-xs flex items-center gap-2"
+                  style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399' }}
+                >
+                  <CheckCircle2 size={14} style={{ flexShrink: 0 }} />
+                  <span>{backendSuccessMsg}</span>
+                </motion.div>
+              )}
+              {backendTestResult && !backendTestResult.connected && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="p-3 rounded text-xs flex items-start gap-2"
+                  style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}
+                >
+                  <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div>
+                    <div style={{ fontWeight: 600 }}>Backend Connection Failed</div>
+                    <div className="mt-1 leading-relaxed">{backendTestResult.error}</div>
+                    <div className="mt-2 text-muted" style={{ color: '#fca5a5' }}>
+                      💡 <strong>Render Cold Starts:</strong> Render free-tier services spin down after 15 minutes of inactivity and take 30–50 seconds to boot up on the first request. Click <em>Test Connection</em> again in ~20 seconds.
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Quick deployment guide drawer */}
+            <div
+              style={{
+                marginTop: 8,
+                padding: '12px 14px',
+                borderRadius: 6,
+                background: 'rgba(255, 255, 255, 0.02)',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                fontSize: 12,
+              }}
+            >
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }} className="flex items-center gap-1.5">
+                <Globe size={13} color="var(--sky-400, #38bdf8)" />
+                <span>How Render.com ↔ Vercel.com Communication Works</span>
+              </div>
+              <ul className="text-muted leading-relaxed" style={{ paddingLeft: 18, listStyleType: 'disc', margin: 0 }}>
+                <li>
+                  <strong>On Vercel (Frontend):</strong> In your Vercel Project Settings &rarr; <em>Environment Variables</em>, add <code style={{ color: '#e2e8f0' }}>VITE_API_BASE_URL=https://your-app.onrender.com</code>, then trigger a redeploy.
+                </li>
+                <li>
+                  <strong>On Render (Backend):</strong> GreenMind's backend automatically permits all <code style={{ color: '#e2e8f0' }}>*.vercel.app</code> domains out-of-the-box. For custom domains, set <code style={{ color: '#e2e8f0' }}>CORS_ORIGINS=https://mycustomapp.com</code> in Render's environment dashboard.
+                </li>
+                <li>
+                  <strong>Instant Preview Testing:</strong> You don't have to wait for a Vercel rebuild! Enter your Render URL above and click <em>Save & Connect</em> to switch immediately in this browser.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
 
         {/* ── AWS Connector ─────────────────────────────────────────────────── */}
         <div className="card">

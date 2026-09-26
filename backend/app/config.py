@@ -61,6 +61,7 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5173",
         "https://green-mind-ai-ten.vercel.app",
         "https://greenmind-ai.vercel.app",
+        "https://green-mind-2shiqlt61-pratham-stack-coders-projects.vercel.app",
     ]
     cors_origins: str = ""  # Comma-separated domains for deployed environments
 

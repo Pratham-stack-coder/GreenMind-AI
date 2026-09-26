@@ -18,13 +18,149 @@ import type {
   TestConnectionResponse,
 } from '../types'
 
-const RAW_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) || ''
-const API_BASE = RAW_BASE ? `${RAW_BASE.replace(/\/+$/, '')}/api/v1` : '/api/v1'
+// ── Backend URL Management & Multi-Host Normalization ──────────────────────────
+const BACKEND_STORAGE_KEY = 'greenmind_backend_url'
+
+/**
+ * Normalizes any backend URL so that:
+ * - Empty/undefined string -> '/api/v1' (local dev proxy / relative route)
+ * - Trailing slashes are stripped
+ * - Avoids duplicate '/api/v1' if the user provides https://your-app.onrender.com/api/v1
+ * - Example: 'https://my-backend.onrender.com' -> 'https://my-backend.onrender.com/api/v1'
+ * - Example: 'https://my-backend.onrender.com/api/v1/' -> 'https://my-backend.onrender.com/api/v1'
+ */
+export function normalizeApiBaseUrl(rawUrl?: string): string {
+  const trimmed = (rawUrl || '').trim().replace(/\/+$/, '')
+  if (!trimmed) return '/api/v1'
+  if (trimmed.endsWith('/api/v1')) return trimmed
+  return `${trimmed}/api/v1`
+}
+
+export const DEFAULT_PRODUCTION_BACKEND = 'https://greenmind-backend-zqn5.onrender.com'
+
+/**
+ * Returns the currently active backend URL.
+ * Priority:
+ * 1. User runtime override saved in localStorage
+ * 2. Build-time environment variable import.meta.env.VITE_API_BASE_URL
+ * 3. Default deployed Render backend (when running in deployed browser environments like Vercel)
+ * 4. Empty string '' (when running locally, falling back to Vite dev proxy /api/v1)
+ */
+export function getActiveBackendUrl(): string {
+  if (typeof window !== 'undefined') {
+    const saved = localStorage.getItem(BACKEND_STORAGE_KEY)
+    if (saved && saved.trim()) return saved.trim()
+  }
+
+  const envUrl = ((import.meta.env.VITE_API_BASE_URL as string | undefined) || '').trim()
+  if (envUrl) return envUrl
+
+  // In deployed browser environments (e.g. *.vercel.app), default to the live Render backend
+  if (
+    typeof window !== 'undefined' &&
+    window.location.hostname &&
+    !window.location.hostname.includes('localhost') &&
+    !window.location.hostname.includes('127.0.0.1')
+  ) {
+    return DEFAULT_PRODUCTION_BACKEND
+  }
+
+  return ''
+}
+
+/**
+ * Saves a dynamic backend URL override to localStorage and updates Axios baseURL immediately.
+ */
+export function setActiveBackendUrl(url: string): void {
+  if (typeof window !== 'undefined') {
+    const trimmed = url.trim()
+    if (trimmed) {
+      localStorage.setItem(BACKEND_STORAGE_KEY, trimmed)
+    } else {
+      localStorage.removeItem(BACKEND_STORAGE_KEY)
+    }
+  }
+  api.defaults.baseURL = normalizeApiBaseUrl(getActiveBackendUrl())
+}
+
+/**
+ * Clears any dynamic backend URL override from localStorage, reverting to VITE_API_BASE_URL.
+ */
+export function resetActiveBackendUrl(): void {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(BACKEND_STORAGE_KEY)
+  }
+  api.defaults.baseURL = normalizeApiBaseUrl(getActiveBackendUrl())
+}
+
+export interface BackendHealthCheckResult {
+  connected: boolean
+  url: string
+  latencyMs: number
+  status?: string
+  version?: string
+  demo_mode?: boolean
+  cloud_mode?: string
+  database?: string
+  error?: string
+}
+
+/**
+ * Tests direct live connectivity to a Render backend health check endpoint.
+ */
+export async function testBackendConnection(targetUrl?: string): Promise<BackendHealthCheckResult> {
+  const rawUrl = targetUrl !== undefined ? targetUrl.trim() : getActiveBackendUrl()
+  const base = normalizeApiBaseUrl(rawUrl)
+  const healthEndpoint = `${base}/health`
+  const startTime = Date.now()
+
+  try {
+    const res = await axios.get(healthEndpoint, {
+      timeout: 35000,
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    if (typeof res.data === 'string' && (res.data.includes('<!doctype') || res.data.includes('<html'))) {
+      throw new Error('Received HTML response instead of JSON. Ensure the URL points to your Render backend.')
+    }
+
+    const latencyMs = Date.now() - startTime
+    return {
+      connected: res.data?.status === 'ok',
+      url: base,
+      latencyMs,
+      status: res.data?.status || 'ok',
+      version: res.data?.version || '2.0.0',
+      demo_mode: Boolean(res.data?.demo_mode),
+      cloud_mode: res.data?.cloud_mode,
+      database: res.data?.database,
+    }
+  } catch (err: any) {
+    const latencyMs = Date.now() - startTime
+    const message =
+      err?.code === 'ECONNABORTED'
+        ? 'Connection timed out. If your Render free instance is sleeping, it takes ~30-50 seconds to warm up. Please retry in a few moments.'
+        : err?.response?.data?.detail || err?.message || 'Failed to connect to backend server'
+    return {
+      connected: false,
+      url: base,
+      latencyMs,
+      error: message,
+    }
+  }
+}
 
 const api = axios.create({
-  baseURL: API_BASE,
+  baseURL: normalizeApiBaseUrl(getActiveBackendUrl()),
   headers: { 'Content-Type': 'application/json' },
-  timeout: 10000,
+  timeout: 45000, // 45s accommodates Render free-tier cold starts
+})
+
+// Dynamically sync baseURL on each request in case localStorage changed
+api.interceptors.request.use((config) => {
+  const currentBase = normalizeApiBaseUrl(getActiveBackendUrl())
+  config.baseURL = currentBase
+  return config
 })
 
 // Intercept HTML responses from SPA rewrites when backend is offline

@@ -1,7 +1,8 @@
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Bell, Globe } from 'lucide-react'
 import { useAppStore } from '../../store'
-import { fetchHealth, fetchRecommendations, fetchLiveMetrics } from '../../api/client'
+import { fetchHealth, fetchRecommendations, fetchLiveMetrics, getActiveBackendUrl } from '../../api/client'
 import { useEffect, useRef, useState } from 'react'
 
 function LiveClock() {
@@ -18,6 +19,7 @@ function LiveClock() {
 }
 
 export default function TopBar() {
+  const navigate = useNavigate()
   const { provider, region, setProvider, setRegion, notifPanelOpen, setNotifPanelOpen, notifications, addNotification } = useAppStore()
   const { data: health } = useQuery({
     queryKey: ['health'],
@@ -148,14 +150,19 @@ export default function TopBar() {
 
       {/* Status */}
       {health && (
-        <div className="flex items-center gap-2">
+        <button
+          onClick={() => navigate('/settings')}
+          className="btn btn-ghost btn-sm flex items-center gap-2"
+          style={{ padding: '4px 8px', height: 'auto', borderRadius: 6 }}
+          title={`Backend: ${getActiveBackendUrl() || 'Local Proxy (/api/v1)'} (${health.demo_mode ? 'Demo Mode' : 'Live Mode'}) · Click to configure`}
+        >
           <span
             className={`status-dot ${health.status === 'ok' ? 'online animate-pulse-glow' : 'error'}`}
           />
           <span className="text-xs text-secondary">
             v{health.version} · {health.demo_mode ? 'Demo' : 'Live'}
           </span>
-        </div>
+        </button>
       )}
 
       {/* Notification bell */}
