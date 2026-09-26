@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Bell, Globe } from 'lucide-react'
+import { Bell, Globe, Menu, Leaf } from 'lucide-react'
 import { useAppStore } from '../../store'
 import { fetchHealth, fetchRecommendations, fetchLiveMetrics, getActiveBackendUrl } from '../../api/client'
 import { useEffect, useRef, useState } from 'react'
@@ -20,7 +20,12 @@ function LiveClock() {
 
 export default function TopBar() {
   const navigate = useNavigate()
-  const { provider, region, setProvider, setRegion, notifPanelOpen, setNotifPanelOpen, notifications, addNotification } = useAppStore()
+  const {
+    provider, region, setProvider, setRegion,
+    notifPanelOpen, setNotifPanelOpen,
+    notifications, addNotification,
+    sidebarOpen, setSidebarOpen,
+  } = useAppStore()
   const { data: health } = useQuery({
     queryKey: ['health'],
     queryFn: fetchHealth,
@@ -115,52 +120,79 @@ export default function TopBar() {
 
   return (
     <header className="topbar">
-      <Globe size={16} color="var(--emerald-400)" />
+      {/* Mobile drawer toggle */}
+      <button
+        className="btn btn-ghost mobile-menu-btn"
+        onClick={() => setSidebarOpen(!sidebarOpen)}
+        title="Toggle navigation"
+        aria-label="Toggle navigation"
+        style={{ padding: '6px', borderRadius: 8 }}
+      >
+        <Menu size={20} color="var(--emerald-400)" />
+      </button>
 
-      {/* Provider selector */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Provider</span>
-        <select
-          value={provider}
-          onChange={e => { setProvider(e.target.value); setRegion(regions[e.target.value]?.[0] || 'us-east') }}
-          style={{ width: 'auto', padding: '4px 8px', fontSize: 13 }}
-        >
-          {providers.map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
-        </select>
+      {/* Mobile brand mark */}
+      <div className="mobile-brand-title">
+        <div className="sidebar-logo-icon" style={{ width: 28, height: 28, borderRadius: 7 }}>
+          <Leaf size={15} color="#fff" />
+        </div>
+        <span style={{ fontWeight: 700, fontSize: 14 }}>GreenMind</span>
       </div>
 
-      {/* Region selector */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted" style={{ textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>Region</span>
-        <select
-          value={region}
-          onChange={e => setRegion(e.target.value)}
-          style={{ width: 'auto', padding: '4px 8px', fontSize: 13 }}
-        >
-          {(regions[provider] || regions.aws).map(r => (
-            <option key={r} value={r}>{r}</option>
-          ))}
-        </select>
+      {/* Desktop globe icon */}
+      <span className="hidden-sm" style={{ display: 'inline-flex', alignItems: 'center' }}>
+        <Globe size={16} color="var(--emerald-400)" />
+      </span>
+
+      {/* Provider & Region selectors */}
+      <div className="topbar-selectors">
+        {/* Provider selector */}
+        <div className="flex items-center gap-1.5">
+          <span className="selector-label text-xs text-muted font-bold" style={{ letterSpacing: '0.08em' }}>PROVIDER</span>
+          <select
+            value={provider}
+            onChange={e => { setProvider(e.target.value); setRegion(regions[e.target.value]?.[0] || 'us-east') }}
+            className="topbar-select"
+          >
+            {providers.map(p => <option key={p} value={p}>{p.toUpperCase()}</option>)}
+          </select>
+        </div>
+
+        {/* Region selector */}
+        <div className="flex items-center gap-1.5">
+          <span className="selector-label text-xs text-muted font-bold" style={{ letterSpacing: '0.08em' }}>REGION</span>
+          <select
+            value={region}
+            onChange={e => setRegion(e.target.value)}
+            className="topbar-select"
+          >
+            {(regions[provider] || regions.aws).map(r => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="flex-1" />
 
-      {/* Live clock */}
-      <LiveClock />
+      {/* Live clock - hidden on small phones */}
+      <div className="hidden-sm">
+        <LiveClock />
+      </div>
 
       {/* Status */}
       {health && (
         <button
           onClick={() => navigate('/settings')}
-          className="btn btn-ghost btn-sm flex items-center gap-2"
+          className="btn btn-ghost btn-sm flex items-center gap-1.5"
           style={{ padding: '4px 8px', height: 'auto', borderRadius: 6 }}
           title={`Backend: ${getActiveBackendUrl() || 'Local Proxy (/api/v1)'} (${health.demo_mode ? 'Demo Mode' : 'Live Mode'}) · Click to configure`}
         >
           <span
             className={`status-dot ${health.status === 'ok' ? 'online animate-pulse-glow' : 'error'}`}
           />
-          <span className="text-xs text-secondary">
-            v{health.version} · {health.demo_mode ? 'Demo' : 'Live'}
+          <span className="text-xs text-secondary status-text">
+            <span className="hidden-sm">v{health.version} · </span>{health.demo_mode ? 'Demo' : 'Live'}
           </span>
         </button>
       )}

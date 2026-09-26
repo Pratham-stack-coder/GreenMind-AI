@@ -55,7 +55,8 @@ export default function NotificationsPanel() {
             style={{
               position: 'fixed',
               top: 64, right: 0, bottom: 0,
-              width: 360,
+              width: 'min(360px, 100vw)',
+              maxWidth: '100vw',
               zIndex: 200,
               background: 'rgba(5,10,20,0.97)',
               borderLeft: '1px solid var(--border)',

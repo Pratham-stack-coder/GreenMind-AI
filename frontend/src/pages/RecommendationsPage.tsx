@@ -157,7 +157,7 @@ function ExplainModal({ rec, onClose, onApplySuccess }: ExplainModalProps) {
             </div>
 
             {/* Evidence & Expected Outcome */}
-            <div className="grid-2 gap-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="grid-2 gap-3">
               <div className="card" style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.02)' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>
                   Evidence

@@ -1,3 +1,4 @@
+import React from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import Sidebar from './components/Layout/Sidebar'
@@ -28,12 +29,12 @@ export default function App() {
   const sidebarWidth = sidebarCollapsed ? 64 : 240
 
   return (
-    <div className="main-layout">
+    <div
+      className="main-layout"
+      style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}
+    >
       <Sidebar />
-      <div
-        className="content-area"
-        style={{ marginLeft: sidebarWidth, transition: 'margin-left 300ms cubic-bezier(0.4,0,0.2,1)' }}
-      >
+      <div className="content-area">
         <TopBar />
         <NotificationsPanel />
         <main className="page-content">

@@ -58,7 +58,7 @@ export const useAppStore = create<AppStore>()(
       scores: null,
       setScores: (scores) => set({ scores }),
 
-      sidebarOpen: true,
+      sidebarOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : false,
       setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
 
       sidebarCollapsed: false,
