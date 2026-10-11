@@ -260,24 +260,8 @@ def rollback_recommendation(rec_id: str):
     penalty = 4 if rec.priority in ("critical", "high") else 2
     _last_score = max(50, _last_score - penalty)
 
-    now_iso = datetime.now(timezone.utc).isoformat()
-    return ApplyResponse(
-        recommendation_id=rec.id,
-        title=rec.title,
-        status="rolled_back",
-        message=f"Successfully rolled back recommendation '{rec.title}'. State restored to open.",
-        estimated_monthly_savings_usd=rec.estimated_monthly_savings_usd,
-        estimated_carbon_reduction_pct=rec.estimated_carbon_reduction_pct,
-        applied_at=now_iso,
-        steps_taken=[
-            "Executed automated rollback workflow",
-            "Restored prior infrastructure allocation & scaling group rules",
-            "Verified zero residual service disruption",
-            "Marked recommendation status as open",
-        ],
-        dry_run=False,
-        new_score=_last_score,
-    )
+    from ..integrations.cloud_actions import CloudActionDispatcher
+    return CloudActionDispatcher.rollback_recommendation(rec, new_score=_last_score)
 
 
 @router.post("/{rec_id}/dismiss")

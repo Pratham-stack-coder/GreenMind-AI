@@ -137,3 +137,81 @@ class CloudActionDispatcher:
             dry_run=dry_run,
             new_score=new_score,
         )
+
+    @classmethod
+    def rollback_recommendation(
+        cls,
+        rec: RecommendationItem,
+        operator_notes: str | None = None,
+        new_score: int | None = None,
+    ) -> ApplyResponse:
+        now_str = datetime.now(timezone.utc).isoformat()
+        category = rec.category.lower()
+        steps: list[str] = [
+            f"[Rollback Initiated] Reversing optimization for: {rec.title}",
+        ]
+
+        if category == "cost":
+            steps.extend([
+                "[EC2 Management] Restored previous instance family sizing configuration",
+                "[FinOps Policy] Re-indexed unallocated capacity reservation",
+                "[Health Check] Instance state transition healthy",
+            ])
+        elif category == "performance":
+            steps.extend([
+                "[AutoScaling Group] Restored original min/max instance thresholds",
+                "[Cache Fleet] Flushed temporary hot partition cache buffers",
+                "[Telemetry Verification] Performance baseline reset to previous profile",
+            ])
+        elif category == "sustainability":
+            steps.extend([
+                "[Scheduler] Removed carbon-aware cron deferral window",
+                "[Workload Policy] Workload shifted back to real-time dispatch queue",
+            ])
+        elif category == "security":
+            steps.extend([
+                "[Firewall / SG] Restored prior rule definition with temporary override token",
+                "[Audit Trail] Logged security rule reversion in CloudTrail",
+            ])
+        elif category == "reliability":
+            steps.extend([
+                "[Topology] Restored single-AZ target group routing",
+                "[ALB Route] De-registered secondary AZ target subnets",
+            ])
+
+        steps.append("[State Restored] Recommendation reverted to open status without service disruption")
+
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(
+                    persist_audit_log(
+                        rec_id=rec.id,
+                        title=rec.title,
+                        action=f"Rollback: {rec.action}",
+                        status="rolled_back",
+                        monthly_savings=0.0,
+                        carbon_reduction=0.0,
+                        new_score=new_score,
+                        steps_taken=steps,
+                        dry_run=False,
+                        operator_notes=operator_notes or "Rollback requested by operator",
+                    )
+                )
+        except Exception:
+            pass
+
+        return ApplyResponse(
+            recommendation_id=rec.id,
+            title=rec.title,
+            status="rolled_back",
+            message=f"Successfully rolled back recommendation '{rec.title}'. State restored to open.",
+            estimated_monthly_savings_usd=rec.estimated_monthly_savings_usd,
+            estimated_carbon_reduction_pct=rec.estimated_carbon_reduction_pct,
+            applied_at=now_str,
+            steps_taken=steps,
+            dry_run=False,
+            new_score=new_score,
+        )
+

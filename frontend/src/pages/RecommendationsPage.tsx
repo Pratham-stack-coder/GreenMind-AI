@@ -187,6 +187,80 @@ function ExplainModal({ rec, onClose, onApplySuccess }: ExplainModalProps) {
               </div>
             </div>
 
+            {/* Quantitative Telemetry Comparison Table */}
+            {explainData?.data_evidence && explainData.data_evidence.length > 0 && (
+              <div className="card" style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.02)' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Activity size={13} color="var(--blue-400)" />
+                  Quantitative Telemetry Evidence (Observed vs Threshold)
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                        <th style={{ padding: '6px 8px', fontWeight: 600 }}>Metric</th>
+                        <th style={{ padding: '6px 8px', fontWeight: 600 }}>Observed Value</th>
+                        <th style={{ padding: '6px 8px', fontWeight: 600 }}>Threshold</th>
+                        <th style={{ padding: '6px 8px', fontWeight: 600, textAlign: 'right' }}>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {explainData.data_evidence.map((ev, i) => (
+                        <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                          <td style={{ padding: '6px 8px', color: 'var(--text-primary)', fontWeight: 500 }}>
+                            {ev.metric || ev.key || 'Metric'}
+                          </td>
+                          <td style={{ padding: '6px 8px', fontFamily: 'monospace', color: 'var(--amber-400)' }}>
+                            {ev.observed || ev.value || 'N/A'}
+                          </td>
+                          <td style={{ padding: '6px 8px', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                            {ev.threshold || 'N/A'}
+                          </td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                            <span className={`badge ${ev.status === 'FLAGGED' ? 'badge-red' : 'badge-emerald'}`} style={{ fontSize: 10, padding: '2px 6px' }}>
+                              {ev.status || 'EVALUATED'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Steps to Implement */}
+            {explainData?.steps_to_implement && explainData.steps_to_implement.length > 0 && (
+              <div className="card" style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.02)' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Terminal size={13} color="var(--emerald-400)" />
+                  Automated Implementation Steps
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {explainData.steps_to_implement.map((step, idx) => (
+                    <div key={idx} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12 }}>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: 18,
+                        height: 18,
+                        borderRadius: '50%',
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        color: 'var(--emerald-400)',
+                        fontSize: 10,
+                        fontWeight: 700,
+                      }}>
+                        {idx + 1}
+                      </span>
+                      <span className="text-secondary" style={{ lineHeight: 1.4 }}>{step}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+
             {/* Execution / Dry Run Result Console */}
             {applyResult && (
               <motion.div

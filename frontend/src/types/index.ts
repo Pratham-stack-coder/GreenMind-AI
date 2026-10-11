@@ -109,15 +109,32 @@ export interface BatchApplyResponse {
   new_score: number
 }
 
+export interface ExplainDataEvidenceItem {
+  metric?: string
+  observed?: string
+  threshold?: string
+  unit?: string
+  status?: string
+  key?: string
+  value?: string
+}
+
 export interface ExplainResponse {
   recommendation_id: string
   title: string
+  what_detected?: string
+  why_it_matters?: string
+  evidence?: string[]
+  recommendation?: string
+  expected_impact?: string
   why_flagged: string
-  data_evidence: { key: string; value: string }[]
+  data_evidence: ExplainDataEvidenceItem[]
   counterfactual: string
   steps_to_implement: string[]
   expected_outcome: string
+  feature_importance?: Record<string, number>
 }
+
 
 export interface AgentExecutionStep {
   step_number: number

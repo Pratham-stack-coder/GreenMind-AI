@@ -321,3 +321,42 @@ def test_explain_quantitative_evidence():
     assert "counterfactual" in exp_data
 
 
+def test_recommendation_apply_and_rollback_flow():
+    """Verify applying a recommendation (dry-run & live) and rolling it back."""
+    recs_res = client.get("/api/v1/recommendations?provider=aws&region=us-east")
+    assert recs_res.status_code == 200
+    recs = recs_res.json()["recommendations"]
+    assert len(recs) > 0
+    rec_id = recs[0]["id"]
+
+    # 1. Dry run simulation
+    sim_res = client.post(f"/api/v1/recommendations/{rec_id}/apply", json={"dry_run": True})
+    assert sim_res.status_code == 200
+    sim_data = sim_res.json()
+    assert sim_data["status"] == "simulated"
+    assert sim_data["dry_run"] is True
+    assert len(sim_data["steps_taken"]) > 0
+
+    # 2. Live apply
+    apply_res = client.post(f"/api/v1/recommendations/{rec_id}/apply", json={"dry_run": False})
+    assert apply_res.status_code == 200
+    apply_data = apply_res.json()
+    assert apply_data["status"] == "applied"
+    assert apply_data["dry_run"] is False
+    assert len(apply_data["steps_taken"]) > 0
+
+    # 3. Check applied list
+    applied_list = client.get("/api/v1/recommendations/applied")
+    assert applied_list.status_code == 200
+    applied_ids = [item["recommendation_id"] for item in applied_list.json()]
+    assert rec_id in applied_ids
+
+    # 4. Rollback
+    rollback_res = client.post(f"/api/v1/recommendations/{rec_id}/rollback")
+    assert rollback_res.status_code == 200
+    rb_data = rollback_res.json()
+    assert rb_data["status"] == "rolled_back"
+    assert len(rb_data["steps_taken"]) > 0
+
+
+

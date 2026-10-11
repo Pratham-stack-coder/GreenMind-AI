@@ -83,8 +83,10 @@ def test_all_models_load_and_predict():
         model = joblib.load(model_path)
         assert hasattr(model, "predict"), f"Model for {target} missing predict method"
 
-        # Create dummy sample feature vector
-        sample = np.ones((1, n_features), dtype=float)
+        # Create dummy sample feature vector with feature names if present
+        import pandas as pd
+        feature_cols = getattr(model, "feature_names_in_", None)
+        sample = pd.DataFrame(np.ones((1, n_features), dtype=float), columns=feature_cols) if feature_cols is not None else np.ones((1, n_features), dtype=float)
         pred = model.predict(sample)
         assert len(pred) == 1
         assert not np.isnan(pred[0])
