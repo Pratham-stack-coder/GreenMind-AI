@@ -19,7 +19,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import carbon
@@ -247,8 +247,12 @@ def metrics_prometheus():
 
 
 @app.get("/metrics", tags=["Telemetry"])
-def metrics(provider: str = "aws", region: str = "us-east"):
-    """Current live metrics from cloud provider."""
+def metrics(request: Request, provider: str = "aws", region: str = "us-east", format: str | None = None):
+    """Current live metrics from cloud provider (JSON), or Prometheus text format if requested."""
+    accept = request.headers.get("accept", "")
+    if format == "prometheus" or "text/plain" in accept:
+        content = generate_prometheus_metrics()
+        return Response(content=content, media_type="text/plain; version=0.0.4; charset=utf-8")
     track_cloud_collection()
     p = get_provider(provider)
     return p.get_metrics(region)

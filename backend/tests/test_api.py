@@ -246,3 +246,78 @@ def test_cors_preflight_options():
     assert response.headers.get("access-control-allow-origin") == "https://greenmind-dashboard.vercel.app"
     assert "GET" in response.headers.get("access-control-allow-methods", "")
 
+
+def test_telemetry_provider_status():
+    """Verify provider connectivity status endpoint."""
+    response = client.get("/api/v1/telemetry/provider-status")
+    assert response.status_code == 200
+    data = response.json()
+    assert "providers" in data
+    assert "aws" in data["providers"]
+    assert "azure" in data["providers"]
+    assert "gcp" in data["providers"]
+
+
+def test_agent_execution_trace():
+    """Verify that multi-agent execution emits detailed LangGraph node traces."""
+    response = client.post("/api/v1/agents/run", json={"provider": "aws", "region": "us-east"})
+    assert response.status_code == 200
+    data = response.json()
+    assert "execution_trace" in data
+    assert len(data["execution_trace"]) >= 5
+    step1 = data["execution_trace"][0]
+    assert "step_number" in step1
+    assert "agent" in step1
+    assert "execution_ms" in step1
+    assert "thoughts" in step1
+
+
+def test_digital_twin_latency_and_risk():
+    """Verify that digital twin computes M/M/1 queueing latency and risk scores."""
+    req_body = {
+        "baseline_metrics": {
+            "timestamp": "2026-10-11T00:00:00Z",
+            "provider": "aws",
+            "region": "us-east",
+            "cpu": 65.0,
+            "memory": 60.0,
+            "storage": 50.0,
+            "network": 400.0,
+            "cost_usd_per_hour": 0.22,
+            "carbon_gco2_per_hour": 150.0,
+            "instance_count": 2,
+        },
+        "changes": [
+            {"action": "resize", "instance_type_to": "m5.large"}
+        ],
+        "simulation_hours": 24.0,
+    }
+    response = client.post("/api/v1/digital-twin/simulate", json=req_body)
+    assert response.status_code == 200
+    data = response.json()
+    assert "before" in data
+    assert "after" in data
+    assert "p95_latency_ms" in data["before"]
+    assert "risk_score" in data["before"]
+    assert "risk_factors" in data["before"]
+    assert "p95_latency_pct" in data["delta"]
+
+
+def test_explain_quantitative_evidence():
+    """Verify that recommendation explanation returns quantitative telemetry comparisons."""
+    recs_res = client.get("/api/v1/recommendations?provider=aws&region=us-east")
+    assert recs_res.status_code == 200
+    recs = recs_res.json()["recommendations"]
+    assert len(recs) > 0
+    rec_id = recs[0]["id"]
+
+    exp_res = client.get(f"/api/v1/recommendations/{rec_id}/explain")
+    assert exp_res.status_code == 200
+    exp_data = exp_res.json()
+    assert "data_evidence" in exp_data
+    assert len(exp_data["data_evidence"]) > 0
+    assert "metric" in exp_data["data_evidence"][0]
+    assert "observed" in exp_data["data_evidence"][0]
+    assert "counterfactual" in exp_data
+
+

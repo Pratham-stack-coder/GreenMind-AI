@@ -44,3 +44,4 @@ class OrchestratorState(TypedDict):
     conflicts: list[ConflictItem]
     summary: str
     overall_score: int
+    execution_trace: list[dict[str, Any]]

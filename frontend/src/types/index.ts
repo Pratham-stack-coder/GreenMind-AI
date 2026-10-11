@@ -119,6 +119,27 @@ export interface ExplainResponse {
   expected_outcome: string
 }
 
+export interface AgentExecutionStep {
+  step_number: number
+  agent: string
+  status: 'completed' | 'skipped' | 'error'
+  execution_ms: number
+  thoughts: string[]
+  inputs_evaluated: Record<string, any>
+  key_finding: string
+  recommendations_generated: number
+}
+
+export interface ConflictResolutionItem {
+  conflict_type: string
+  description: string
+  conflicting_agents: string[]
+  agent_recommendations: Record<string, string>
+  reconciliation_rationale: string
+  final_decision: string
+  confidence: number
+}
+
 export interface AgentResult {
   agent: string
   status: 'completed' | 'skipped' | 'error'
@@ -135,6 +156,8 @@ export interface AgentRunResponse {
   unified_recommendations: RecommendationItem[]
   overall_score: number
   summary: string
+  conflicts?: ConflictResolutionItem[]
+  execution_trace?: AgentExecutionStep[]
 }
 
 export interface OptimizationScores {
@@ -157,6 +180,11 @@ export interface SimulationResult {
     carbon_gco2_per_hour: number
     monthly_cost_usd: number
     monthly_carbon_kgco2: number
+    p95_latency_ms?: number
+    p99_latency_ms?: number
+    risk_score?: number
+    risk_level?: 'low' | 'medium' | 'high' | 'critical'
+    risk_factors?: string[]
     source?: DataSourceType
   }
   after: {
@@ -166,6 +194,11 @@ export interface SimulationResult {
     carbon_gco2_per_hour: number
     monthly_cost_usd: number
     monthly_carbon_kgco2: number
+    p95_latency_ms?: number
+    p99_latency_ms?: number
+    risk_score?: number
+    risk_level?: 'low' | 'medium' | 'high' | 'critical'
+    risk_factors?: string[]
     source?: DataSourceType
   }
   delta: Record<string, number>

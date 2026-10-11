@@ -225,6 +225,17 @@ class AgentResult(BaseModel):
     score: int  # 0-100 domain score
 
 
+class AgentExecutionStep(BaseModel):
+    step_number: int
+    agent: str
+    status: Literal["completed", "skipped", "error"] = "completed"
+    execution_ms: float = 12.0
+    thoughts: list[str] = Field(default_factory=list)
+    inputs_evaluated: dict[str, Any] = Field(default_factory=dict)
+    key_finding: str = ""
+    recommendations_generated: int = 0
+
+
 class ConflictResolutionItem(BaseModel):
     conflict_type: str = "Capacity vs Cost"
     description: str
@@ -245,6 +256,7 @@ class AgentRunResponse(BaseModel):
     overall_score: int
     summary: str
     conflicts: list[ConflictResolutionItem] = Field(default_factory=list)
+    execution_trace: list[AgentExecutionStep] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def sync_agent_results(self) -> AgentRunResponse:
@@ -281,6 +293,11 @@ class SimulationMetrics(BaseModel):
     carbon_gco2_per_hour: float
     monthly_cost_usd: float
     monthly_carbon_kgco2: float
+    p95_latency_ms: float = 45.0
+    p99_latency_ms: float = 85.0
+    risk_score: float = 15.0  # 0-100
+    risk_level: Literal["low", "medium", "high", "critical"] = "low"
+    risk_factors: list[str] = Field(default_factory=list)
     source: DataSourceType = "SIMULATED"
 
 

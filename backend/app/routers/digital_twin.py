@@ -33,6 +33,47 @@ def _compute_metrics(
     carbon_hr = round(kwh * ci * count, 2)
     monthly_cost = round(cost_hr * 24 * 30, 2)
     monthly_carbon_kg = round(carbon_hr * 24 * 30 / 1000, 3)
+
+    # ── M/M/1 Queuing Theory Latency Modeling ──────────────────────────────
+    # Base service time inversely proportional to compute power
+    base_service_ms = 18.0 * (0.35 / max(kwh, 0.05))
+    rho = min(0.96, max(0.05, cpu / 100.0))
+    expected_resp_ms = base_service_ms / (1.0 - rho)
+    p95_latency = round(expected_resp_ms * 1.85, 1)
+    p99_latency = round(expected_resp_ms * 2.95, 1)
+
+    # ── Multi-Factor Quantitative Risk Index (0-100) ────────────────────────
+    risk_factors: list[str] = []
+    base_risk = 10.0
+
+    if cpu > 80:
+        base_risk += (cpu - 75) * 2.5
+        risk_factors.append(f"High CPU saturation ({cpu}%) elevates throttling risk")
+    elif cpu < 20:
+        base_risk += 5.0
+        risk_factors.append("Low utilization indicates over-provisioning financial risk")
+
+    if memory and memory > 85:
+        base_risk += 25.0
+        risk_factors.append(f"Memory deficit ({memory}%) increases OOM killer risk")
+
+    if count == 1:
+        base_risk += 20.0
+        risk_factors.append("Single instance deployment topology lacks HA redundancy")
+    elif count > 8:
+        base_risk += 5.0
+        risk_factors.append("Large cluster count increases inter-node network synchronization overhead")
+
+    risk_score = round(max(5.0, min(95.0, base_risk)), 1)
+    if risk_score >= 75:
+        risk_level = "critical"
+    elif risk_score >= 50:
+        risk_level = "high"
+    elif risk_score >= 25:
+        risk_level = "medium"
+    else:
+        risk_level = "low"
+
     return SimulationMetrics(
         cpu=cpu,
         memory=memory,
@@ -40,6 +81,11 @@ def _compute_metrics(
         carbon_gco2_per_hour=carbon_hr,
         monthly_cost_usd=monthly_cost,
         monthly_carbon_kgco2=monthly_carbon_kg,
+        p95_latency_ms=p95_latency,
+        p99_latency_ms=p99_latency,
+        risk_score=risk_score,
+        risk_level=risk_level,
+        risk_factors=risk_factors,
         source="SIMULATED",
     )
 
@@ -109,6 +155,8 @@ def simulate(req: SimulationRequest):
         "carbon_pct": pct(before.carbon_gco2_per_hour, after.carbon_gco2_per_hour),
         "monthly_cost_pct": pct(before.monthly_cost_usd, after.monthly_cost_usd),
         "monthly_carbon_pct": pct(before.monthly_carbon_kgco2, after.monthly_carbon_kgco2),
+        "p95_latency_pct": pct(before.p95_latency_ms, after.p95_latency_ms),
+        "risk_score_delta": round(after.risk_score - before.risk_score, 1),
     }
 
     parts = []
@@ -118,8 +166,16 @@ def simulate(req: SimulationRequest):
         parts.append(f"Costs ${after.monthly_cost_usd - before.monthly_cost_usd:.0f}/month more ({delta['monthly_cost_pct']:.0f}% increase).")
     if delta["monthly_carbon_pct"] < -5:
         parts.append(f"Reduces emissions by {abs(delta['monthly_carbon_pct']):.0f}%.")
+    if delta["p95_latency_pct"] < -5:
+        parts.append(f"Improves P95 latency by {abs(delta['p95_latency_pct']):.0f}%.")
+    elif delta["p95_latency_pct"] > 10:
+        parts.append(f"Increases P95 latency by {delta['p95_latency_pct']:.0f}%.")
+    if delta["risk_score_delta"] < 0:
+        parts.append(f"Lowers operational risk by {abs(delta['risk_score_delta']):.1f} pts.")
+    elif delta["risk_score_delta"] > 5:
+        parts.append(f"Warning: Increases risk by {delta['risk_score_delta']:.1f} pts.")
     if not parts:
-        parts.append("Minimal impact on cost and carbon — change may be beneficial for performance.")
+        parts.append("Minimal impact on cost and carbon — change is neutral.")
 
     confidence = 0.82 if len(req.changes) == 1 else 0.72
     sim_id = str(uuid.uuid4())[:8]

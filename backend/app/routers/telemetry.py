@@ -288,6 +288,16 @@ def telemetry_history(
     )
 
 
+@router.get("/provider-status")
+def provider_status():
+    """Retrieve operational and connectivity status across AWS, Azure, and GCP."""
+    from ..cloud import get_all_providers_status
+    return {
+        "providers": get_all_providers_status(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 async def collect_and_persist_telemetry() -> None:
     """Periodic telemetry collection across configured providers/regions into database."""
     from ..database import persist_telemetry_entry

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Bot, Play, ChevronDown, ChevronUp, CheckCircle, Clock, Loader2, Circle } from 'lucide-react'
 import { useAppStore } from '../store'
 import { runAgents, fetchAgentStatus } from '../api/client'
-import type { AgentRunResponse, AgentResult } from '../types'
+import type { AgentRunResponse, AgentResult, AgentExecutionStep, ConflictResolutionItem } from '../types'
 
 const agentColors: Record<string, string> = {
   CostAgent: 'amber', PerformanceAgent: 'blue', SustainabilityAgent: 'emerald',
@@ -180,6 +180,107 @@ function AgentTimeline({ isPending, doneAgents }: { isPending: boolean, doneAgen
   )
 }
 
+function ExecutionTraceSection({ trace }: { trace: AgentExecutionStep[] }) {
+  const [openStep, setOpenStep] = useState<number | null>(null)
+
+  return (
+    <div className="card mb-4" style={{ padding: '20px 24px' }}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-xs text-muted" style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          LangGraph Execution Trace ({trace.length} Nodes)
+        </div>
+        <span className="badge badge-indigo">
+          Total Duration: {trace.reduce((acc, s) => acc + s.execution_ms, 0).toFixed(1)}ms
+        </span>
+      </div>
+      <div className="flex-col gap-2">
+        {trace.map((step) => {
+          const isOpen = openStep === step.step_number
+          const color = agentColors[step.agent] || 'indigo'
+          return (
+            <div
+              key={step.step_number}
+              className="card"
+              style={{
+                padding: '12px 16px',
+                background: 'rgba(255,255,255,0.02)',
+                borderColor: 'rgba(255,255,255,0.06)',
+                cursor: 'pointer',
+              }}
+              onClick={() => setOpenStep(isOpen ? null : step.step_number)}
+            >
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-3">
+                  <span className={`badge badge-${color}`}>
+                    Step {step.step_number} · {step.agent}
+                  </span>
+                  <span className="text-sm" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {step.key_finding}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted">
+                    ⚡ {step.execution_ms.toFixed(1)}ms
+                  </span>
+                  <span className="badge badge-emerald">
+                    {step.recommendations_generated} recs
+                  </span>
+                  {isOpen ? <ChevronUp size={14} color="var(--text-muted)" /> : <ChevronDown size={14} color="var(--text-muted)" />}
+                </div>
+              </div>
+
+              {isOpen && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div className="text-xs text-muted mb-2" style={{ fontWeight: 700 }}>Node Thought Log & Inputs:</div>
+                  {step.thoughts.map((th, i) => (
+                    <div key={i} className="text-xs text-secondary mb-1 flex items-center gap-2">
+                      <span style={{ color: 'var(--indigo-400)' }}>›</span> {th}
+                    </div>
+                  ))}
+                  {step.inputs_evaluated && Object.keys(step.inputs_evaluated).length > 0 && (
+                    <div className="mt-2 text-xs text-muted" style={{ fontFamily: 'monospace', background: 'rgba(0,0,0,0.2)', padding: '6px 10px', borderRadius: 4 }}>
+                      Evaluated: {JSON.stringify(step.inputs_evaluated)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ConflictResolutionSection({ conflicts }: { conflicts: ConflictResolutionItem[] }) {
+  return (
+    <div className="card mb-4" style={{ padding: '20px 24px' }}>
+      <div className="text-xs text-muted mb-3" style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+        Multi-Agent Conflict Reconciliation Matrix ({conflicts.length})
+      </div>
+      <div className="flex-col gap-3">
+        {conflicts.map((c, i) => (
+          <div key={i} className="card" style={{ padding: '14px 18px', background: 'rgba(239, 68, 68, 0.03)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+            <div className="flex items-center justify-between mb-2">
+              <span className="badge badge-amber">{c.conflict_type}</span>
+              <span className="text-xs text-muted">Confidence: {(c.confidence * 100).toFixed(0)}%</span>
+            </div>
+            <div className="text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>{c.description}</div>
+            <div className="text-xs text-muted mb-1" style={{ fontWeight: 700 }}>Reconciliation Rationale:</div>
+            <div className="text-xs" style={{ color: 'var(--text-primary)', background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: 6 }}>
+              {c.reconciliation_rationale}
+            </div>
+            <div className="mt-2 text-xs flex items-center gap-2">
+              <span className="text-muted">Final Decision:</span>
+              <span className="badge badge-emerald">{c.final_decision}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function AgentsPage() {
   const { provider, region } = useAppStore()
   const [result, setResult] = useState<AgentRunResponse | null>(null)
@@ -285,6 +386,16 @@ export default function AgentsPage() {
               </div>
             </div>
           </div>
+
+          {/* Real LangGraph Execution Trace */}
+          {display.execution_trace && display.execution_trace.length > 0 && (
+            <ExecutionTraceSection trace={display.execution_trace} />
+          )}
+
+          {/* Conflict Resolution Matrix */}
+          {display.conflicts && display.conflicts.length > 0 && (
+            <ConflictResolutionSection conflicts={display.conflicts} />
+          )}
 
           <div className="flex-col gap-3">
             {display.agents.map(a => <AgentCard key={a.agent} agent={a} />)}
