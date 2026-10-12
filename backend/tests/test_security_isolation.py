@@ -80,3 +80,48 @@ def test_invalid_bearer_token_is_rejected_when_auth_is_configured(monkeypatch):
         headers={"Authorization": "Bearer not-a-jwt"},
     )
     assert response.status_code == 401
+
+
+def test_demo_apply_path_does_not_mark_recommendation_applied(monkeypatch):
+    from app.config import Settings
+    from app.routers import recommendations as rec_router
+    from app.schemas import ApplyResponse, RecommendationItem
+
+    recommendation = RecommendationItem(
+        id="demo-rec",
+        category="cost",
+        priority="medium",
+        title="Demo recommendation",
+        description="Synthetic demo recommendation",
+        impact_summary="Estimated only",
+        estimated_monthly_savings_usd=10.0,
+        estimated_carbon_reduction_pct=2.0,
+        effort="low",
+        action="resize",
+        evidence=[],
+        confidence=0.5,
+    )
+    monkeypatch.setattr(rec_router, "settings", Settings(demo_mode=True))
+    monkeypatch.setattr(rec_router, "_last_recommendations", [recommendation])
+    monkeypatch.setattr(
+        rec_router.CloudActionDispatcher,
+        "execute_recommendation",
+        lambda **kwargs: ApplyResponse(
+            recommendation_id="demo-rec",
+            title="Demo recommendation",
+            status="simulated",
+            message="No live action taken",
+            dry_run=True,
+            estimated_monthly_savings_usd=10.0,
+            estimated_carbon_reduction_pct=2.0,
+            steps_taken=["Simulation only"],
+            applied_at=None,
+        ),
+        raising=False,
+    )
+    rec_router._applied_recommendations.clear()
+
+    result = rec_router.apply_recommendation("demo-rec", None)
+    assert result.status == "simulated"
+    assert recommendation.status != "applied"
+    assert "demo-rec" not in rec_router._applied_recommendations
