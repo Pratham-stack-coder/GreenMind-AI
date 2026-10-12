@@ -48,7 +48,7 @@ def test_idle_recommendation_stops_instance_without_terminating(monkeypatch):
 
     ec2.stop_instances.assert_called_once_with(InstanceIds=["i-0123456789abcdef0"])
     ec2.terminate_instances.assert_not_called()
-    assert "not terminated" in result["message"]
+    assert "No instance was terminated." in result["message"]
 
 
 
