@@ -534,8 +534,7 @@ export default function SettingsPage() {
           </div>
 
           <p className="text-xs text-secondary mb-4 leading-relaxed">
-            Connect this Vercel-deployed frontend cockpit to your FastAPI backend running on Render.com
-            (or local dev server). You can test connectivity and save a runtime URL. For security, authenticated API calls only send your session to the backend configured with <code>VITE_API_BASE_URL</code>; change that variable and redeploy to switch hosts.
+            Test connectivity to a Render backend or local dev server. In a deployed build, authenticated API calls stay pinned to the trusted backend configured with <code>VITE_API_BASE_URL</code>. Set that variable in Vercel and redeploy to switch hosts safely.
           </p>
 
           {/* Active URL Status Box */}
@@ -675,10 +674,10 @@ export default function SettingsPage() {
                   <strong>On Vercel (Frontend):</strong> In your Vercel Project Settings &rarr; <em>Environment Variables</em>, add <code style={{ color: '#e2e8f0' }}>VITE_API_BASE_URL=https://your-app.onrender.com</code>, then trigger a redeploy.
                 </li>
                 <li>
-                  <strong>On Render (Backend):</strong> GreenMind's backend automatically permits all <code style={{ color: '#e2e8f0' }}>*.vercel.app</code> domains out-of-the-box. For custom domains, set <code style={{ color: '#e2e8f0' }}>CORS_ORIGINS=https://mycustomapp.com</code> in Render's environment dashboard.
+                  <strong>On Render (Backend):</strong> The backend allows only its listed local and production origins plus exact origins in <code style={{ color: '#e2e8f0' }}>CORS_ORIGINS</code>. Add your Vercel production URL, preview URL, or custom domain there explicitly.
                 </li>
                 <li>
-                  <strong>Instant Preview Testing:</strong> You don't have to wait for a Vercel rebuild! Enter your Render URL above and click <em>Save & Connect</em> to switch immediately in this browser.
+                  <strong>Switching the deployed backend:</strong> Entering a URL here checks its health only. To route authenticated requests to a different backend, set <code>VITE_API_BASE_URL</code> in Vercel and redeploy.
                 </li>
               </ul>
             </div>
