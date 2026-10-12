@@ -13,7 +13,9 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
+from ..auth import get_current_user_id
 from ..cloud import clear_provider_credentials, get_all_providers_status, get_provider, update_provider_credentials
+from ..database import delete_user_provider_credentials, store_user_provider_credentials
 from ..config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -154,13 +156,17 @@ def validate_provider_credentials(req: TestConnectionRequest) -> dict[str, Any]:
 
 
 @router.post("/configure")
-def configure_provider(req: ConfigureProviderRequest) -> dict[str, Any]:
+async def configure_provider(req: ConfigureProviderRequest) -> dict[str, Any]:
     """Validate and configure cloud credentials for the authenticated user only."""
     prov_name = req.provider.lower().strip()
     creds = req.credentials
 
     if prov_name in {"aws", "azure", "gcp"}:
-        update_provider_credentials(prov_name, creds)
+        user_id = get_current_user_id()
+        if not user_id:
+            raise HTTPException(status_code=401, detail="An authenticated user is required.")
+        stored_credentials = await store_user_provider_credentials(user_id, prov_name, creds)
+        update_provider_credentials(prov_name, stored_credentials)
         provider = get_provider(prov_name)
         test_res = provider.test_connection()
         test_res["provider"] = prov_name
@@ -197,10 +203,14 @@ def configure_provider(req: ConfigureProviderRequest) -> dict[str, Any]:
 
 
 @router.post("/disconnect")
-def disconnect_provider(req: DisconnectProviderRequest) -> dict[str, Any]:
+async def disconnect_provider(req: DisconnectProviderRequest) -> dict[str, Any]:
     """Reset a provider to safe Demo mode by clearing active session credentials."""
     prov_name = req.provider.lower().strip()
     if prov_name in {"aws", "azure", "gcp"}:
+        user_id = get_current_user_id()
+        if not user_id:
+            raise HTTPException(status_code=401, detail="An authenticated user is required.")
+        await delete_user_provider_credentials(user_id, prov_name)
         clear_provider_credentials(prov_name)
     elif prov_name == "llm":
         settings.gemini_api_key = ""
