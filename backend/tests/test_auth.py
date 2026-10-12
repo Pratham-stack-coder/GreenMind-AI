@@ -9,6 +9,7 @@ from fastapi.routing import APIRoute
 from app import auth
 from app.auth import require_authenticated_user
 from app.main import app, health
+from fastapi.testclient import TestClient
 
 
 def test_health_is_public_and_reports_auth_configuration():
