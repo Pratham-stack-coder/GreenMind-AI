@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     # Needed only for legacy HS256 tokens. Do not set the service-role key here.
     supabase_publishable_key: str = ""
+    credential_encryption_key: str = ""  # Fernet key used for stored per-user cloud credentials
 
     # ── Carbon API (optional) ─────────────────────────────────────────────────
     electricity_maps_api_key: str = ""
