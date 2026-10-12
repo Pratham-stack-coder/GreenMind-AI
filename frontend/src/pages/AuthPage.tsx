@@ -149,7 +149,8 @@ export default function AuthPage() {
               {mode === 'login' ? 'Create an account' : 'Sign in'}
             </button>
           </p>
-          <p className="auth-privacy-note">Your cloud provider credentials stay on the backend and are never used as sign-in credentials.</p>
+          <p className="auth-privacy-note">Cloud credentials are separate from your sign-in credentials.</p>
+          <nav className="auth-legal-links" aria-label="Legal"><a href="/privacy">Privacy</a><a href="/terms">Terms</a></nav>
         </div>
       </section>
     </main>
@@ -158,8 +159,6 @@ export default function AuthPage() {
 
 export function AuthCallbackPage() {
   const { session, loading } = useAuth()
-  const query = new URLSearchParams(window.location.search)
-  const errorDescription = query.get('error_description') || query.get('error')
 
   if (session) return <Navigate to="/" replace />
 
@@ -168,7 +167,7 @@ export function AuthCallbackPage() {
       {loading ? 'Finishing your sign in…' : (
         <div className="auth-callback-error">
           <h1>Sign in could not be completed</h1>
-          <p>{errorDescription ? decodeURIComponent(errorDescription.replace(/\+/g, ' ')) : 'The session was not returned. Please try again.'}</p>
+          <p>We could not complete sign in. Return to the sign-in page and try again.</p>
           <a href="/login" className="auth-callback-link">Return to sign in</a>
         </div>
       )}
