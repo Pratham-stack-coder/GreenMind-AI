@@ -376,7 +376,7 @@ const DEMO_SETTINGS: SettingsStatusResponse = {
   database: {
     type: 'sqlite',
     status: 'connected',
-    is_persistent: true,
+    is_persistent: false,
   },
   redis: false,
   is_demo_fallback: true,
