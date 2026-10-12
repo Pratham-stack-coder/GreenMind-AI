@@ -301,18 +301,17 @@ class AWSCloudProvider(BaseCloudProvider):
 
     def test_connection(self, credentials: dict[str, Any] | None = None) -> dict[str, Any]:
         """Test AWS credentials and connectivity with 4-tier status output."""
-        if credentials:
-            ak = credentials.get("aws_access_key_id")
-            sk = credentials.get("aws_secret_access_key")
-            rg = credentials.get("aws_default_region")
-            st = credentials.get("aws_session_token")
+        if credentials is not None:
+            # Explicit empty values must not fall back to backend-wide environment credentials.
             res = self.collector.test_connection(
-                access_key_id=ak,
-                secret_access_key=sk,
-                region_name=rg,
-                session_token=st,
+                access_key_id=credentials.get("aws_access_key_id", ""),
+                secret_access_key=credentials.get("aws_secret_access_key", ""),
+                region_name=credentials.get("aws_default_region", ""),
+                session_token=credentials.get("aws_session_token", ""),
             )
         else:
+            # User-scoped collectors already hold that user's credentials; system collectors
+            # retain their configured environment defaults.
             res = self.collector.test_connection()
 
         self._last_test_result = res
