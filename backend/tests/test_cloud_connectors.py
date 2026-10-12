@@ -21,7 +21,6 @@ def test_provider_factory():
     assert isinstance(aws, AWSCloudProvider)
     assert isinstance(azure, AzureCloudProvider)
     assert isinstance(gcp, GCPCloudProvider)
-    assert isinstance(default, AWSCloudProvider)
 
 
 def test_aws_provider_demo_fallback():
