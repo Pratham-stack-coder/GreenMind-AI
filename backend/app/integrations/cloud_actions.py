@@ -31,74 +31,19 @@ class CloudActionDispatcher:
         new_score: int | None = None,
     ) -> ApplyResponse:
         now_str = datetime.now(timezone.utc).isoformat()
-        is_live_aws, _ = CloudTelemetryAdapter.detect_aws_credentials()
-
+        # This dispatcher currently has no verified write adapter for these actions.
+        # Never manufacture execution steps or report that cloud resources changed.
         category = rec.category.lower()
-        steps: list[str] = []
-        platform_status = "simulated" if dry_run else "applied"
-
-        if category == "cost":
-            steps.extend([
-                f"[CloudWatch] Queried 14-day P99 CPU metrics for instance target",
-                f"[IAM Validation] Verified permissions: ec2:ModifyInstanceAttribute, ec2:StopInstances",
-                f"[FinOps Policy] Cost ceiling validated (projected savings: ${rec.estimated_monthly_savings_usd:.2f}/mo)",
-            ])
-            if is_live_aws and not dry_run:
-                try:
-                    import boto3
-                    ec2 = boto3.client("ec2", region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
-                    # Live dry-run verification
-                    steps.append("[AWS API] ec2.describe_instances() target verified")
-                    steps.append(f"[AWS API] ec2.modify_instance_attribute(DryRun={dry_run}) executed")
-                except Exception as ex:
-                    steps.append(f"[AWS API Fallback] Cloud execution bypassed: {str(ex)[:80]}")
-            else:
-                steps.append(f"[Platform Dispatch] Instance family target resized ({rec.action})")
-            steps.append("[SLO Monitor] Health checks healthy post-execution (latency < 120ms)")
-
-        elif category == "performance":
-            steps.extend([
-                f"[Telemetry Monitor] Memory/CPU threshold profile verified",
-                f"[AutoScaling] Capacity reconfigured ({rec.action})",
-                f"[Cache] Pre-warmed hot partition cache buffers",
-                f"[Validation] Concurrency saturation normalized to 58%",
-            ])
-
-        elif category == "sustainability":
-            steps.extend([
-                f"[Carbon Grid API] Evaluated regional emissions forecast (trough: 1-6 AM UTC)",
-                f"[Scheduler] Cron deferral rule enrolled in carbon-aware job dispatcher",
-                f"[Workload Tagging] Tagged instances: 'Environment:Batch', 'CarbonAware:True'",
-                f"[Forecast Verification] Avoided ~{rec.estimated_carbon_reduction_pct:.1f}% Scope 2 emissions",
-            ])
-
-        elif category == "security":
-            steps.extend([
-                f"[Security Group Audit] Flagged ingress CIDR 0.0.0.0/0 on sensitive ports",
-                f"[IAM Validation] Verified permissions: ec2:RevokeSecurityGroupIngress",
-            ])
-            if is_live_aws and not dry_run:
-                try:
-                    import boto3
-                    ec2 = boto3.client("ec2", region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
-                    steps.append("[AWS API] ec2.describe_security_groups() rule matched")
-                except Exception as ex:
-                    steps.append(f"[AWS API Fallback] Guardrail invoked: {str(ex)[:80]}")
-            else:
-                steps.append(f"[Policy Enforcer] Restricted ingress rule to corporate CIDR (/32)")
-            steps.append("[Compliance Log] Generated CloudTrail compliance audit trail entry")
-
-        elif category == "reliability":
-            steps.extend([
-                f"[Topology Audit] Detected single Availability Zone deployment topology",
-                f"[ASG Multi-AZ] Added secondary subnet AZ-b to AutoScaling Group",
-                f"[Route53/ALB] Health probes activated across 2 AZs",
-                f"[SLA Validation] Zero-downtime failover readiness certified",
-            ])
-
-        if dry_run:
-            steps.append("[Dry Run Mode] Execution completed in simulation without modifying live resources")
-
+        platform_status = "simulated" if (dry_run or settings.demo_mode) else "pending"
+        steps: list[str] = [
+            f"Recommendation reviewed: {rec.title}",
+            f"Action proposal: {rec.action}",
+            "Impact values are estimates and have not been observed after a cloud change.",
+        ]
+        if platform_status == "simulated":
+            steps.append("Simulation only: no live cloud infrastructure was modified.")
+        else:
+            steps.append("Pending: no live write operation was executed by this dispatcher.")
         # Persist action to persistent SQLite/PostgreSQL audit table
         import asyncio
         try:
@@ -126,13 +71,13 @@ class CloudActionDispatcher:
             title=rec.title,
             status=platform_status,
             message=(
-                f"Simulated execution for '{rec.title}' validated successfully"
-                if dry_run
-                else f"Successfully applied remediation action: {rec.action}"
+                f"Simulation only for '{rec.title}'; no live cloud resources were changed."
+                if platform_status == "simulated"
+                else f"Action '{rec.action}' is pending; this dispatcher did not modify live cloud resources."
             ),
             estimated_monthly_savings_usd=rec.estimated_monthly_savings_usd,
             estimated_carbon_reduction_pct=rec.estimated_carbon_reduction_pct,
-            applied_at=now_str,
+            applied_at=None if platform_status != "applied" else now_str,
             steps_taken=steps,
             dry_run=dry_run,
             new_score=new_score,
