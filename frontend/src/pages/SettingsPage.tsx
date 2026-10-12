@@ -1066,12 +1066,12 @@ export default function SettingsPage() {
             <span
               className={`badge ${statusData?.llm?.openai_configured || statusData?.llm?.gemini_configured ? 'badge-emerald' : 'badge-blue'}`}
             >
-              {statusData?.llm?.gemini_configured ? 'GEMINI ACTIVE' : statusData?.llm?.openai_configured ? 'OPENAI ACTIVE' : 'DETERMINISTIC FALLBACK'}
+              {statusData?.llm?.gemini_configured ? 'GEMINI KEY SAVED · UNVERIFIED' : statusData?.llm?.openai_configured ? 'OPENAI KEY SAVED · UNVERIFIED' : 'DETERMINISTIC FALLBACK'}
             </span>
           </div>
 
           <p className="text-xs text-secondary mb-4">
-            Powers contextual natural language responses in AI Copilot. When absent, a zero-cost deterministic rule engine answers queries.
+            Configured keys are used for this signed-in account when the optional provider SDK is available. Live key verification is not implemented; Copilot falls back to deterministic responses if a provider call fails.
           </p>
 
           <div className="flex-col gap-3">
