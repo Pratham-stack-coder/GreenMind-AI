@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from contextvars import ContextVar
 from functools import lru_cache
 from typing import Any
@@ -152,7 +153,7 @@ async def verify_supabase_access_token(
 
 async def require_authenticated_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-) -> dict[str, Any]:
+) -> AsyncIterator[dict[str, Any]]:
     """FastAPI dependency for endpoints that require a valid Supabase session."""
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(
