@@ -9,12 +9,10 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
-from typing import Any
 
 from ..config import get_settings
 from ..database import persist_audit_log
 from ..schemas import ApplyResponse, RecommendationItem
-from .cloud_adapter import CloudTelemetryAdapter
 
 settings = get_settings()
 
@@ -59,7 +57,7 @@ class CloudActionDispatcher:
                         carbon_reduction=rec.estimated_carbon_reduction_pct,
                         new_score=new_score,
                         steps_taken=steps,
-                        dry_run=dry_run,
+                        dry_run=(platform_status == "simulated"),
                         operator_notes=operator_notes,
                     )
                 )
@@ -79,7 +77,7 @@ class CloudActionDispatcher:
             estimated_carbon_reduction_pct=rec.estimated_carbon_reduction_pct,
             applied_at=None if platform_status != "applied" else now_str,
             steps_taken=steps,
-            dry_run=dry_run,
+            dry_run=(platform_status == "simulated"),
             new_score=new_score,
         )
 
@@ -126,6 +124,6 @@ class CloudActionDispatcher:
             estimated_carbon_reduction_pct=rec.estimated_carbon_reduction_pct,
             applied_at=None,
             steps_taken=steps,
-            dry_run=True,
+            dry_run=(status == "simulated"),
             new_score=new_score,
         )
