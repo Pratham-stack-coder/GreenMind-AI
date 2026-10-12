@@ -115,6 +115,7 @@ export interface ExplainDataEvidenceItem {
   threshold?: string
   unit?: string
   status?: string
+  source?: string
   key?: string
   value?: string
 }
@@ -249,6 +250,7 @@ export interface CostDataPoint {
   provider: string
   region: string
   category: string
+  source?: string
 }
 
 export interface CarbonDataPoint {

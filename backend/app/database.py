@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from sqlalchemy import (
@@ -18,6 +18,8 @@ from sqlalchemy import (
     Column,
     DateTime,
     Float,
+    cast,
+    func,
     Integer,
     String,
     Text,
@@ -121,7 +123,7 @@ class TelemetryRecord(Base):
     status = Column(String(32), default="running")
     memory_source = Column(String(32), default="DEMO")
     memory_note = Column(Text, nullable=True)
-    recorded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    recorded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), index=True)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -183,6 +185,19 @@ class RecommendationRecord(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
+class RecommendationStateRecord(Base):
+    __tablename__ = "recommendation_user_states"
+
+    owner_id = Column(String(255), primary_key=True)
+    provider = Column(String(32), primary_key=True)
+    region = Column(String(32), primary_key=True)
+    recommendation_id = Column(String(64), primary_key=True)
+    status = Column(String(32), nullable=False)
+    applied_at = Column(String(64), nullable=True)
+    steps_taken_json = Column(Text, default="[]")
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
 class AgentResultRecord(Base):
     __tablename__ = "agent_results"
 
@@ -231,6 +246,8 @@ class AuditLogRecord(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     owner_id = Column(String(255), nullable=True)
+    provider = Column(String(32), nullable=True, index=True)
+    region = Column(String(32), nullable=True, index=True)
     recommendation_id = Column(String(64), index=True)
     title = Column(String(255))
     action = Column(String(255))
@@ -267,7 +284,20 @@ def _ensure_owner_columns(sync_conn) -> None:
         columns = {column["name"] for column in inspect(sync_conn).get_columns(table)}
         if "owner_id" not in columns:
             sync_conn.execute(text(f"ALTER TABLE {table} ADD COLUMN owner_id VARCHAR(255)"))
+        if table == "cloud_metrics" and "recorded_at" not in columns:
+            sync_conn.execute(text("ALTER TABLE cloud_metrics ADD COLUMN recorded_at DATETIME"))
+        if table == "audit_log_records":
+            if "provider" not in columns:
+                sync_conn.execute(text("ALTER TABLE audit_log_records ADD COLUMN provider VARCHAR(32)"))
+            if "region" not in columns:
+                sync_conn.execute(text("ALTER TABLE audit_log_records ADD COLUMN region VARCHAR(32)"))
         sync_conn.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{table}_owner_id ON {table} (owner_id)"))
+    if "cloud_metrics" in existing_tables:
+        metric_columns = {column["name"] for column in inspect(sync_conn).get_columns("cloud_metrics")}
+        if "recorded_at" in metric_columns:
+            sync_conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_cloud_metrics_recorded_at ON cloud_metrics (recorded_at)"
+            ))
 
 
 async def get_db():
@@ -417,32 +447,96 @@ async def query_telemetry_history(
     limit: int = 100,
     provider: str | None = None,
     region: str | None = None,
+    bucket_seconds: int | None = None,
 ) -> list[dict]:
-    """Query telemetry history from database with in-memory fallback."""
+    """Query owner-scoped history, optionally returning the newest row per time bucket."""
+    owner_id = get_current_user_id()
+    if not owner_id:
+        return []
+
+    filters = [TelemetryRecord.owner_id == owner_id]
+    if provider:
+        filters.append(TelemetryRecord.provider == provider.lower())
+    if region:
+        filters.append(TelemetryRecord.region == region.lower())
+
+    if bucket_seconds and bucket_seconds > 0:
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=bucket_seconds * limit)
+        filters.append(TelemetryRecord.recorded_at >= cutoff)
+
     try:
         async with _async_session_maker() as session:
-            owner_id = get_current_user_id()
-            if not owner_id:
-                return []
-            stmt = select(TelemetryRecord).where(TelemetryRecord.owner_id == owner_id)
-            if provider:
-                stmt = stmt.where(TelemetryRecord.provider == provider.lower())
-            if region:
-                stmt = stmt.where(TelemetryRecord.region == region.lower())
-            stmt = stmt.order_by(TelemetryRecord.id.desc()).limit(limit)
-            res = await session.execute(stmt)
-            records = res.scalars().all()
-            if records:
-                return [r.to_dict() for r in records]
-    except Exception:
-        pass
+            if bucket_seconds and bucket_seconds > 0 and _engine.dialect.name in {"sqlite", "postgresql"}:
+                if _engine.dialect.name == "sqlite":
+                    epoch_seconds = cast(func.strftime("%s", TelemetryRecord.recorded_at), Float)
+                else:
+                    epoch_seconds = func.extract("epoch", TelemetryRecord.recorded_at)
+                bucket = func.floor(epoch_seconds / bucket_seconds)
+                ranked = (
+                    select(
+                        TelemetryRecord.id.label("record_id"),
+                        bucket.label("bucket"),
+                        func.row_number().over(
+                            partition_by=bucket,
+                            order_by=TelemetryRecord.id.desc(),
+                        ).label("row_number"),
+                    )
+                    .where(*filters)
+                    .subquery()
+                )
+                stmt = (
+                    select(TelemetryRecord)
+                    .join(ranked, TelemetryRecord.id == ranked.c.record_id)
+                    .where(ranked.c.row_number == 1)
+                    .order_by(ranked.c.bucket.desc())
+                    .limit(limit)
+                )
+            else:
+                stmt = (
+                    select(TelemetryRecord)
+                    .where(*filters)
+                    .order_by(TelemetryRecord.id.desc())
+                    .limit(limit)
+                )
 
-    # Fallback to in-memory buffer
-    entries = get_telemetry_history(limit)
+            result = await session.execute(stmt)
+            records = result.scalars().all()
+            if records:
+                return [record.to_dict() for record in records]
+    except Exception as exc:
+        logger.warning("Unable to query telemetry history (%s)", type(exc).__name__)
+
+    entries = get_telemetry_history(_HISTORY_MAX)
     if provider:
-        entries = [e for e in entries if e.get("provider", "").lower() == provider.lower()]
+        entries = [entry for entry in entries if entry.get("provider", "").lower() == provider.lower()]
     if region:
-        entries = [e for e in entries if e.get("region", "").lower() == region.lower()]
+        entries = [entry for entry in entries if entry.get("region", "").lower() == region.lower()]
+
+    if bucket_seconds and bucket_seconds > 0:
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=bucket_seconds * limit)
+        sampled: list[dict] = []
+        seen_buckets: set[int] = set()
+        for entry in entries:
+            raw_timestamp = entry.get("recorded_at") or entry.get("timestamp")
+            try:
+                timestamp = raw_timestamp if isinstance(raw_timestamp, datetime) else datetime.fromisoformat(
+                    str(raw_timestamp).replace("Z", "+00:00")
+                )
+                if timestamp.tzinfo is None:
+                    timestamp = timestamp.replace(tzinfo=timezone.utc)
+            except (TypeError, ValueError):
+                continue
+            if timestamp < cutoff:
+                continue
+            bucket_id = int(timestamp.timestamp() // bucket_seconds)
+            if bucket_id in seen_buckets:
+                continue
+            seen_buckets.add(bucket_id)
+            sampled.append(entry)
+            if len(sampled) >= limit:
+                break
+        return sampled
+
     return entries[:limit]
 
 
@@ -577,15 +671,20 @@ async def persist_audit_log(
     steps_taken: list[str],
     dry_run: bool = False,
     operator_notes: str | None = None,
+    provider: str = "aws",
+    region: str = "us-east",
 ) -> None:
     """Persist an applied/rollback remediation action to the audit table."""
     owner_id = get_current_user_id()
     if not owner_id:
-        return
+        raise RuntimeError("Audit log persistence requires an authenticated user.")
     try:
+        await init_db()
         async with _async_session_maker() as session:
             log = AuditLogRecord(
                 owner_id=owner_id,
+                provider=provider.strip().lower(),
+                region=region.strip().lower(),
                 recommendation_id=rec_id,
                 title=title,
                 action=action,
@@ -601,4 +700,111 @@ async def persist_audit_log(
             session.add(log)
             await session.commit()
     except Exception:
-        pass
+        logger.exception("Unable to persist audit log entry")
+        raise
+
+
+
+async def load_recommendation_states(provider: str, region: str) -> dict[str, dict[str, Any]]:
+    """Load recommendation status for the signed-in user and selected cloud scope."""
+    owner_id = get_current_user_id()
+    if not owner_id:
+        return {}
+    await init_db()
+    async with _async_session_maker() as session:
+        result = await session.execute(
+            select(RecommendationStateRecord).where(
+                RecommendationStateRecord.owner_id == owner_id,
+                RecommendationStateRecord.provider == provider.strip().lower(),
+                RecommendationStateRecord.region == region.strip().lower(),
+            )
+        )
+        states: dict[str, dict[str, Any]] = {}
+        for row in result.scalars().all():
+            try:
+                steps = json.loads(row.steps_taken_json or "[]")
+            except (TypeError, ValueError):
+                steps = []
+            states[row.recommendation_id] = {
+                "status": row.status,
+                "applied_at": row.applied_at,
+                "steps_taken": steps if isinstance(steps, list) else [],
+            }
+        return states
+
+
+async def persist_recommendation_state(
+    recommendation_id: str,
+    provider: str,
+    region: str,
+    status: str,
+    applied_at: str | None = None,
+    steps_taken: list[str] | None = None,
+) -> None:
+    """Persist a recommendation status under its user and cloud scope."""
+    owner_id = get_current_user_id()
+    if not owner_id:
+        raise RuntimeError("Recommendation state persistence requires an authenticated user.")
+    await init_db()
+    provider_key = provider.strip().lower()
+    region_key = region.strip().lower()
+    async with _async_session_maker() as session:
+        key = (owner_id, provider_key, region_key, recommendation_id)
+        row = await session.get(RecommendationStateRecord, key)
+        if row is None:
+            row = RecommendationStateRecord(
+                owner_id=owner_id,
+                provider=provider_key,
+                region=region_key,
+                recommendation_id=recommendation_id,
+                status=status,
+                applied_at=applied_at,
+                steps_taken_json=json.dumps(steps_taken or []),
+            )
+            session.add(row)
+        else:
+            row.status = status
+            row.applied_at = applied_at
+            row.steps_taken_json = json.dumps(steps_taken or [])
+            row.updated_at = datetime.now(timezone.utc)
+        await session.commit()
+
+
+async def query_audit_log(provider: str, region: str, limit: int = 100) -> list[dict[str, Any]]:
+    """Return audit events for the signed-in user and selected cloud scope."""
+    owner_id = get_current_user_id()
+    if not owner_id:
+        return []
+    await init_db()
+    async with _async_session_maker() as session:
+        result = await session.execute(
+            select(AuditLogRecord)
+            .where(
+                AuditLogRecord.owner_id == owner_id,
+                AuditLogRecord.provider == provider.strip().lower(),
+                AuditLogRecord.region == region.strip().lower(),
+                AuditLogRecord.dry_run.is_(False),
+                AuditLogRecord.status == "applied",
+            )
+            .order_by(AuditLogRecord.id.desc())
+            .limit(max(1, min(limit, 500)))
+        )
+        entries = []
+        for row in result.scalars().all():
+            try:
+                steps = json.loads(row.steps_taken_json or "[]")
+            except (TypeError, ValueError):
+                steps = []
+            entries.append({
+                "recommendation_id": row.recommendation_id,
+                "title": row.title,
+                "status": row.status,
+                "message": "Dry-run preview; no cloud resources were changed." if row.dry_run else f"Recorded action status: {row.status}.",
+                "estimated_monthly_savings_usd": row.monthly_savings_usd,
+                "estimated_carbon_reduction_pct": row.carbon_reduction_pct,
+                "applied_at": row.timestamp,
+                "steps_taken": steps if isinstance(steps, list) else [],
+                "dry_run": row.dry_run,
+                "new_score": row.new_score,
+            })
+        return entries

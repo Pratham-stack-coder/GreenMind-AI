@@ -32,23 +32,34 @@ const categoryColors: Record<string, string> = {
 // ── Explain & Apply Modal ───────────────────────────────────────────────────
 interface ExplainModalProps {
   rec: RecommendationItem
+  provider: string
+  region: string
   onClose: () => void
 }
 
-function ExplainModal({ rec, onClose }: ExplainModalProps) {
-  const dryRun = true
+function ExplainModal({ rec, provider, region, onClose }: ExplainModalProps) {
+  const [dryRun, setDryRun] = useState(true)
+  const [resourceId, setResourceId] = useState('')
+  const [targetInstanceType, setTargetInstanceType] = useState('')
+  const [liveConfirmation, setLiveConfirmation] = useState('')
   const [applying, setApplying] = useState(false)
   const [applyResult, setApplyResult] = useState<{ message: string; steps: string[]; status: string } | null>(null)
+  const liveSupported = provider === 'aws' && ['terminate_idle', 'right_size_down'].includes(rec.action)
 
   const { data: explainData, isLoading: explainLoading } = useQuery({
-    queryKey: ['explain', rec.id],
-    queryFn: () => fetchExplain(rec.id),
+    queryKey: ['explain', rec.id, provider, region],
+    queryFn: () => fetchExplain(rec.id, provider, region),
   })
 
   const handleApply = async () => {
     try {
       setApplying(true)
-      const res = await applyRecommendation(rec.id, { dry_run: dryRun })
+      const res = await applyRecommendation(rec.id, {
+        dry_run: dryRun,
+        confirm_live: !dryRun && liveConfirmation === 'APPLY',
+        resource_id: resourceId.trim() || undefined,
+        target_instance_type: targetInstanceType.trim() || undefined,
+      }, provider, region)
       setApplyResult({
         message: res.message,
         steps: res.steps_taken,
@@ -56,9 +67,9 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
       })
 
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'The dry-run request failed.'
-      console.error('Failed to prepare recommendation preview', err)
-      setApplyResult({ message: `Dry-run preview failed: ${message}`, steps: [], status: 'error' })
+      const message = err instanceof Error ? err.message : 'The cloud action request failed.'
+      console.error('Recommendation action failed', err)
+      setApplyResult({ message: `Recommendation action failed: ${message}`, steps: [], status: 'error' })
     } finally {
       setApplying(false)
     }
@@ -133,7 +144,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                 Why was this flagged?
               </div>
               <p className="text-secondary text-xs" style={{ lineHeight: 1.5 }}>
-                {explainData?.why_flagged || 'Identified via automated agent metric correlation.'}
+                {explainData?.why_flagged || 'Evidence explanation unavailable.'}
               </p>
             </div>
 
@@ -144,7 +155,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                 Risk if left unaddressed (Counterfactual)
               </div>
               <p className="text-secondary text-xs" style={{ lineHeight: 1.5 }}>
-                {explainData?.counterfactual || 'Ongoing resource degradation and unoptimized spend.'}
+                {explainData?.counterfactual || 'No counterfactual forecast is available.'}
               </p>
             </div>
 
@@ -184,7 +195,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
               <div className="card" style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.02)' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Activity size={13} color="var(--blue-400)" />
-                  Quantitative Telemetry Evidence (Observed vs Threshold)
+                  Observed Telemetry and Data Sources
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
@@ -192,8 +203,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                       <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-muted)', textAlign: 'left' }}>
                         <th style={{ padding: '6px 8px', fontWeight: 600 }}>Metric</th>
                         <th style={{ padding: '6px 8px', fontWeight: 600 }}>Observed Value</th>
-                        <th style={{ padding: '6px 8px', fontWeight: 600 }}>Threshold</th>
-                        <th style={{ padding: '6px 8px', fontWeight: 600, textAlign: 'right' }}>Status</th>
+                        <th style={{ padding: '6px 8px', fontWeight: 600 }}>Data Source</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -205,12 +215,12 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                           <td style={{ padding: '6px 8px', fontFamily: 'monospace', color: 'var(--amber-400)' }}>
                             {ev.observed || ev.value || 'N/A'}
                           </td>
-                          <td style={{ padding: '6px 8px', fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
-                            {ev.threshold || 'N/A'}
-                          </td>
                           <td style={{ padding: '6px 8px', textAlign: 'right' }}>
-                            <span className={`badge ${ev.status === 'FLAGGED' ? 'badge-red' : 'badge-emerald'}`} style={{ fontSize: 10, padding: '2px 6px' }}>
-                              {ev.status || 'EVALUATED'}
+                            <span
+                              className={`badge ${ev.source === 'ERROR' ? 'badge-red' : ev.source === 'UNAVAILABLE' ? 'badge-muted' : 'badge-blue'}`}
+                              style={{ fontSize: 10, padding: '2px 6px' }}
+                            >
+                              {ev.source || 'UNAVAILABLE'}
                             </span>
                           </td>
                         </tr>
@@ -289,16 +299,34 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
 
         {/* Modal Footer Controls */}
         <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-          <label className="flex items-center gap-2" style={{ cursor: 'pointer', userSelect: 'none' }}>
-            <input
-              type="checkbox"
-              checked={dryRun}
-              disabled
-              readOnly
-              style={{ accentColor: 'var(--emerald-500)', cursor: 'not-allowed' }}
-            />
-            <span className="text-xs text-secondary">Dry-Run only (no cloud resources are changed)</span>
-          </label>
+          <div style={{ flex: 1 }}>
+            <label className="flex items-center gap-2" style={{ cursor: liveSupported ? 'pointer' : 'not-allowed', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={dryRun}
+                disabled={!liveSupported || applying}
+                onChange={event => { setDryRun(event.target.checked); setLiveConfirmation('') }}
+                style={{ accentColor: 'var(--emerald-500)' }}
+              />
+              <span className="text-xs text-secondary">Dry-run preview</span>
+            </label>
+            {!dryRun && liveSupported && (
+              <div className="mt-3" style={{ display: 'grid', gap: 10, maxWidth: 420 }}>
+                <p className="text-xs text-amber">This will change the selected live AWS instance. Stop is reversible; resize causes downtime.</p>
+                <label className="text-xs text-secondary" htmlFor="live-resource-id">AWS EC2 instance ID</label>
+                <input id="live-resource-id" value={resourceId} onChange={event => setResourceId(event.target.value)} placeholder="i-0123456789abcdef0" autoComplete="off" />
+                {rec.action === 'right_size_down' && (
+                  <>
+                    <label className="text-xs text-secondary" htmlFor="live-target-type">Smaller EC2 instance type</label>
+                    <input id="live-target-type" value={targetInstanceType} onChange={event => setTargetInstanceType(event.target.value)} placeholder="e.g. t3.medium" autoComplete="off" />
+                  </>
+                )}
+                <label className="text-xs text-secondary" htmlFor="live-confirmation">Type APPLY to confirm this live change</label>
+                <input id="live-confirmation" value={liveConfirmation} onChange={event => setLiveConfirmation(event.target.value)} autoComplete="off" />
+              </div>
+            )}
+            {!liveSupported && <p className="text-xs text-muted mt-2">Live execution is available only for AWS idle-stop and right-size recommendations. Other actions remain previews.</p>}
+          </div>
 
           <div className="flex gap-2">
             <button className="btn btn-secondary btn-sm" onClick={onClose}>
@@ -307,12 +335,12 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
             <button
               className="btn btn-primary btn-sm"
               onClick={handleApply}
-              disabled={applying || (rec.status === 'applied' && !dryRun)}
+              disabled={applying || (rec.status === 'applied' && !dryRun) || (!dryRun && (!liveSupported || !resourceId.trim() || liveConfirmation !== 'APPLY' || (rec.action === 'right_size_down' && !targetInstanceType.trim())) )}
             >
               {applying ? (
                 <>
                   <Loader2 size={14} className="animate-spin" />
-                  Preparing preview...
+                  {dryRun ? 'Preparing preview...' : 'Applying live change...'}
                 </>
               ) : rec.status === 'applied' && !dryRun ? (
                 <>
@@ -327,7 +355,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
               ) : (
                 <>
                   <Sparkles size={14} />
-                  Apply Optimization
+                  Apply Changes
                 </>
               )}
             </button>
@@ -346,12 +374,13 @@ function RecCard({
   rec: RecommendationItem
   onExplain: (rec: RecommendationItem) => void
 }) {
-  const { addNotification } = useAppStore()
+  const { addNotification, provider, region } = useAppStore()
   const [expanded, setExpanded] = useState(false)
   const [isApplying, setIsApplying] = useState(false)
 
   const isApplied = rec.status === 'applied'
   const color = categoryColors[rec.category] || 'muted'
+  const canApplyLive = provider === 'aws' && ['terminate_idle', 'right_size_down'].includes(rec.action)
   const prioColor =
     rec.priority === 'critical' ? 'red' : rec.priority === 'high' ? 'amber' : rec.priority === 'medium' ? 'blue' : 'muted'
 
@@ -359,7 +388,7 @@ function RecCard({
     e.stopPropagation()
     try {
       setIsApplying(true)
-      const res = await applyRecommendation(rec.id, { dry_run: true })
+      const res = await applyRecommendation(rec.id, { dry_run: true }, provider, region)
       addNotification({
         title: 'Dry-Run Preview Ready',
         body: res.message,
@@ -438,15 +467,11 @@ function RecCard({
               <button
                 className="btn btn-primary btn-sm"
                 style={{ padding: '4px 12px', fontSize: 12 }}
-                onClick={handleApplyNow}
-                disabled={isApplying}
+                onClick={() => onExplain(rec)}
+                title={canApplyLive ? 'Review this AWS change and confirm before applying it.' : 'Open this recommendation. Live execution may be unavailable for this action.'}
               >
-                {isApplying ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Play size={12} />
-                )}
-                Dry-Run
+                <Sparkles size={12} />
+                Apply Changes
               </button>
             </div>
           ) : (
@@ -617,7 +642,7 @@ export default function RecommendationsPage() {
   const handleBatchApply = async (priority?: string) => {
     try {
       setIsBatchApplying(true)
-      const res = await batchApplyRecommendations({ priority, dry_run: true })
+      const res = await batchApplyRecommendations({ priority, dry_run: true }, provider, region)
       addNotification({
         title: 'Dry-Run Previews Ready',
         body: `Prepared ${res.results.length} previews. No cloud resources were changed.`,
@@ -860,6 +885,8 @@ export default function RecommendationsPage() {
         {selectedExplainRec && (
           <ExplainModal
             rec={selectedExplainRec}
+            provider={provider}
+            region={region}
             onClose={() => setSelectedExplainRec(null)}
           />
         )}

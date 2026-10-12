@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from ..auth import get_current_user_id
+from ..database import load_recommendation_states, persist_recommendation_state, query_audit_log
 
 from .. import carbon
 from ..agents import orchestrator
@@ -20,6 +21,7 @@ from ..schemas import (
     ApplyResponse,
     BatchApplyRequest,
     BatchApplyResponse,
+    CloudMetrics,
     ExplainResponse,
     RecommendationItem,
     RecommendationsResponse,
@@ -27,20 +29,24 @@ from ..schemas import (
 
 router = APIRouter(prefix="/recommendations", tags=["Recommendations"])
 
-# Per-user state prevents cross-account access to recommendations and decisions.
-_user_states: dict[str, dict[str, Any]] = {}
+# Keep each user's recommendation state separate for each cloud scope.
+_user_states: dict[str, dict[tuple[str, str], dict[str, Any]]] = {}
 
 
-def _user_state() -> dict[str, Any]:
+def _user_state(provider: str = "aws", region: str = "us-east") -> dict[str, Any]:
     user_id = get_current_user_id()
     if not user_id:
         raise HTTPException(status_code=401, detail="An authenticated user is required.")
-    return _user_states.setdefault(user_id, {
+
+    scope = (provider.lower().strip(), region.lower().strip())
+    user_scopes = _user_states.setdefault(user_id, {})
+    return user_scopes.setdefault(scope, {
         "recommendations": [],
         "score": 80,
         "generated": "",
         "applied": {},
         "dismissed": set(),
+        "metrics": None,
     })
 
 
@@ -52,7 +58,7 @@ def _build_recommendations(provider: str, region: str) -> tuple[list[Recommendat
     - In DEMO mode or if provider is unconfigured: uses DEMO synthetic metrics (source=DEMO)
     - Agent analysis is always clearly labeled based on metrics source
     """
-    state = _user_state()
+    state = _user_state(provider, region)
     p = get_provider(provider)
     if p.is_live:
         raw = p.get_metrics(region)
@@ -63,7 +69,8 @@ def _build_recommendations(provider: str, region: str) -> tuple[list[Recommendat
         metrics = _generate_live_metrics(provider, region)
 
     result = orchestrator.run(metrics)
-    state = _user_state()
+    state = _user_state(provider, region)
+    state["metrics"] = metrics
     state["recommendations"] = result.unified_recommendations
     state["score"] = result.overall_score
     state["generated"] = datetime.now(timezone.utc).isoformat()
@@ -80,26 +87,53 @@ def _build_recommendations(provider: str, region: str) -> tuple[list[Recommendat
     return state["recommendations"], state["score"]
 
 
-def _execute_apply(rec: RecommendationItem, dry_run: bool = False, operator_notes: str | None = None) -> ApplyResponse:
-    state = _user_state()
+async def _execute_apply(
+    rec: RecommendationItem,
+    state: dict[str, Any],
+    provider: str,
+    region: str,
+    dry_run: bool = False,
+    operator_notes: str | None = None,
+    confirm_live: bool = False,
+    resource_id: str | None = None,
+    target_instance_type: str | None = None,
+) -> ApplyResponse:
     from ..integrations.cloud_actions import CloudActionDispatcher
 
     boost = 4 if rec.priority in ("critical", "high") else 2
     target_score = state["score"] if dry_run else min(98, state["score"] + boost)
 
-    resp = CloudActionDispatcher.execute_recommendation(
+    resp = await CloudActionDispatcher.execute_recommendation(
         rec=rec,
         dry_run=dry_run,
         operator_notes=operator_notes,
         new_score=target_score,
+        provider=provider,
+        region=region,
+        confirm_live=confirm_live,
+        resource_id=resource_id,
+        target_instance_type=target_instance_type,
     )
 
     if not dry_run:
+        try:
+            await persist_recommendation_state(
+                recommendation_id=rec.id,
+                provider=provider,
+                region=region,
+                status="applied",
+                applied_at=resp.applied_at,
+                steps_taken=resp.steps_taken,
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=500,
+                detail="The cloud action was confirmed, but recommendation state could not be saved. Check the AWS audit history before retrying.",
+            ) from exc
         rec.status = "applied"
         rec.applied_at = resp.applied_at
         rec.steps_taken = resp.steps_taken
-        if rec.id in state["dismissed"]:
-            state["dismissed"].remove(rec.id)
+        state["dismissed"].discard(rec.id)
         state["score"] = target_score
         state["applied"][rec.id] = resp
 
@@ -108,7 +142,7 @@ def _execute_apply(rec: RecommendationItem, dry_run: bool = False, operator_note
 
 
 @router.get("", response_model=RecommendationsResponse)
-def list_recommendations(
+async def list_recommendations(
     provider: str = Query("aws"),
     region: str = Query("us-east"),
     refresh: bool = Query(False),
@@ -117,12 +151,21 @@ def list_recommendations(
     status: str | None = Query(None),
 ):
     """Get AI-generated optimization recommendations."""
-    state = _user_state()
+    state = _user_state(provider, region)
 
     if refresh or not state["recommendations"]:
         _build_recommendations(provider, region)
 
+    persisted = await load_recommendation_states(provider, region)
     recs = state["recommendations"]
+    for rec in recs:
+        saved = persisted.get(rec.id)
+        if saved and saved["status"] in {"applied", "dismissed"}:
+            rec.status = saved["status"]
+            rec.applied_at = saved["applied_at"]
+            rec.steps_taken = saved["steps_taken"]
+            if saved["status"] == "dismissed":
+                state["dismissed"].add(rec.id)
     if category and category != "all":
         recs = [r for r in recs if r.category == category]
     if priority and priority != "all":
@@ -138,19 +181,29 @@ def list_recommendations(
 
 
 @router.get("/applied", response_model=list[ApplyResponse])
-def list_applied_recommendations():
-    """Get audit trail history of all applied recommendations."""
-    return list(_user_state()["applied"].values())
+async def list_applied_recommendations(
+    provider: str = Query("aws"),
+    region: str = Query("us-east"),
+):
+    """Get durable, owner- and cloud-scope-filtered audit history."""
+    _user_state(provider, region)
+    return await query_audit_log(provider, region)
 
 
 @router.post("/apply-batch", response_model=BatchApplyResponse)
-def batch_apply_recommendations(req: BatchApplyRequest):
-    """Batch apply multiple recommendations simultaneously."""
-    state = _user_state()
+async def batch_apply_recommendations(
+    req: BatchApplyRequest,
+    provider: str = Query("aws"),
+    region: str = Query("us-east"),
+):
+    """Batch preview recommendations in the selected cloud scope."""
+    state = _user_state(provider, region)
 
     if not state["recommendations"]:
-        _build_recommendations("aws", "us-east")
+        _build_recommendations(provider, region)
 
+    if not req.dry_run:
+        raise HTTPException(status_code=400, detail="Live changes must be applied one resource at a time.")
     targets = [r for r in state["recommendations"] if r.status != "applied"]
 
     if req.category and req.category != "all":
@@ -166,7 +219,7 @@ def batch_apply_recommendations(req: BatchApplyRequest):
     total_carbon = 0.0
 
     for rec in targets:
-        res = _execute_apply(rec, dry_run=req.dry_run)
+        res = await _execute_apply(rec, state, provider, region, dry_run=req.dry_run)
         results.append(res)
         total_savings += res.estimated_monthly_savings_usd
         total_carbon += res.estimated_carbon_reduction_pct
@@ -181,12 +234,17 @@ def batch_apply_recommendations(req: BatchApplyRequest):
 
 
 @router.post("/{rec_id}/apply", response_model=ApplyResponse)
-def apply_recommendation(rec_id: str, req: ApplyRequest | None = None):
+async def apply_recommendation(
+    rec_id: str,
+    req: ApplyRequest | None = None,
+    provider: str = Query("aws"),
+    region: str = Query("us-east"),
+):
     """Execute remediation action for a specific recommendation."""
-    state = _user_state()
+    state = _user_state(provider, region)
 
     if not state["recommendations"]:
-        _build_recommendations("aws", "us-east")
+        _build_recommendations(provider, region)
 
     rec = next((r for r in state["recommendations"] if r.id == rec_id), None)
     if not rec:
@@ -195,9 +253,18 @@ def apply_recommendation(rec_id: str, req: ApplyRequest | None = None):
             detail=f"Recommendation '{rec_id}' not found.",
         )
 
-    dry_run = req.dry_run if req else False
-    operator_notes = req.operator_notes if req else None
-    return _execute_apply(rec, dry_run=dry_run, operator_notes=operator_notes)
+    request = req or ApplyRequest()
+    return await _execute_apply(
+        rec,
+        state,
+        provider,
+        region,
+        dry_run=request.dry_run,
+        operator_notes=request.operator_notes,
+        confirm_live=request.confirm_live,
+        resource_id=request.resource_id,
+        target_instance_type=request.target_instance_type,
+    )
 
 
 @router.post("/{rec_id}/rollback", response_model=ApplyResponse)
@@ -210,9 +277,13 @@ def rollback_recommendation(rec_id: str):
 
 
 @router.post("/{rec_id}/dismiss")
-def dismiss_recommendation(rec_id: str):
-    """Dismiss a recommendation."""
-    state = _user_state()
+async def dismiss_recommendation(
+    rec_id: str,
+    provider: str = Query("aws"),
+    region: str = Query("us-east"),
+):
+    """Dismiss a recommendation in the selected cloud scope."""
+    state = _user_state(provider, region)
 
     rec = next((r for r in state["recommendations"] if r.id == rec_id), None)
     if not rec:
@@ -221,6 +292,12 @@ def dismiss_recommendation(rec_id: str):
             detail=f"Recommendation '{rec_id}' not found.",
         )
 
+    await persist_recommendation_state(
+        recommendation_id=rec.id,
+        provider=provider,
+        region=region,
+        status="dismissed",
+    )
     rec.status = "dismissed"
     state["dismissed"].add(rec_id)
     state["applied"].pop(rec_id, None)
@@ -228,104 +305,107 @@ def dismiss_recommendation(rec_id: str):
 
 
 @router.get("/{rec_id}/explain", response_model=ExplainResponse)
-def explain_recommendation(rec_id: str):
-    """Get explainability breakdown for a recommendation."""
-    rec = next((r for r in _user_state()["recommendations"] if r.id == rec_id), None)
+def explain_recommendation(
+    rec_id: str,
+    provider: str = Query("aws"),
+    region: str = Query("us-east"),
+):
+    """Explain a recommendation using the metrics and evidence from its scope."""
+    state = _user_state(provider, region)
+    rec = next((r for r in state["recommendations"] if r.id == rec_id), None)
     if not rec:
         raise HTTPException(status_code=404, detail=f"Recommendation '{rec_id}' not found. Run /recommendations first.")
 
-    _EXPLANATIONS = {
-        "cost": {
-            "why_flagged": "Cost anomaly detected based on utilization-to-spend ratio analysis.",
-            "counterfactual": "If current spending patterns continue unchanged, projected monthly overspend will increase.",
-            "feature_key": "cost",
-        },
-        "performance": {
-            "why_flagged": "Performance metrics show utilization approaching saturation thresholds.",
-            "counterfactual": "Without intervention, latency will increase and SLOs will be breached.",
-            "feature_key": "cpu",
-        },
-        "sustainability": {
-            "why_flagged": "Carbon intensity analysis shows significant emissions reduction is achievable.",
-            "counterfactual": "Maintaining current scheduling pattern misses carbon-free hours.",
-            "feature_key": "carbon",
-        },
-        "security": {
-            "why_flagged": "Security posture assessment detected configuration against best practices.",
-            "counterfactual": "These configurations represent known attack vectors actively exploited.",
-            "feature_key": "cpu",
-        },
-        "reliability": {
-            "why_flagged": "Reliability assessment identified infrastructure risk factors.",
-            "counterfactual": "Without redundancy, a single failure event causes complete service outage.",
-            "feature_key": "memory",
-        },
+    feature_keys = {
+        "cost": "cost",
+        "performance": "cpu",
+        "sustainability": "carbon",
+        "security": "cpu",
+        "reliability": "memory",
     }
-    cat_explain = _EXPLANATIONS.get(rec.category, _EXPLANATIONS["cost"])
     feature_importances = predictor.get_feature_importances()
-    feat_key = cat_explain.get("feature_key", "cost")
-    target_feat_imp = feature_importances.get(feat_key, {})
+    target_feat_imp = feature_importances.get(feature_keys.get(rec.category, "cost"), {})
 
-    savings_str = f"Estimated monthly saving: ${rec.estimated_monthly_savings_usd:.0f}." if rec.estimated_monthly_savings_usd > 0 else ""
-    carbon_str = f"Estimated carbon reduction: {rec.estimated_carbon_reduction_pct:.0f}%." if rec.estimated_carbon_reduction_pct > 0 else ""
-    expected_impact = f"{rec.impact_summary} {savings_str} {carbon_str}".strip()
+    savings_str = (
+        f"Estimated monthly savings: ${rec.estimated_monthly_savings_usd:.0f}."
+        if rec.estimated_monthly_savings_usd > 0 else ""
+    )
+    carbon_str = (
+        f"Estimated carbon reduction: {rec.estimated_carbon_reduction_pct:.0f}%."
+        if rec.estimated_carbon_reduction_pct > 0 else ""
+    )
+    expected_impact = f"Projected impact: {rec.impact_summary} {savings_str} {carbon_str}".strip()
+    why_flagged = "; ".join(rec.evidence) if rec.evidence else (
+        f"The {rec.category} analysis generated this recommendation, but did not provide detail-level evidence."
+    )
 
-    # Quantitative telemetry evidence calculation
-    quantitative_evidence: list[dict[str, Any]] = []
-    if rec.category == "cost":
-        quantitative_evidence = [
-            {"metric": "Instance CPU Utilization", "observed": "16.8%", "threshold": "< 30.0%", "variance": "-13.2%", "status": "UNDERUTILIZED"},
-            {"metric": "Hourly Burn Rate", "observed": f"${rec.estimated_monthly_savings_usd / 720:.4f}/hr", "optimal": f"${(rec.estimated_monthly_savings_usd * 0.4) / 720:.4f}/hr", "status": "EXCESS_CAPACITY"},
-            {"metric": "Memory Headroom", "observed": "72.4%", "threshold": "> 40.0%", "status": "CAN_DOWNSIZE"},
-        ]
-        counterfactual = (
-            f"If unaddressed over 12 months, this resource will incur approximately ${rec.estimated_monthly_savings_usd * 12:.0f} "
-            f"in avoidable cloud spend without providing application SLA benefits."
-        )
-    elif rec.category == "performance":
-        quantitative_evidence = [
-            {"metric": "CPU Core Saturation", "observed": "82.4%", "threshold": "> 75.0%", "variance": "+7.4%", "status": "SATURATION_RISK"},
-            {"metric": "M/M/1 Estimated Queue Delay", "observed": "142.0 ms", "threshold": "< 50.0 ms", "variance": "+92.0 ms", "status": "SLO_DEGRADATION"},
-            {"metric": "Concurrency Headroom", "observed": "14.2%", "target": ">= 35.0%", "status": "EXHAUSTION_WARNING"},
-        ]
-        counterfactual = "Without intervention, traffic micro-bursts will cause P99 response times to exceed 450ms and trigger 5xx error spikes."
-    elif rec.category == "sustainability":
-        quantitative_evidence = [
-            {"metric": "Regional Grid Carbon Intensity", "observed": "385 gCO₂/kWh", "green_window_trough": "135 gCO₂/kWh (02:00 UTC)", "variance": "+185%", "status": "HIGH_CARBON_HOURS"},
-            {"metric": "Scope 2 Emission Rate", "observed": "134.8 gCO₂/hr", "optimized_rate": "47.2 gCO₂/hr", "status": "ABATEMENT_OPPORTUNITY"},
-        ]
-        counterfactual = f"Running this workload immediately emits ~{rec.estimated_carbon_reduction_pct:.0f}% more carbon than delaying by 4 to 8 hours during renewable energy peak supply."
-    elif rec.category == "security":
-        quantitative_evidence = [
-            {"metric": "Ingress Network Rule", "observed": "0.0.0.0/0:22 (SSH)", "policy": "Private RFC1918 CIDR Only", "status": "CRITICAL_EXPOSURE"},
-            {"metric": "Security Group Risk Score", "observed": "88/100", "threshold": "< 20/100", "status": "FAILING_AUDIT"},
-        ]
-        counterfactual = "Open management ports exposed to the public internet are subject to automated credential brute-force attacks within minutes of detection."
-    else:
-        quantitative_evidence = [
-            {"metric": "Availability Zone Redundancy", "observed": "1 AZ", "target": ">= 2 AZs", "status": "SPOF_DETECTED"},
-            {"metric": "Backup Snapshot Age", "observed": "34 hours", "rpo_sla": "< 24 hours", "status": "RPO_BREACH"},
-        ]
-        counterfactual = "An isolated failure in the hosting Availability Zone will result in total workload outage with zero automatic failover."
+    # Only show measurements collected for this scope. Derived carbon values stay labeled estimated.
+    metric_fields = {
+        "cost": [
+            ("cpu", "CPU utilization", "%"),
+            ("memory", "Memory utilization", "%"),
+            ("cost_usd_per_hour", "Hourly cost", " USD/hr"),
+        ],
+        "performance": [
+            ("cpu", "CPU utilization", "%"),
+            ("memory", "Memory utilization", "%"),
+            ("network", "Network throughput", " Mbps"),
+        ],
+        "sustainability": [
+            ("carbon_gco2_per_hour", "Carbon emissions", " gCO₂/hr"),
+        ],
+        "security": [],
+        "reliability": [
+            ("instance_count", "Reported instance count", ""),
+        ],
+    }
+    data_evidence: list[dict[str, str]] = []
+    metrics = state.get("metrics")
+    if metrics is not None:
+        source = getattr(metrics, "source", "UNAVAILABLE")
+        for field, label, unit in metric_fields.get(rec.category, []):
+            value = getattr(metrics, field, None)
+            if value is None or isinstance(value, bool):
+                continue
+            if field == "instance_count" and not str(source).startswith("LIVE"):
+                continue
+            field_source = getattr(
+                metrics,
+                {"cost_usd_per_hour": "cost_source", "memory": "memory_source", "network": "network_source"}.get(field, ""),
+                None,
+            ) or source
+            if field == "carbon_gco2_per_hour" and str(source).startswith("LIVE"):
+                field_source = "ESTIMATED"
+            formatted = f"{value:.2f}{unit}" if isinstance(value, (int, float)) else f"{value}{unit}"
+            data_evidence.append({
+                "metric": label,
+                "observed": formatted,
+                "source": str(field_source),
+                "status": str(field_source),
+            })
+
+    counterfactual = (
+        "A no-action outcome has not been modeled for this recommendation, so no future loss "
+        "or outage is quantified here."
+    )
 
     return ExplainResponse(
         recommendation_id=rec.id,
         title=rec.title,
         what_detected=rec.title,
-        why_it_matters=cat_explain["why_flagged"],
+        why_it_matters=why_flagged,
         evidence=rec.evidence,
         recommendation=rec.action,
         expected_impact=expected_impact,
-        why_flagged=cat_explain["why_flagged"],
-        data_evidence=quantitative_evidence,
+        why_flagged=why_flagged,
+        data_evidence=data_evidence,
         counterfactual=counterfactual,
         steps_to_implement=[
-            f"Review current telemetry and configuration for {rec.category}",
-            f"Trigger platform action: {rec.action}",
-            "Verify health probes and latency SLO stability",
-            "Record change in compliance audit trail",
+            "Review the recommendation evidence and its data source.",
+            f"Apply the proposed action through your cloud provider: {rec.action}",
+            "Verify the resulting configuration and service health.",
         ],
-        expected_outcome=rec.impact_summary,
+        expected_outcome=f"Projected outcome: {rec.impact_summary}",
         feature_importance=target_feat_imp,
     )
 

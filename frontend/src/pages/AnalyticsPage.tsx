@@ -52,13 +52,13 @@ export default function AnalyticsPage() {
   const [days, setDays] = useState(7)
 
   const { data: costData } = useQuery({
-    queryKey: ['costAnalytics', days],
-    queryFn: () => fetchCostAnalytics(days),
+    queryKey: ['costAnalytics', days, provider, region],
+    queryFn: () => fetchCostAnalytics(days, provider, region),
   })
 
   const { data: carbonData } = useQuery({
-    queryKey: ['carbonAnalytics', days, region],
-    queryFn: () => fetchCarbonAnalytics(days, region),
+    queryKey: ['carbonAnalytics', days, provider, region],
+    queryFn: () => fetchCarbonAnalytics(days, region, provider),
   })
 
   const { data: scores } = useQuery({
@@ -94,8 +94,8 @@ export default function AnalyticsPage() {
     intensity: p.intensity_gco2_per_kwh,
   }))
 
-  const avgCost = costData
-    ? costData.total_usd / Math.max(costData.data_points.length, 1)
+  const avgCost = costData?.total_usd != null
+    ? costData.total_usd / Math.max(costData.period_days * 24, 1)
     : null
 
   const totalSavings = recs
@@ -132,15 +132,15 @@ export default function AnalyticsPage() {
       <div className="grid-5 mb-4">
         <KpiCard
           label={`Total Cost (${days}d)`}
-          value={costData ? `$${costData.total_usd.toFixed(2)}` : '–'}
-          sub={`Driver: ${costData?.top_cost_drivers[0] || '–'}`}
+          value={costData?.total_usd != null ? `$${costData.total_usd.toFixed(2)}` : '–'}
+          sub={costData?.source === 'UNAVAILABLE' ? 'Billing data unavailable' : `Driver: ${costData?.top_cost_drivers[0] || '–'}`}
           color="amber"
           icon={DollarSign}
         />
         <KpiCard
           label="Avg Cost/hr"
           value={avgCost != null ? `$${avgCost.toFixed(4)}` : '–'}
-          sub="Based on full period"
+          sub="Period total divided by hours"
           color="amber"
           icon={DollarSign}
         />
@@ -199,33 +199,38 @@ export default function AnalyticsPage() {
         <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
           <div className="flex items-center gap-2">
             <DollarSign size={16} color="var(--amber-400)" />
-            <h3 style={{ fontSize: 14, fontWeight: 700 }}>Hourly Cost ($/hr)</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 700 }}>Estimated Hourly Cost Profile ($/hr)</h3>
           </div>
-          {costAvgLine != null && (
-            <span className="badge badge-amber">
-              avg ${costAvgLine}
-            </span>
-          )}
+          <span className="badge badge-amber">{costData?.source || 'UNAVAILABLE'}</span>
         </div>
+        <p className="text-xs text-muted mb-3">
+          The selected period total uses this source. Hourly values show an estimated allocation because providers return period totals, not hourly billing history.
+        </p>
         <div className="chart-container" style={{ height: 220 }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={costPoints}>
-              <defs>
-                <linearGradient id="costGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `$${v.toFixed(3)}`} />
-              <Tooltip content={<ChartTooltip />} />
-              {costAvgLine != null && (
-                <ReferenceLine y={costAvgLine} stroke="rgba(251,191,36,0.5)" strokeDasharray="6 3" label={{ value: 'avg', fill: 'var(--amber-400)', fontSize: 10, position: 'insideTopRight' }} />
-              )}
-              <Area type="monotone" dataKey="cost" name="Cost ($/hr)" stroke="#f59e0b" fill="url(#costGrad)" strokeWidth={2} dot={false} />
-            </AreaChart>
-          </ResponsiveContainer>
+          {costData?.source === 'UNAVAILABLE' ? (
+            <div className="text-sm text-muted p-4">
+              Billing-period cost data is unavailable for this provider and region. Live billing support may be missing or not configured.
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={costPoints}>
+                <defs>
+                  <linearGradient id="costGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="time" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `$${v.toFixed(3)}`} />
+                <Tooltip content={<ChartTooltip />} />
+                {costAvgLine != null && (
+                  <ReferenceLine y={costAvgLine} stroke="rgba(251,191,36,0.5)" strokeDasharray="6 3" label={{ value: 'avg', fill: 'var(--amber-400)', fontSize: 10, position: 'insideTopRight' }} />
+                )}
+                <Area type="monotone" dataKey="cost" name="Cost ($/hr)" stroke="#f59e0b" fill="url(#costGrad)" strokeWidth={2} dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
         </div>
       </div>
 
@@ -242,6 +247,9 @@ export default function AnalyticsPage() {
             </span>
           )}
         </div>
+        <p className="text-xs text-muted mb-3">
+          {carbonData?.assumptions || 'Estimated regional reference workload; this is not measured workload emissions.'}
+        </p>
         <div className="chart-container" style={{ height: 220 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={carbonPoints}>
@@ -262,11 +270,11 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Provider cost breakdown */}
-      {costData?.breakdown_by_provider && (
+      {costData?.breakdown_by_provider && Object.keys(costData.breakdown_by_provider).length > 0 && (
         <div className="card">
           <div className="flex items-center gap-2 mb-3">
             <BarChart3 size={16} color="var(--indigo-400)" />
-            <h3 style={{ fontSize: 14, fontWeight: 700 }}>Cost by Provider</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 700 }}>Selected Provider Cost</h3>
           </div>
           <div className="flex gap-4 flex-wrap">
             {Object.entries(costData.breakdown_by_provider).map(([p, v]) => (

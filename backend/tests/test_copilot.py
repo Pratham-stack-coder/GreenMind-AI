@@ -41,7 +41,7 @@ def test_copilot_all_tools():
     health = tools.get_cloud_health("aws", "us-east-1")
     assert "health_score" in health
 
-    sim = tools.run_digital_twin_simulation("RIGHT_SIZE", cpu=75.0)
+    sim = tools.run_digital_twin_simulation("RIGHT_SIZE", cpu=75.0, cost=1000.0, carbon=6.2)
     assert sim.get("scenario") == "RIGHT_SIZE"
 
 

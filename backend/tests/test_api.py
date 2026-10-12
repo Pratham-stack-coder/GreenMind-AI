@@ -341,10 +341,10 @@ def test_recommendation_apply_and_rollback_flow():
     assert applied_list.status_code == 200
     assert applied_list.json() == []
 
-    # Live mutation and rollback are not implemented.
+    # Live changes require per-action confirmation and a selected target.
     apply_res = client.post(f"/api/v1/recommendations/{rec_id}/apply", json={"dry_run": False})
-    assert apply_res.status_code == 501
-    assert "Live cloud remediation is not implemented" in apply_res.json()["detail"]
+    assert apply_res.status_code == 400
+    assert "confirmation is required" in apply_res.json()["detail"]
 
     rollback_res = client.post(f"/api/v1/recommendations/{rec_id}/rollback")
     assert rollback_res.status_code == 501

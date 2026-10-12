@@ -2,6 +2,7 @@
 
 import pytest
 from unittest.mock import MagicMock, patch
+from fastapi import HTTPException
 from app.cloud import get_provider
 from app.cloud.aws_provider import AWSCloudProvider
 from app.cloud.azure_provider import AzureCloudProvider
@@ -13,12 +14,13 @@ def test_provider_factory():
     aws = get_provider("aws")
     azure = get_provider("azure")
     gcp = get_provider("gcp")
-    default = get_provider("unknown")
+    with pytest.raises(HTTPException) as exc_info:
+        get_provider("unknown")
+    assert exc_info.value.status_code == 400
 
     assert isinstance(aws, AWSCloudProvider)
     assert isinstance(azure, AzureCloudProvider)
     assert isinstance(gcp, GCPCloudProvider)
-    assert isinstance(default, AWSCloudProvider)
 
 
 def test_aws_provider_demo_fallback():
@@ -41,8 +43,10 @@ def test_aws_provider_demo_fallback():
     assert len(cost["top_services"]) > 0
 
     health = provider.get_health("us-east-1")
-    assert health["status"] == "HEALTHY"
-
+    assert health["status"] == "DEMO"
+    assert health["source"] == "DEMO"
+    assert health["health_score"] is None
+    assert health["active_alarms"] is None
 
 def test_azure_provider_demo_fallback():
     """Verify Azure provider returns structured metrics in demo mode."""
@@ -62,7 +66,10 @@ def test_azure_provider_demo_fallback():
     assert cost["total_usd"] > 0
 
     health = provider.get_health("eastus")
-    assert health["health_score"] >= 90
+    assert health["status"] == "DEMO"
+    assert health["source"] == "DEMO"
+    assert health["health_score"] is None
+    assert health["active_alarms"] is None
 
 
 def test_gcp_provider_demo_fallback():
@@ -83,8 +90,10 @@ def test_gcp_provider_demo_fallback():
     assert cost["total_usd"] > 0
 
     health = provider.get_health("us-central1")
-    assert health["status"] == "HEALTHY"
-
+    assert health["status"] == "DEMO"
+    assert health["source"] == "DEMO"
+    assert health["health_score"] is None
+    assert health["active_alarms"] is None
 
 def test_azure_provider_live_mock():
     """Verify Azure provider live metrics parsing with mocked HTTP responses."""

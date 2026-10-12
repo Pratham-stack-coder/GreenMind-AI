@@ -23,54 +23,81 @@ def get_cloud_metrics(provider: str = "aws", region: str = "us-east") -> dict[st
     return p.get_metrics(region)
 
 
-def get_history(limit: int = 50) -> list[dict[str, Any]]:
-    """Retrieve historical telemetry entries from the ring buffer/database."""
-    return get_telemetry_history(limit)
+def get_history(limit: int = 50, provider: str = "aws", region: str = "us-east") -> list[dict[str, Any]]:
+    """Retrieve recent telemetry from this user's process-local buffer for one cloud scope."""
+    entries = get_telemetry_history(2000)
+    scoped = [
+        entry for entry in entries
+        if str(entry.get("provider") or "").lower() == provider.lower()
+        and str(entry.get("region") or "").lower() == region.lower()
+    ]
+    return scoped[:max(0, limit)]
 
 
-def get_predictions(cpu: float | None = None, hour: float | None = None) -> dict[str, Any]:
-    """Retrieve ML forecasts across all 5 dimensions (CPU, memory, network, cost, carbon)."""
+def get_predictions(
+    cpu: float | None = None,
+    hour: float | None = None,
+    provider: str = "aws",
+    region: str = "us-east",
+    metrics: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return forecasts only when current inputs are available for the selected scope."""
     from datetime import datetime, timezone
+
+    observed = metrics or get_cloud_metrics(provider, region)
+    current = {
+        "cpu": cpu if cpu is not None else observed.get("cpu"),
+        "memory": observed.get("memory"),
+        "network": observed.get("network"),
+        "cost_usd": observed.get("cost_usd_per_hour"),
+    }
+    missing = [key for key, value in current.items() if not isinstance(value, (int, float)) or isinstance(value, bool)]
+    if missing:
+        return {
+            "status": "unavailable",
+            "missing_inputs": missing,
+            "input_source": observed.get("source", "UNKNOWN"),
+        }
+
     now = datetime.now(timezone.utc)
     curr_hour = hour if hour is not None else (now.hour + now.minute / 60.0)
-    day = now.weekday()
-
-    if cpu is None:
-        metrics = get_cloud_metrics("aws", "us-east")
-        cpu = metrics.get("cpu", 45.0)
-
+    carbon_intensity = get_carbon_intensity(region, now.hour)["carbon_intensity_gco2_per_kwh"]
     forecasts = predictor.predict_all(
-        cpu=cpu,
-        memory=52.0,
-        network=450.0,
-        cost_usd=0.192,
-        carbon_intensity=210.0,
+        cpu=float(current["cpu"]),
+        memory=float(current["memory"]),
+        network=float(current["network"]),
+        cost_usd=float(current["cost_usd"]),
+        carbon_intensity=float(carbon_intensity),
         hour=curr_hour,
-        day_of_week=day,
+        day_of_week=now.weekday(),
     )
     return {
-        dim: {
-            "current": f.current,
-            "predicted": f.predicted,
-            "delta_pct": f.delta_pct,
-            "anomaly": f.anomaly,
-            "confidence": f.confidence,
-        }
-        for dim, f in forecasts.items()
+        "status": "available",
+        "source": "ESTIMATED",
+        "input_source": observed.get("source", "UNKNOWN"),
+        "carbon_input_source": "ESTIMATED",
+        **{
+            dim: {
+                "current": forecast.current,
+                "predicted": forecast.predicted,
+                "delta_pct": forecast.delta_pct,
+                "anomaly": forecast.anomaly,
+                "confidence": forecast.confidence,
+            }
+            for dim, forecast in forecasts.items()
+        },
     }
-
-
-def get_cost_analysis(days: int = 7) -> dict[str, Any]:
+def get_cost_analysis(days: int = 7, provider: str = "aws", region: str = "us-east") -> dict[str, Any]:
     """Retrieve cost optimization analysis, spend breakdown, and top cost drivers."""
     from ..routers.analytics import cost_analytics
-    res = cost_analytics(days=days)
+    res = cost_analytics(days=days, provider=provider, region=region)
     return res.model_dump()
 
 
-def get_carbon_analysis(days: int = 7, region: str = "us-east") -> dict[str, Any]:
+def get_carbon_analysis(days: int = 7, region: str = "us-east", provider: str = "aws") -> dict[str, Any]:
     """Retrieve carbon intensity analysis, clean energy window, and emissions breakdown."""
     from ..routers.analytics import carbon_analytics
-    res = carbon_analytics(days=days, region=region)
+    res = carbon_analytics(days=days, region=region, provider=provider)
     return res.model_dump()
 
 
@@ -93,20 +120,40 @@ def get_cloud_health(provider: str = "aws", region: str = "us-east") -> dict[str
 
 def run_digital_twin_simulation(
     scenario: str = "RIGHT_SIZE",
-    cpu: float = 80.0,
-    cost: float = 1000.0,
-    carbon: float = 6.2,
+    cpu: float | None = None,
+    cost: float | None = None,
+    carbon: float | None = None,
+    metrics: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Run non-destructive digital twin simulation for a given scenario."""
+    """Run a simulation from observed inputs; report unavailable instead of inventing a baseline."""
+    observed = metrics or {}
+    if cpu is None:
+        cpu = observed.get("cpu")
+    if cost is None:
+        hourly_cost = observed.get("cost_usd_per_hour")
+        cost = float(hourly_cost) * 24 * 30 if isinstance(hourly_cost, (int, float)) else None
+    if carbon is None:
+        carbon_rate = observed.get("carbon_gco2_per_hour")
+        carbon = float(carbon_rate) * 24 * 30 / 1000 if isinstance(carbon_rate, (int, float)) else None
+
+    inputs = {"cpu": cpu, "cost": cost, "carbon": carbon}
+    missing = [key for key, value in inputs.items() if not isinstance(value, (int, float)) or isinstance(value, bool)]
+    if missing:
+        return {
+            "status": "unavailable",
+            "missing_inputs": missing,
+            "input_source": observed.get("source", "UNKNOWN"),
+        }
+
     req = SimulationScenarioRequest(
-        scenario=scenario,  # type: ignore
+        scenario=scenario,  # type: ignore[arg-type]
         current_state=StateSnapshot(
-            cpu=cpu,
-            cost=cost,
-            carbon=carbon,
-            monthly_cost=cost,
-            monthly_carbon_kg=carbon,
+            cpu=float(cpu),
+            cost=float(cost),
+            carbon=float(carbon),
+            monthly_cost=float(cost),
+            monthly_carbon_kg=float(carbon),
         ),
     )
     res = dt_simulator.run_simulation(req)
-    return res.model_dump()
+    return {**res.model_dump(), "status": "available", "input_source": observed.get("source", "UNKNOWN")}
