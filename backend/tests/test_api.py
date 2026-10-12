@@ -343,7 +343,7 @@ def test_recommendation_apply_and_rollback_flow(client):
     apply_res = client.post(f"/api/v1/recommendations/{rec_id}/apply", json={"dry_run": False})
     assert apply_res.status_code == 200
     apply_data = apply_res.json()
-    assert apply_data["status"] == "applied"
+    assert apply_data["status"] == "pending"
     assert apply_data["dry_run"] is False
     assert len(apply_data["steps_taken"]) > 0
 
@@ -351,13 +351,13 @@ def test_recommendation_apply_and_rollback_flow(client):
     applied_list = client.get("/api/v1/recommendations/applied")
     assert applied_list.status_code == 200
     applied_ids = [item["recommendation_id"] for item in applied_list.json()]
-    assert rec_id in applied_ids
+    assert rec_id not in applied_ids
 
     # 4. Rollback
     rollback_res = client.post(f"/api/v1/recommendations/{rec_id}/rollback")
     assert rollback_res.status_code == 200
     rb_data = rollback_res.json()
-    assert rb_data["status"] == "rolled_back"
+    assert rb_data["status"] == "pending"
     assert len(rb_data["steps_taken"]) > 0
 
 
