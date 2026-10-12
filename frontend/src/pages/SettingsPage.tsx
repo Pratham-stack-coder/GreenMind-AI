@@ -117,10 +117,17 @@ export default function SettingsPage() {
     if (!providerStatus) return <span className="badge badge-muted">UNKNOWN</span>
     const { status, mode } = providerStatus
 
-    if (status === 'connected') {
+    if (status === 'connected' && mode === 'LIVE') {
       return (
         <span className="badge badge-emerald flex items-center gap-1">
           <CheckCircle2 size={11} /> LIVE CONNECTED
+        </span>
+      )
+    }
+    if (status === 'connected' && mode === 'DEMO') {
+      return (
+        <span className="badge badge-blue flex items-center gap-1">
+          <CheckCircle2 size={11} /> VERIFIED · DEMO MODE
         </span>
       )
     }
