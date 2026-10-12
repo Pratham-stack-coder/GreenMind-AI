@@ -370,7 +370,11 @@ const DEMO_SETTINGS: SettingsStatusResponse = {
     openai_configured: false,
     gemini_configured: false,
   },
-  database: 'sqlite',
+  database: {
+    type: 'sqlite',
+    status: 'connected',
+    is_persistent: true,
+  },
   redis: false,
 }
 
