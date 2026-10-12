@@ -66,8 +66,8 @@
 ---
 
 ### 🔑 OPTIONAL / REQUIRES CREDENTIALS
-- **Live Cloud Credentials**: Set `AWS_ACCESS_KEY_ID`, `AZURE_SUBSCRIPTION_ID`/`CLIENT_SECRET`, or `GCP_PROJECT_ID` to activate live polling instead of Demo mode.
-- **LLM-Enhanced Copilot**: Connects to OpenAI (`OPENAI_API_KEY`) or Google Gemini (`GEMINI_API_KEY`). Defaults to built-in deterministic telemetry reasoning when keys are absent.
+- **Live Cloud Credentials**: Each signed-in user can configure AWS, Azure, or GCP credentials in Settings. Those credentials are encrypted and isolated by Supabase user ID; backend environment credentials are reserved for system-managed operations.
+- **LLM-Enhanced Copilot**: Each signed-in user can save an OpenAI or Gemini key in Settings. Keys are shown as saved but unverified; Copilot uses deterministic telemetry reasoning when no user key is saved or an optional provider SDK/API call fails.
 - **Production PostgreSQL & Redis**: Activated when `DATABASE_URL` and `REDIS_URL` are set; falls back to async SQLite and in-memory ring buffers otherwise.
 
 ---
