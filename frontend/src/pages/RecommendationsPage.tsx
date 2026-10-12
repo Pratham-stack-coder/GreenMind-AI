@@ -355,7 +355,7 @@ function ExplainModal({ rec, provider, region, onClose }: ExplainModalProps) {
               ) : (
                 <>
                   <Sparkles size={14} />
-                  Apply Optimization
+                  Apply Changes
                 </>
               )}
             </button>
@@ -380,6 +380,7 @@ function RecCard({
 
   const isApplied = rec.status === 'applied'
   const color = categoryColors[rec.category] || 'muted'
+  const canApplyLive = provider === 'aws' && ['terminate_idle', 'right_size_down'].includes(rec.action)
   const prioColor =
     rec.priority === 'critical' ? 'red' : rec.priority === 'high' ? 'amber' : rec.priority === 'medium' ? 'blue' : 'muted'
 
@@ -466,15 +467,18 @@ function RecCard({
               <button
                 className="btn btn-primary btn-sm"
                 style={{ padding: '4px 12px', fontSize: 12 }}
-                onClick={handleApplyNow}
-                disabled={isApplying}
+                onClick={canApplyLive ? () => onExplain(rec) : handleApplyNow}
+                disabled={!canApplyLive && isApplying}
+                title={canApplyLive ? 'Review this AWS change and confirm before applying it.' : 'Prepare a dry-run preview; no cloud resources are changed.'}
               >
-                {isApplying ? (
+                {isApplying && !canApplyLive ? (
                   <Loader2 size={13} className="animate-spin" />
+                ) : canApplyLive ? (
+                  <Sparkles size={12} />
                 ) : (
                   <Play size={12} />
                 )}
-                Dry-Run
+                {canApplyLive ? 'Apply Changes' : 'Dry-Run'}
               </button>
             </div>
           ) : (
