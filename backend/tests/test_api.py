@@ -219,14 +219,14 @@ def test_cloud_resources(client):
     assert len(data["resources"]) > 0
 
 
-def test_prometheus_metrics():
+def test_prometheus_metrics(client):
     response = client.get("/metrics/prometheus")
     assert response.status_code == 200
     assert "greenmind_api_requests_total" in response.text
     assert "greenmind_cloud_collections_total" in response.text
 
 
-def test_cors_vercel_origin():
+def test_cors_vercel_origin(client):
     """Verify that requests from any *.vercel.app domain receive correct CORS headers with credentials."""
     response = client.get("/health", headers={"Origin": "https://my-preview-app.vercel.app"})
     assert response.status_code == 200
@@ -234,7 +234,7 @@ def test_cors_vercel_origin():
     assert response.headers.get("access-control-allow-credentials") == "true"
 
 
-def test_cors_preflight_options():
+def test_cors_preflight_options(client):
     """Verify OPTIONS preflight request from Vercel is authorized cleanly."""
     response = client.options(
         "/api/v1/telemetry/live",
@@ -249,7 +249,7 @@ def test_cors_preflight_options():
     assert "GET" in response.headers.get("access-control-allow-methods", "")
 
 
-def test_telemetry_provider_status():
+def test_telemetry_provider_status(client):
     """Verify provider connectivity status endpoint."""
     response = client.get("/api/v1/telemetry/provider-status")
     assert response.status_code == 200
@@ -260,7 +260,7 @@ def test_telemetry_provider_status():
     assert "gcp" in data["providers"]
 
 
-def test_agent_execution_trace():
+def test_agent_execution_trace(client):
     """Verify that multi-agent execution emits detailed LangGraph node traces."""
     response = client.post("/api/v1/agents/run", json={"provider": "aws", "region": "us-east"})
     assert response.status_code == 200
@@ -274,7 +274,7 @@ def test_agent_execution_trace():
     assert "thoughts" in step1
 
 
-def test_digital_twin_latency_and_risk():
+def test_digital_twin_latency_and_risk(client):
     """Verify that digital twin computes M/M/1 queueing latency and risk scores."""
     req_body = {
         "baseline_metrics": {
@@ -305,7 +305,7 @@ def test_digital_twin_latency_and_risk():
     assert "p95_latency_pct" in data["delta"]
 
 
-def test_explain_quantitative_evidence():
+def test_explain_quantitative_evidence(client):
     """Verify that recommendation explanation returns quantitative telemetry comparisons."""
     recs_res = client.get("/api/v1/recommendations?provider=aws&region=us-east")
     assert recs_res.status_code == 200
@@ -323,7 +323,7 @@ def test_explain_quantitative_evidence():
     assert "counterfactual" in exp_data
 
 
-def test_recommendation_apply_and_rollback_flow():
+def test_recommendation_apply_and_rollback_flow(client):
     """Verify applying a recommendation (dry-run & live) and rolling it back."""
     recs_res = client.get("/api/v1/recommendations?provider=aws&region=us-east")
     assert recs_res.status_code == 200
