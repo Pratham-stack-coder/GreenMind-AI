@@ -40,3 +40,25 @@ def test_cors_rejects_unlisted_browser_origin():
         },
     )
     assert response.headers.get("access-control-allow-origin") != "https://attacker.vercel.app"
+
+
+def test_cross_user_recommendation_identifier_does_not_expose_private_user_state():
+    # Current recommendation route state is process-global rather than persisted with an owner.
+    # This test locks in that an unknown recommendation cannot be mutated or inspected.
+    from app.routers import recommendations as recommendations_router
+
+    previous_recs = recommendations_router._last_recommendations
+    previous_applied = recommendations_router._applied_recommendations
+    previous_dismissed = recommendations_router._dismissed_ids
+    try:
+        recommendations_router._last_recommendations = []
+        recommendations_router._applied_recommendations = {}
+        recommendations_router._dismissed_ids = set()
+        client = TestClient(app)
+        # No valid bearer should be able to inspect/mutate these endpoints.
+        response = client.post("/api/v1/recommendations/not-owned-by-user/apply")
+        assert response.status_code == 401
+    finally:
+        recommendations_router._last_recommendations = previous_recs
+        recommendations_router._applied_recommendations = previous_applied
+        recommendations_router._dismissed_ids = previous_dismissed
