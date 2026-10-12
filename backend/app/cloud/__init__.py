@@ -40,6 +40,19 @@ def clear_provider_credentials(name: str) -> None:
     _PROVIDERS.pop((user_id, provider_name), None)
 
 
+def sync_user_provider_credentials(user_id: str, credentials: dict[str, dict[str, str]]) -> None:
+    """Refresh this user's provider credentials and invalidate changed clients."""
+    for provider_name in ("aws", "azure", "gcp"):
+        key = (user_id, provider_name)
+        value = credentials.get(provider_name, {})
+        if _USER_CREDENTIALS.get(key, {}) != value:
+            if value:
+                _USER_CREDENTIALS[key] = dict(value)
+            else:
+                _USER_CREDENTIALS.pop(key, None)
+            _PROVIDERS.pop(key, None)
+
+
 def get_provider(name: Any = "aws") -> BaseCloudProvider:
     """Return a provider instance scoped to the active authenticated user."""
     if hasattr(name, "default"):
