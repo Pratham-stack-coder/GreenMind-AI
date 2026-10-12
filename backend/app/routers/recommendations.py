@@ -80,52 +80,6 @@ def _build_recommendations(provider: str, region: str) -> tuple[list[Recommendat
     return state["recommendations"], state["score"]
 
 
-def _generate_execution_steps(rec: RecommendationItem) -> list[str]:
-    cat_steps = {
-        "cost": [
-            "Analyzed current resource utilization against capacity threshold",
-            f"Executed right-sizing API workflow: {rec.action}",
-            "Reconfigured target capacity & instance family attributes",
-            "Verified zero SLO breach and service health check passed",
-            f"Estimated monthly savings of ${rec.estimated_monthly_savings_usd:.0f}/mo locked in",
-        ],
-        "performance": [
-            "Captured baseline p95/p99 latency distribution",
-            f"Applied concurrency & scaling adjustment: {rec.action}",
-            "Warmed up caches and re-balanced traffic ingress",
-            "Verified latency normalized below saturation threshold",
-            "Updated auto-scaling response triggers",
-        ],
-        "sustainability": [
-            "Queried regional carbon intensity grid forecast for optimization window",
-            f"Scheduled carbon-aware policy: {rec.action}",
-            "Shifted batch and deferred workloads to lowest-carbon time windows",
-            f"Achieved estimated -{rec.estimated_carbon_reduction_pct:.0f}% carbon emission reduction",
-            "Published carbon telemetry metric to GreenMind dashboard",
-        ],
-        "security": [
-            "Inspected firewall rules, security groups, and IAM permissions",
-            f"Remediated identified security exposure: {rec.action}",
-            "Enforced principle of least privilege and encrypted traffic channels",
-            "Logged audit trail record in compliance ledger",
-            "Verified attack surface reduction without service interruption",
-        ],
-        "reliability": [
-            "Evaluated multi-zone redundancy and single-point-of-failure risks",
-            f"Implemented resiliency measure: {rec.action}",
-            "Configured automated health probes and failover routing",
-            "Synchronized replica state with zero downtime",
-            "Updated high-availability runbook and monitoring alarms",
-        ],
-    }
-    return cat_steps.get(rec.category, [
-        "Analyzed system telemetry baseline",
-        f"Executed optimization action: {rec.action}",
-        "Verified system stability post-execution",
-        "Updated audit log",
-    ])
-
-
 def _execute_apply(rec: RecommendationItem, dry_run: bool = False, operator_notes: str | None = None) -> ApplyResponse:
     state = _user_state()
     from ..integrations.cloud_actions import CloudActionDispatcher
