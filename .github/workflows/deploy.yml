@@ -1,4 +1,4 @@
-name: CD Pipeline
+name: Container Image Publishing
 
 on:
   push:
@@ -17,7 +17,7 @@ on:
 
 jobs:
   deploy:
-    name: Build & Deploy Container Images
+    name: Build & Publish Container Images
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -69,6 +69,7 @@ jobs:
           tags: ${{ steps.meta-frontend.outputs.tags }}
           labels: ${{ steps.meta-frontend.outputs.labels }}
 
-      - name: Deployment Smoke Verification
+      - name: Report publication scope
         run: |
-          echo "Successfully validated and prepared container images for GreenMind AI (${{ github.ref_name }})."
+          echo "Container images were built and published to GHCR."
+          echo "No runtime deployment target is configured by this workflow."
