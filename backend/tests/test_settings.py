@@ -16,7 +16,7 @@ def client(authenticated_client):
     return authenticated_client
 
 
-def test_settings_status_zero_secret_leakage():
+def test_settings_status_zero_secret_leakage(client):
     """Verify settings status endpoint returns sanitized metadata and no secrets."""
     res = client.get("/api/v1/settings/status")
     assert res.status_code == 200
@@ -41,14 +41,14 @@ def test_settings_status_zero_secret_leakage():
         assert "aizasy" not in raw_text
 
 
-def test_settings_test_connection_unknown_provider():
+def test_settings_test_connection_unknown_provider(client):
     """Test connecting to unsupported provider returns 400."""
     res = client.post("/api/v1/settings/test-connection", json={"provider": "oracle_cloud"})
     assert res.status_code == 400
     assert "Unsupported provider" in res.json()["detail"]
 
 
-def test_settings_test_connection_aws_invalid_creds():
+def test_settings_test_connection_aws_invalid_creds(client):
     """Test AWS connection with invalid dummy credentials returns auth_failed cleanly (no 500)."""
     res = client.post(
         "/api/v1/settings/test-connection",
@@ -68,7 +68,7 @@ def test_settings_test_connection_aws_invalid_creds():
     assert "message" in data
 
 
-def test_settings_test_connection_azure_invalid_creds():
+def test_settings_test_connection_azure_invalid_creds(client):
     """Test Azure connection with invalid dummy credentials returns auth_failed cleanly (no 500)."""
     res = client.post(
         "/api/v1/settings/test-connection",
@@ -89,7 +89,7 @@ def test_settings_test_connection_azure_invalid_creds():
     assert "message" in data
 
 
-def test_settings_test_connection_gcp_invalid_creds():
+def test_settings_test_connection_gcp_invalid_creds(client):
     """Test GCP connection with invalid dummy credentials returns auth_failed cleanly (no 500)."""
     res = client.post(
         "/api/v1/settings/test-connection",
@@ -108,7 +108,7 @@ def test_settings_test_connection_gcp_invalid_creds():
     assert "message" in data
 
 
-def test_settings_configure_and_disconnect():
+def test_settings_configure_and_disconnect(client):
     """Test configuring a provider and disconnecting back to demo."""
     # Configure dummy AWS
     res = client.post(
@@ -138,7 +138,7 @@ def test_settings_configure_and_disconnect():
     assert "Reset to Demo" in disc_data["message"]
 
 
-def test_dual_path_registration():
+def test_dual_path_registration(client):
     """Verify endpoints are accessible under both /api/v1/ and root."""
     h1 = client.get("/health")
     h2 = client.get("/api/v1/health")
