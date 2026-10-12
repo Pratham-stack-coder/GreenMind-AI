@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
+
+from ..auth import get_current_user_id
 
 from ..agents import orchestrator
 from ..routers.telemetry import _generate_live_metrics
@@ -10,13 +12,15 @@ from ..schemas import AgentRunRequest, AgentRunResponse
 
 router = APIRouter(prefix="/agents", tags=["Multi-Agent AI"])
 
-_last_run: AgentRunResponse | None = None
+_last_runs: dict[str, AgentRunResponse] = {}
 
 
 @router.post("/run", response_model=AgentRunResponse)
 def run_agents(req: AgentRunRequest):
     """Trigger a full multi-agent analysis run."""
-    global _last_run
+    user_id = get_current_user_id()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="An authenticated user is required.")
     metrics = req.metrics or _generate_live_metrics(req.provider, req.region)
     context = {
         "open_security_group_ports": ["0.0.0.0/0:22"],
@@ -29,11 +33,14 @@ def run_agents(req: AgentRunRequest):
         "has_health_checks": True,
     }
     result = orchestrator.run(metrics, context)
-    _last_run = result
+    _last_runs[user_id] = result
     return result
 
 
 @router.get("/status", response_model=AgentRunResponse | None)
 def agent_status():
     """Return the results of the last agent run."""
-    return _last_run
+    user_id = get_current_user_id()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="An authenticated user is required.")
+    return _last_runs.get(user_id)
