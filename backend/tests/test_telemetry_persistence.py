@@ -143,7 +143,8 @@ def test_collect_and_persist_telemetry_loop():
     asyncio.run(_run())
 
 
-def test_telemetry_history_api():
+def test_telemetry_history_api(authenticated_client):
+    client = authenticated_client
     """Verify /api/v1/telemetry/history supports filters and granularities."""
     # Seed a metric
     res = client.get("/api/v1/telemetry/live?provider=aws&region=us-east")
