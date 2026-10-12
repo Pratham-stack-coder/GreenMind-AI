@@ -127,7 +127,7 @@ def _execute_apply(rec: RecommendationItem, dry_run: bool = False, operator_note
         new_score=target_score,
     )
 
-    if not dry_run:
+    if not dry_run and not settings.demo_mode:
         rec.status = "applied"
         rec.applied_at = resp.applied_at
         rec.steps_taken = resp.steps_taken
