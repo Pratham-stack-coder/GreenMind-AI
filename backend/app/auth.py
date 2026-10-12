@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextvars import ContextVar
 from functools import lru_cache
 from typing import Any
 
@@ -16,6 +17,12 @@ from jwt.exceptions import PyJWKClientConnectionError, PyJWKClientError
 from .config import Settings, get_settings
 
 bearer_scheme = HTTPBearer(auto_error=False)
+_current_user_id: ContextVar[str | None] = ContextVar("greenmind_user_id", default=None)
+
+
+def get_current_user_id() -> str | None:
+    """Return the verified Supabase subject for the active request, if any."""
+    return _current_user_id.get()
 
 
 @lru_cache(maxsize=8)
@@ -153,4 +160,13 @@ async def require_authenticated_user(
             detail="A Supabase bearer access token is required.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return await verify_supabase_access_token(credentials.credentials)
+    claims = await verify_supabase_access_token(credentials.credentials)
+    user_id = claims.get("sub")
+    if not isinstance(user_id, str) or not user_id.strip():
+        raise HTTPException(status_code=401, detail="Supabase access token has no valid user subject.")
+
+    context_token = _current_user_id.set(user_id)
+    try:
+        yield claims
+    finally:
+        _current_user_id.reset(context_token)
