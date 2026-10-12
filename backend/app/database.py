@@ -326,20 +326,24 @@ if settings.redis_url:
 
 
 async def cache_get(key: str) -> Any | None:
-    if _redis is None:
+    owner_id = get_current_user_id()
+    if _redis is None or not owner_id:
         return None
+    scoped_key = f"user:{owner_id}:{key}"
     try:
-        raw = await _redis.get(key)
+        raw = await _redis.get(scoped_key)
         return json.loads(raw) if raw else None
     except Exception:
         return None
 
 
 async def cache_set(key: str, value: Any, ttl: int = 30) -> None:
-    if _redis is None:
+    owner_id = get_current_user_id()
+    if _redis is None or not owner_id:
         return
+    scoped_key = f"user:{owner_id}:{key}"
     try:
-        await _redis.setex(key, ttl, json.dumps(value, default=str))
+        await _redis.setex(scoped_key, ttl, json.dumps(value, default=str))
     except Exception:
         pass
 
