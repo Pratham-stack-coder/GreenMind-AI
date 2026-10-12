@@ -251,17 +251,18 @@ def rollback_recommendation(rec_id: str):
             detail=f"Recommendation '{rec_id}' is not in applied state.",
         )
 
-    rec.status = "open"
-    rec.applied_at = None
-    rec.steps_taken = []
-    _applied_recommendations.pop(rec_id, None)
-
-    # Decrement score back down
-    penalty = 4 if rec.priority in ("critical", "high") else 2
-    _last_score = max(50, _last_score - penalty)
-
     from ..integrations.cloud_actions import CloudActionDispatcher
-    return CloudActionDispatcher.rollback_recommendation(rec, new_score=_last_score)
+    result = CloudActionDispatcher.rollback_recommendation(rec, new_score=_last_score)
+
+    # Do not mutate application state until a real rollback is confirmed.
+    if result.status == "rolled_back":
+        rec.status = "open"
+        rec.applied_at = None
+        rec.steps_taken = []
+        _applied_recommendations.pop(rec_id, None)
+        penalty = 4 if rec.priority in ("critical", "high") else 2
+        _last_score = max(50, _last_score - penalty)
+    return result
 
 
 @router.post("/{rec_id}/dismiss")
