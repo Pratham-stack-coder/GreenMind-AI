@@ -38,19 +38,19 @@
   - Runtime credential configuration and one-click Disconnect to Demo mode.
   - Zero-secret-leakage guarantee: Secrets are kept strictly in-memory or environment variables, never written to plaintext database tables, and never exposed in client API responses.
 - **Enterprise Dark React Cockpit (All 11 Dedicated Pages)**:
-  1. `Overview Dashboard` ([DashboardPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/DashboardPage.tsx)): 8 metric cards, 6 live trend charts, dynamic multi-cloud provider badges (AWS/Azure/GCP Live vs Demo), and truthful telemetry source labeling.
-  2. `Cloud Resources` ([CloudResourcesPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/CloudResourcesPage.tsx)): Searchable multi-cloud resource inventory with right-sizing candidate flags.
-  3. `Predictions` ([PredictionsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/PredictionsPage.tsx)): 60-minute multi-metric forecasting and model evaluation telemetry.
-  4. `Cost Optimization` ([CostOptimizationPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/CostOptimizationPage.tsx)): Spend curve, underutilization detection, and instant scenario simulator.
-  5. `Carbon Intelligence` ([CarbonIntelligencePage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/CarbonIntelligencePage.tsx)): 24-hour grid carbon intensity curve, regional clean energy ranking, and time-shift scheduler.
-  6. `AI Recommendations` ([RecommendationsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/RecommendationsPage.tsx)): Recommendation ledger with Dry-Run, Apply, Rollback, and Explain AI modal.
-  7. `Multi-Agent AI` ([AgentsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/AgentsPage.tsx)): Visual orchestration flow, domain scores, and transparent conflict resolution matrix.
-  8. `Digital Twin` ([DigitalTwinPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/DigitalTwinPage.tsx)): Interactive simulation workbench for all 5 scenarios (including Region Migration).
-  9. `AI Copilot` ([CopilotPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/CopilotPage.tsx)): Natural language interface citing real backend metrics and providing quick actions.
-  10. `Analytics` ([AnalyticsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/AnalyticsPage.tsx)): Historical spend and carbon analytics with provider breakdowns.
-  11. `Settings` ([SettingsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/SettingsPage.tsx)): Fully functional credentials tester, provider connector, and architecture inspector.
+  1. `Overview Dashboard` ([DashboardPage.tsx](frontend/src/pages/DashboardPage.tsx)): 8 metric cards, 6 live trend charts, dynamic multi-cloud provider badges (AWS/Azure/GCP Live vs Demo), and truthful telemetry source labeling.
+  2. `Cloud Resources` ([CloudResourcesPage.tsx](frontend/src/pages/CloudResourcesPage.tsx)): Searchable multi-cloud resource inventory with right-sizing candidate flags.
+  3. `Predictions` ([PredictionsPage.tsx](frontend/src/pages/PredictionsPage.tsx)): 60-minute multi-metric forecasting and model evaluation telemetry.
+  4. `Cost Optimization` ([CostOptimizationPage.tsx](frontend/src/pages/CostOptimizationPage.tsx)): Spend curve, underutilization detection, and instant scenario simulator.
+  5. `Carbon Intelligence` ([CarbonIntelligencePage.tsx](frontend/src/pages/CarbonIntelligencePage.tsx)): 24-hour grid carbon intensity curve, regional clean energy ranking, and time-shift scheduler.
+  6. `AI Recommendations` ([RecommendationsPage.tsx](frontend/src/pages/RecommendationsPage.tsx)): Recommendation ledger with Dry-Run, Apply, Rollback, and Explain AI modal.
+  7. `Multi-Agent AI` ([AgentsPage.tsx](frontend/src/pages/AgentsPage.tsx)): Visual orchestration flow, domain scores, and transparent conflict resolution matrix.
+  8. `Digital Twin` ([DigitalTwinPage.tsx](frontend/src/pages/DigitalTwinPage.tsx)): Interactive simulation workbench for all 5 scenarios (including Region Migration).
+  9. `AI Copilot` ([CopilotPage.tsx](frontend/src/pages/CopilotPage.tsx)): Natural language interface citing real backend metrics and providing quick actions.
+  10. `Analytics` ([AnalyticsPage.tsx](frontend/src/pages/AnalyticsPage.tsx)): Historical spend and carbon analytics with provider breakdowns.
+  11. `Settings` ([SettingsPage.tsx](frontend/src/pages/SettingsPage.tsx)): Fully functional credentials tester, provider connector, and architecture inspector.
 - **Production Deployment Blueprints & Guides**:
-  - **Render & Vercel Connection Guide** ([DEPLOYMENT.md](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/DEPLOYMENT.md)): Complete step-by-step walkthrough to deploy and connect Render.com backend with Vercel.com frontend.
+  - **Render & Vercel Connection Guide** ([DEPLOYMENT.md](DEPLOYMENT.md)): Complete step-by-step walkthrough to deploy and connect Render.com backend with Vercel.com frontend.
   - **Render Backend Blueprint** (`render.yaml`): Automated deployment on Render binding to dynamic `$PORT` with healthcheck at `/health`.
   - **Vercel Frontend Configuration** (`vercel.json` and `frontend/vercel.json`): SPA routing with client-side history rewrites and dynamic `VITE_API_BASE_URL` support.
 - **5-Metric ML Forecasting Pipeline**: Separate Gradient Boosting models for CPU, Memory, Network, Cost, and Carbon. Chronological train/test split without data leakage. Real MAE, RMSE, and R² scores recorded and exported.
