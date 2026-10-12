@@ -11,7 +11,9 @@ import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 
-client = TestClient(app)
+@pytest.fixture
+def client(authenticated_client):
+    return authenticated_client
 
 
 def test_settings_status_zero_secret_leakage():
