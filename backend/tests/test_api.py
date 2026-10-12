@@ -239,7 +239,7 @@ def test_cors_preflight_options(client):
     response = client.options(
         "/api/v1/telemetry/live",
         headers={
-            "Origin": "https://greenmind-dashboard.vercel.app",
+            "Origin": "https://greenmind-ai.vercel.app",
             "Access-Control-Request-Method": "GET",
             "Access-Control-Request-Headers": "content-type",
         },
