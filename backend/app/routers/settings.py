@@ -100,7 +100,7 @@ def test_provider_connection(req: TestConnectionRequest) -> dict[str, Any]:
 
     if prov_name in ["aws", "azure", "gcp"]:
         provider = get_provider(prov_name)
-        res = provider.test_connection(credentials=creds)
+        res = provider.test_connection(credentials=creds or None)
         res["provider"] = prov_name
         return res
 
