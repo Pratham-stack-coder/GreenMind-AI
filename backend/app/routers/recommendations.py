@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -183,7 +184,7 @@ def list_recommendations(
 
 
 @router.get("/applied", response_model=list[ApplyResponse])
-def liststate["applied"]():
+def list_applied_recommendations():
     """Get audit trail history of all applied recommendations."""
     return list(_user_state()["applied"].values())
 
