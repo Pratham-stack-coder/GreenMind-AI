@@ -447,6 +447,15 @@ class GCPCloudProvider(BaseCloudProvider):
                         "account_info": self.get_account_info(),
                         "last_tested": datetime.now(timezone.utc).isoformat(),
                     }
+                    if settings.demo_mode:
+                        self.is_live = False
+                        res["mode"] = "DEMO"
+                        res["telemetry_status"] = "DEMO"
+                        res["message"] = (
+                            f"GCP credentials verified for project '{proj}'; "
+                            "DEMO_MODE is enabled, so telemetry remains synthetic."
+                        )
+                        res["account_info"]["mode"] = "DEMO"
                 elif resp.status_code == 403:
                     self.is_live = False
                     body = resp.json()
