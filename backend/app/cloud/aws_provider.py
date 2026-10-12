@@ -316,8 +316,14 @@ class AWSCloudProvider(BaseCloudProvider):
 
         self._last_test_result = res
         if res.get("success", False):
-            self.is_live = True
-            logger.info(f"AWS provider activated in LIVE mode: {res.get('details', {}).get('account_id', 'unknown')}")
+            self.is_live = not settings.demo_mode
+            if settings.demo_mode:
+                res["mode"] = "DEMO"
+                res["telemetry_status"] = "DEMO"
+                res["message"] = "AWS credentials verified; DEMO_MODE is enabled, so telemetry remains synthetic."
+                if isinstance(res.get("account_info"), dict):
+                    res["account_info"]["mode"] = "DEMO"
+            logger.info(f"AWS provider verified; telemetry mode is {'LIVE' if self.is_live else 'DEMO'}.")
         else:
             self.is_live = False
             logger.info(f"AWS provider connection result: {res.get('status')} - {res.get('message', '')}")
