@@ -657,6 +657,7 @@ async def persist_audit_log(
     if not owner_id:
         raise RuntimeError("Audit log persistence requires an authenticated user.")
     try:
+        await init_db()
         async with _async_session_maker() as session:
             log = AuditLogRecord(
                 owner_id=owner_id,

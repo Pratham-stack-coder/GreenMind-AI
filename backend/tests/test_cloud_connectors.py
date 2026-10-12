@@ -2,6 +2,7 @@
 
 import pytest
 from unittest.mock import MagicMock, patch
+from fastapi import HTTPException
 from app.cloud import get_provider
 from app.cloud.aws_provider import AWSCloudProvider
 from app.cloud.azure_provider import AzureCloudProvider
@@ -13,7 +14,9 @@ def test_provider_factory():
     aws = get_provider("aws")
     azure = get_provider("azure")
     gcp = get_provider("gcp")
-    default = get_provider("unknown")
+    with pytest.raises(HTTPException) as exc_info:
+        get_provider("unknown")
+    assert exc_info.value.status_code == 400
 
     assert isinstance(aws, AWSCloudProvider)
     assert isinstance(azure, AzureCloudProvider)

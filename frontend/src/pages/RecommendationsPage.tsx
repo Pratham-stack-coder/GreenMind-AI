@@ -863,7 +863,7 @@ export default function RecommendationsPage() {
             rec={selectedExplainRec}
             provider={provider}
             region={region}
-            onClose={() => setSelectedExplainRec(null)
+            onClose={() => setSelectedExplainRec(null)}
           />
         )}
       </AnimatePresence>

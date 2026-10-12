@@ -59,7 +59,7 @@ class CopilotAgent:
             recs = tools.get_recommendations(req.provider, req.region)
             snapshot["metrics"] = metrics
             snapshot["cost_analysis"] = cost_data
-            snapshot["recommendations"] = [rec.model_dump() for rec in recs]
+            snapshot["recommendations"] = recs
 
         if any(w in msg for w in ["carbon", "green", "emission", "co2", "renewable", "clean"]):
             sources.append("carbon_analysis")
