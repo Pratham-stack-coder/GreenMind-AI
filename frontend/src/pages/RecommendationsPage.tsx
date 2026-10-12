@@ -493,7 +493,7 @@ function RecCard({
                 <div className="flex items-center gap-2 mb-2">
                   <CheckCircle2 size={14} color="var(--emerald-400)" />
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--emerald-400)' }}>
-                    Automated Remediation Execution Log
+                    Recorded Action Details
                   </span>
                   {rec.applied_at && (
                     <span className="text-xs text-muted" style={{ marginLeft: 'auto' }}>
@@ -777,7 +777,7 @@ export default function RecommendationsPage() {
             {appliedRecs.length > 0 && (
               <div className="badge badge-emerald" style={{ padding: '6px 12px', fontSize: 12 }}>
                 <CheckCircle2 size={14} />
-                {appliedRecs.length} optimizations actively enforced
+                {appliedRecs.length} recommendations marked as applied
               </div>
             )}
           </div>
