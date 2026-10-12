@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     app_version: str = "2.0.0"
     debug: bool = False
     demo_mode: bool = False  # False → try real cloud provider APIs
+    app_env: str = "production"  # development/test enables loopback browser origins
 
     # ── Database (optional — falls back to in-memory if not set) ─────────────
     database_url: str = ""         # e.g. postgresql+asyncpg://user:pass@localhost/greenmind
@@ -61,16 +62,25 @@ class Settings(BaseSettings):
 
     # ── CORS ─────────────────────────────────────────────────────────────────
     # Exact-match browser origins only; production hosts must be explicit.
-    allowed_origins: str = "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000,https://green-mind-ai-ten.vercel.app,https://greenmind-ai.vercel.app,https://green-mind-2shiqlt61-pratham-stack-coders-projects.vercel.app"
+    allowed_origins: str = "https://green-mind-ai-ten.vercel.app,https://greenmind-ai.vercel.app,https://green-mind-2shiqlt61-pratham-stack-coders-projects.vercel.app"
     cors_origins: str = ""  # Additional exact origins, comma- or semicolon-separated
 
     def get_allowed_origins(self) -> list[str]:
         raw = ",".join((self.allowed_origins or "", self.cors_origins or ""))
-        return list(dict.fromkeys(
+        configured = [
             value.strip().rstrip("/")
             for value in raw.replace(";", ",").split(",")
             if value.strip()
-        ))
+        ]
+        local_development_origins = [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:3000",
+        ]
+        if self.app_env.strip().lower() in {"development", "test"}:
+            configured = local_development_origins + configured
+        return list(dict.fromkeys(configured)
 
 
 
