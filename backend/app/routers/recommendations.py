@@ -118,7 +118,7 @@ def _execute_apply(rec: RecommendationItem, dry_run: bool = False, operator_note
     from ..integrations.cloud_actions import CloudActionDispatcher
 
     boost = 4 if rec.priority in ("critical", "high") else 2
-    target_score = _last_score if dry_run else min(98, _last_score + boost)
+    target_score = _last_score if (dry_run or settings.demo_mode) else min(98, _last_score + boost)
 
     resp = CloudActionDispatcher.execute_recommendation(
         rec=rec,
@@ -127,7 +127,7 @@ def _execute_apply(rec: RecommendationItem, dry_run: bool = False, operator_note
         new_score=target_score,
     )
 
-    if not dry_run and not settings.demo_mode:
+    if not dry_run and not settings.demo_mode and resp.status == "applied":
         rec.status = "applied"
         rec.applied_at = resp.applied_at
         rec.steps_taken = resp.steps_taken
