@@ -118,21 +118,22 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS configuration supporting deployed Vercel and local dev origins
+# CORS only permits explicit local and configured deployment origins.
 cors_origins = list(settings.allowed_origins)
 if settings.cors_origins:
-    cors_origins.extend([o.strip() for o in settings.cors_origins.replace(";", ",").split(",") if o.strip()])
-
-# In demo mode allow all HTTP/HTTPS origins while preserving credentials support.
-# In production (DEMO_MODE=false): allow all *.vercel.app domains plus explicitly configured origins.
-origin_regex = r"^https?:\/\/.*$" if settings.demo_mode else r"^https:\/\/.*\.vercel\.app$"
+    cors_origins.extend(
+        origin.strip()
+        for origin in settings.cors_origins.replace(";", ",").split(",")
+        if origin.strip()
+    )
+cors_origins = list(dict.fromkeys(cors_origins))
 
 # Middleware
 app.add_middleware(PrometheusMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
-    allow_origin_regex=origin_regex,
+    allow_origin_regex=None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -221,8 +222,11 @@ async def ready():
     try:
         info = predictor.model_info()
         checks["ml_models"] = "loaded" if info else "not_trained"
+        if not info:
+            overall_ready = False
     except Exception:
         checks["ml_models"] = "error"
+        overall_ready = False
 
     # Redis check (optional)
     if settings.redis_url:
