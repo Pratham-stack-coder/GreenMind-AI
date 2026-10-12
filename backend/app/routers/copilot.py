@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from ..cloud import get_user_credentials
+
 from ..copilot.agent import copilot_agent
 from ..copilot.schemas import CopilotChatRequest
 from ..schemas import CopilotRequest, CopilotResponse
@@ -23,7 +25,12 @@ async def chat(req: CopilotRequest):
         history=history,
         context=req.context or {},
     )
-    result = copilot_agent.process_message(internal_req)
+    llm_credentials = {
+        **get_user_credentials("gemini"),
+        **get_user_credentials("openai"),
+        **get_user_credentials("llm"),
+    }
+    result = copilot_agent.process_message(internal_req, llm_credentials=llm_credentials)
 
     return CopilotResponse(
         reply=result.answer,

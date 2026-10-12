@@ -28,8 +28,8 @@ settings = get_settings()
 class AWSCloudProvider(BaseCloudProvider):
     """AWS provider adapter supporting both LIVE CloudWatch telemetry and DEMO simulation."""
 
-    def __init__(self):
-        self.collector = AWSCollector()
+    def __init__(self, credentials: dict[str, str] | None = None):
+        self.collector = AWSCollector(credentials=credentials)
         is_live = not settings.demo_mode and self.collector.is_configured
         super().__init__(provider_name="aws", is_live=is_live)
 
@@ -301,24 +301,29 @@ class AWSCloudProvider(BaseCloudProvider):
 
     def test_connection(self, credentials: dict[str, Any] | None = None) -> dict[str, Any]:
         """Test AWS credentials and connectivity with 4-tier status output."""
-        if credentials:
-            ak = credentials.get("aws_access_key_id")
-            sk = credentials.get("aws_secret_access_key")
-            rg = credentials.get("aws_default_region")
-            st = credentials.get("aws_session_token")
+        if credentials is not None:
+            # Explicit empty values must not fall back to backend-wide environment credentials.
             res = self.collector.test_connection(
-                access_key_id=ak,
-                secret_access_key=sk,
-                region_name=rg,
-                session_token=st,
+                access_key_id=credentials.get("aws_access_key_id", ""),
+                secret_access_key=credentials.get("aws_secret_access_key", ""),
+                region_name=credentials.get("aws_default_region", ""),
+                session_token=credentials.get("aws_session_token", ""),
             )
         else:
+            # User-scoped collectors already hold that user's credentials; system collectors
+            # retain their configured environment defaults.
             res = self.collector.test_connection()
 
         self._last_test_result = res
         if res.get("success", False):
-            self.is_live = True
-            logger.info(f"AWS provider activated in LIVE mode: {res.get('details', {}).get('account_id', 'unknown')}")
+            self.is_live = not settings.demo_mode
+            if settings.demo_mode:
+                res["mode"] = "DEMO"
+                res["telemetry_status"] = "DEMO"
+                res["message"] = "AWS credentials verified; DEMO_MODE is enabled, so telemetry remains synthetic."
+                if isinstance(res.get("account_info"), dict):
+                    res["account_info"]["mode"] = "DEMO"
+            logger.info(f"AWS provider verified; telemetry mode is {'LIVE' if self.is_live else 'DEMO'}.")
         else:
             self.is_live = False
             logger.info(f"AWS provider connection result: {res.get('status')} - {res.get('message', '')}")

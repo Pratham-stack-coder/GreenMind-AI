@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.auth import _current_user_id
 from app.database import (
     init_db,
     persist_telemetry_entry,
@@ -19,6 +20,14 @@ from app.database import (
 from app.routers.telemetry import collect_and_persist_telemetry
 
 client = TestClient(app)
+
+
+async def _run_as_test_user(coroutine_function):
+    token = _current_user_id.set("test-persistence-user")
+    try:
+        return await coroutine_function()
+    finally:
+        _current_user_id.reset(token)
 
 
 def test_init_db_and_persist_telemetry():
@@ -59,7 +68,7 @@ def test_init_db_and_persist_telemetry():
         assert latest["memory_source"] == "UNAVAILABLE"
         assert "CloudWatch" in latest["memory_note"]
 
-    asyncio.run(_run())
+    asyncio.run(_run_as_test_user(_run))
 
 
 def test_all_entity_persist_helpers():
@@ -129,7 +138,7 @@ def test_all_entity_persist_helpers():
             dry_run=False,
         )
 
-    asyncio.run(_run())
+    asyncio.run(_run_as_test_user(_run))
 
 
 def test_collect_and_persist_telemetry_loop():
@@ -140,7 +149,7 @@ def test_collect_and_persist_telemetry_loop():
         history = get_telemetry_history(10)
         assert len(history) > 0
 
-    asyncio.run(_run())
+    asyncio.run(_run_as_test_user(_run))
 
 
 def test_telemetry_history_api():

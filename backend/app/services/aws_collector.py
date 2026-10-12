@@ -29,22 +29,31 @@ settings = get_settings()
 class AWSCollector:
     """Collects real-time metrics from AWS CloudWatch when credentials are provided."""
 
-    def __init__(self, region: str = "us-east-1"):
+    def __init__(self, region: str = "us-east-1", credentials: dict[str, str] | None = None):
         self.region = region
         self._cw_client = None
         self._ec2_client = None
         self._ce_client = None  # AWS Cost Explorer (requires ce:GetCostAndUsage)
-        self.is_configured = bool(
-            settings.aws_access_key_id and settings.aws_secret_access_key
-        )
+        user_scoped = credentials is not None
+        credentials = credentials or {}
+        access_key_id = credentials.get("aws_access_key_id", "" if user_scoped else settings.aws_access_key_id)
+        secret_access_key = credentials.get("aws_secret_access_key", "" if user_scoped else settings.aws_secret_access_key)
+        session_token = credentials.get("aws_session_token", "" if user_scoped else settings.aws_session_token)
+        default_region = credentials.get("aws_default_region", "" if user_scoped else settings.aws_default_region)
+        self._default_access_key_id = access_key_id
+        self._default_secret_access_key = secret_access_key
+        self._default_session_token = session_token
+        self._default_region = default_region or self.region
+        self.is_configured = bool(access_key_id and secret_access_key)
         if self.is_configured:
             try:
                 import boto3
 
                 session = boto3.Session(
-                    aws_access_key_id=settings.aws_access_key_id,
-                    aws_secret_access_key=settings.aws_secret_access_key,
-                    region_name=settings.aws_default_region or self.region,
+                    aws_access_key_id=access_key_id,
+                    aws_secret_access_key=secret_access_key,
+                    aws_session_token=session_token or None,
+                    region_name=default_region or self.region,
                 )
                 self._cw_client = session.client("cloudwatch")
                 self._ec2_client = session.client("ec2")
@@ -366,10 +375,12 @@ class AWSCollector:
         - api_reachability: REACHABLE / UNREACHABLE / NOT_CONFIGURED
         - telemetry_status: OPERATIONAL / DEGRADED / UNAVAILABLE / ERROR / DEMO
         """
-        ak = access_key_id or settings.aws_access_key_id
-        sk = secret_access_key or settings.aws_secret_access_key
-        st = session_token or getattr(settings, "aws_session_token", "") or None
-        rg = region_name or settings.aws_default_region or self.region
+        ak = access_key_id if access_key_id is not None else self._default_access_key_id
+        sk = secret_access_key if secret_access_key is not None else self._default_secret_access_key
+        st = session_token if session_token is not None else self._default_session_token
+        rg = region_name if region_name is not None else self._default_region
+        st = st or None
+        rg = rg or self.region
 
         if not (ak and sk):
             return {

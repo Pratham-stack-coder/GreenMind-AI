@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
+from contextvars import ContextVar
 from functools import lru_cache
 from typing import Any
 
@@ -16,6 +18,12 @@ from jwt.exceptions import PyJWKClientConnectionError, PyJWKClientError
 from .config import Settings, get_settings
 
 bearer_scheme = HTTPBearer(auto_error=False)
+_current_user_id: ContextVar[str | None] = ContextVar("greenmind_user_id", default=None)
+
+
+def get_current_user_id() -> str | None:
+    """Return the verified Supabase subject for the active request, if any."""
+    return _current_user_id.get()
 
 
 @lru_cache(maxsize=8)
@@ -145,7 +153,7 @@ async def verify_supabase_access_token(
 
 async def require_authenticated_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-) -> dict[str, Any]:
+) -> AsyncIterator[dict[str, Any]]:
     """FastAPI dependency for endpoints that require a valid Supabase session."""
     if credentials is None or credentials.scheme.lower() != "bearer":
         raise HTTPException(
@@ -153,4 +161,24 @@ async def require_authenticated_user(
             detail="A Supabase bearer access token is required.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return await verify_supabase_access_token(credentials.credentials)
+    claims = await verify_supabase_access_token(credentials.credentials)
+    user_id = claims.get("sub")
+    if not isinstance(user_id, str) or not user_id.strip():
+        raise HTTPException(status_code=401, detail="Supabase access token has no valid user subject.")
+
+    context_token = _current_user_id.set(user_id)
+    try:
+        try:
+            from .database import get_user_provider_credentials
+            from .cloud import sync_user_provider_credentials
+
+            user_credentials = await get_user_provider_credentials(user_id)
+            sync_user_provider_credentials(user_id, user_credentials)
+        except Exception:
+            # If credential storage is unavailable, fail closed for provider access.
+            from .cloud import sync_user_provider_credentials
+
+            sync_user_provider_credentials(user_id, {})
+        yield claims
+    finally:
+        _current_user_id.reset(context_token)

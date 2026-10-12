@@ -43,7 +43,7 @@ export default function SettingsPage() {
       const result = await testBackendConnection(urlToTest ?? backendUrlInput)
       setBackendTestResult(result)
       if (result.connected) {
-        setBackendSuccessMsg(`Backend connected (${result.latencyMs}ms)! FastAPI v${result.version} running in ${result.cloud_mode?.toUpperCase() || 'DEMO'} mode.`)
+        setBackendSuccessMsg(`Backend health check passed (${result.latencyMs}ms). FastAPI v${result.version} reports ${result.cloud_mode?.toUpperCase() || 'DEMO'} mode.`)
       }
       return result
     } finally {
@@ -53,7 +53,6 @@ export default function SettingsPage() {
 
   const handleSaveBackend = async () => {
     setBackendSuccessMsg(null)
-    setActiveBackendUrl(backendUrlInput)
     const result = await handleTestBackend(backendUrlInput)
     queryClient.invalidateQueries({ queryKey: ['health'] })
     queryClient.invalidateQueries({ queryKey: ['settings-status'] })
@@ -66,9 +65,12 @@ export default function SettingsPage() {
         : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
           ? window.location.origin
           : new URL('https://greenmind-backend-zqn5.onrender.com').origin
-      setBackendSuccessMsg(targetOrigin === trustedOrigin
-        ? `Active backend URL updated to: ${normalizeApiBaseUrl(backendUrlInput)}`
-        : `Health check passed, but authenticated API calls remain pinned to the build-time backend. Set VITE_API_BASE_URL to ${backendUrlInput} and redeploy to switch safely.`)
+      if (targetOrigin === trustedOrigin) {
+        setActiveBackendUrl(backendUrlInput)
+        setBackendSuccessMsg(`Trusted backend URL updated to: ${normalizeApiBaseUrl(backendUrlInput)}`)
+      } else {
+        setBackendSuccessMsg(`Health check passed. Authenticated requests still use the trusted backend for this build. Change VITE_API_BASE_URL in Vercel and redeploy to switch hosts.`)
+      }
     }
   }
 
@@ -115,10 +117,17 @@ export default function SettingsPage() {
     if (!providerStatus) return <span className="badge badge-muted">UNKNOWN</span>
     const { status, mode } = providerStatus
 
-    if (status === 'connected') {
+    if (status === 'connected' && mode === 'LIVE') {
       return (
         <span className="badge badge-emerald flex items-center gap-1">
           <CheckCircle2 size={11} /> LIVE CONNECTED
+        </span>
+      )
+    }
+    if (status === 'connected' && mode === 'DEMO') {
+      return (
+        <span className="badge badge-blue flex items-center gap-1">
+          <CheckCircle2 size={11} /> VERIFIED · DEMO MODE
         </span>
       )
     }
@@ -496,8 +505,8 @@ export default function SettingsPage() {
             <p className="text-xs text-secondary mt-1 leading-relaxed">
               GreenMind AI runs under a strict <strong>read-only telemetry policy</strong>. It will never modify, terminate,
               or resize live cloud infrastructure without explicit future operator sign-off.
-              All credentials tested or saved in this session are validated directly with cloud provider APIs in-memory,
-              never written in plaintext to databases, and never exposed in client API responses.
+              Cloud credentials belong to your signed-in account and are encrypted in the backend database with
+              CREDENTIAL_ENCRYPTION_KEY. They are never returned in client API responses.
             </p>
           </div>
         </div>
@@ -515,14 +524,14 @@ export default function SettingsPage() {
             {backendTestResult ? (
               backendTestResult.connected ? (
                 <span className="badge badge-emerald flex items-center gap-1">
-                  <CheckCircle2 size={11} /> LIVE CONNECTED ({backendTestResult.latencyMs}ms)
+                  <CheckCircle2 size={11} /> HEALTH CHECK OK ({backendTestResult.latencyMs}ms)
                 </span>
               ) : (
                 <span className="badge badge-red flex items-center gap-1">
                   <AlertCircle size={11} /> UNREACHABLE / ERROR
                 </span>
               )
-            ) : statusData ? (
+            ) : statusData && !statusData.is_demo_fallback ? (
               <span className="badge badge-emerald flex items-center gap-1">
                 <CheckCircle2 size={11} /> ACTIVE ({getActiveBackendUrl() ? 'RENDER' : 'LOCAL'})
               </span>
@@ -534,8 +543,7 @@ export default function SettingsPage() {
           </div>
 
           <p className="text-xs text-secondary mb-4 leading-relaxed">
-            Connect this Vercel-deployed frontend cockpit to your FastAPI backend running on Render.com
-            (or local dev server). You can test connectivity and save a runtime URL. For security, authenticated API calls only send your session to the backend configured with <code>VITE_API_BASE_URL</code>; change that variable and redeploy to switch hosts.
+            Test connectivity to a Render backend or local dev server. In a deployed build, authenticated API calls stay pinned to the trusted backend configured with <code>VITE_API_BASE_URL</code>. Set that variable in Vercel and redeploy to switch hosts safely.
           </p>
 
           {/* Active URL Status Box */}
@@ -604,7 +612,7 @@ export default function SettingsPage() {
                   className="btn btn-primary btn-sm flex items-center gap-1.5"
                 >
                   <Zap size={13} />
-                  Save & Connect
+                  Use URL if Trusted
                 </button>
                 <button
                   type="button"
@@ -675,10 +683,10 @@ export default function SettingsPage() {
                   <strong>On Vercel (Frontend):</strong> In your Vercel Project Settings &rarr; <em>Environment Variables</em>, add <code style={{ color: '#e2e8f0' }}>VITE_API_BASE_URL=https://your-app.onrender.com</code>, then trigger a redeploy.
                 </li>
                 <li>
-                  <strong>On Render (Backend):</strong> GreenMind's backend automatically permits all <code style={{ color: '#e2e8f0' }}>*.vercel.app</code> domains out-of-the-box. For custom domains, set <code style={{ color: '#e2e8f0' }}>CORS_ORIGINS=https://mycustomapp.com</code> in Render's environment dashboard.
+                  <strong>On Render (Backend):</strong> The backend allows only its listed local and production origins plus exact origins in <code style={{ color: '#e2e8f0' }}>CORS_ORIGINS</code>. Add your Vercel production URL, preview URL, or custom domain there explicitly.
                 </li>
                 <li>
-                  <strong>Instant Preview Testing:</strong> You don't have to wait for a Vercel rebuild! Enter your Render URL above and click <em>Save & Connect</em> to switch immediately in this browser.
+                  <strong>Switching the deployed backend:</strong> Entering a URL here checks its health only. To route authenticated requests to a different backend, set <code>VITE_API_BASE_URL</code> in Vercel and redeploy.
                 </li>
               </ul>
             </div>
@@ -1066,12 +1074,12 @@ export default function SettingsPage() {
             <span
               className={`badge ${statusData?.llm?.openai_configured || statusData?.llm?.gemini_configured ? 'badge-emerald' : 'badge-blue'}`}
             >
-              {statusData?.llm?.gemini_configured ? 'GEMINI ACTIVE' : statusData?.llm?.openai_configured ? 'OPENAI ACTIVE' : 'DETERMINISTIC FALLBACK'}
+              {statusData?.llm?.gemini_configured ? 'GEMINI KEY SAVED · UNVERIFIED' : statusData?.llm?.openai_configured ? 'OPENAI KEY SAVED · UNVERIFIED' : 'DETERMINISTIC FALLBACK'}
             </span>
           </div>
 
           <p className="text-xs text-secondary mb-4">
-            Powers contextual natural language responses in AI Copilot. When absent, a zero-cost deterministic rule engine answers queries.
+            Configured keys are used for this signed-in account when the optional provider SDK is available. Live key verification is not implemented; Copilot falls back to deterministic responses if a provider call fails.
           </p>
 
           <div className="flex-col gap-3">
@@ -1149,7 +1157,7 @@ export default function SettingsPage() {
               <div className="text-xs text-muted font-bold uppercase tracking-wider">Database Engine</div>
               <div className="text-sm text-primary font-medium mt-1 flex items-center gap-2">
                 <Database size={14} color="var(--emerald-400)" />
-                {statusData?.database === 'postgresql' ? 'PostgreSQL (Managed Production)' : 'SQLite (Local Development / Fallback)'}
+                {statusData?.database?.type === 'postgresql' ? 'PostgreSQL (Managed Production)' : 'SQLite (Local Development / Fallback)'}
               </div>
             </div>
 

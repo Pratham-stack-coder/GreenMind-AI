@@ -10,6 +10,10 @@ services:
       - "8000:8000"
     environment:
       - DEMO_MODE=${DEMO_MODE:-true}
+      - SUPABASE_URL=${SUPABASE_URL:-}
+      - SUPABASE_PUBLISHABLE_KEY=${SUPABASE_PUBLISHABLE_KEY:-}
+      - CREDENTIAL_ENCRYPTION_KEY=${CREDENTIAL_ENCRYPTION_KEY:-}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
       - PORT=8000
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-greenmind}:${POSTGRES_PASSWORD:-greenmind_secure_pass}@postgres:5432/${POSTGRES_DB:-greenmind}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
@@ -42,6 +46,10 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_PUBLISHABLE_KEY: ${VITE_SUPABASE_PUBLISHABLE_KEY:-}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
     container_name: greenmind-frontend
     ports:
       - "5173:80"

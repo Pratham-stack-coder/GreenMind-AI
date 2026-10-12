@@ -28,11 +28,13 @@ class AzureCloudProvider(BaseCloudProvider):
     otherwise provides a safe simulated demo adapter without claiming live connection.
     """
 
-    def __init__(self):
-        self.subscription_id = settings.azure_subscription_id
-        self.tenant_id = settings.azure_tenant_id
-        self.client_id = settings.azure_client_id
-        self.client_secret = settings.azure_client_secret
+    def __init__(self, credentials: dict[str, str] | None = None):
+        user_scoped = credentials is not None
+        credentials = credentials or {}
+        self.subscription_id = credentials.get("azure_subscription_id", "" if user_scoped else settings.azure_subscription_id)
+        self.tenant_id = credentials.get("azure_tenant_id", "" if user_scoped else settings.azure_tenant_id)
+        self.client_id = credentials.get("azure_client_id", "" if user_scoped else settings.azure_client_id)
+        self.client_secret = credentials.get("azure_client_secret", "" if user_scoped else settings.azure_client_secret)
         
         self.is_configured = bool(
             self.subscription_id and self.tenant_id and self.client_id and self.client_secret
@@ -530,6 +532,15 @@ class AzureCloudProvider(BaseCloudProvider):
                         },
                         "last_tested": datetime.now(timezone.utc).isoformat(),
                     }
+                    if settings.demo_mode:
+                        self.is_live = False
+                        res["mode"] = "DEMO"
+                        res["telemetry_status"] = "DEMO"
+                        res["message"] = (
+                            f"Azure credentials verified for subscription '{display_name}'; "
+                            "DEMO_MODE is enabled, so telemetry remains synthetic."
+                        )
+                        res["account_info"]["mode"] = "DEMO"
                 elif sub_res.status_code == 403:
                     self.is_live = False
                     res = {

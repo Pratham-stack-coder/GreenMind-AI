@@ -62,7 +62,7 @@ def test_aws_provider_demo_status_and_methods():
 
 def test_aws_provider_live_authentication_success():
     """Verify AWS provider handles successful STS + CloudWatch authentication in LIVE mode."""
-    with patch("boto3.Session") as mock_session_cls:
+    with patch("boto3.Session") as mock_session_cls, patch("app.cloud.aws_provider.settings.demo_mode", False):
         mock_session = MagicMock()
         mock_session_cls.return_value = mock_session
 
@@ -173,7 +173,7 @@ def test_azure_provider_demo_status_and_methods():
 
 def test_azure_provider_live_authentication_success():
     """Verify Azure provider handles successful OAuth2 token + ARM subscription call."""
-    with patch("httpx.Client") as mock_client_cls:
+    with patch("httpx.Client") as mock_client_cls, patch("app.cloud.azure_provider.settings.demo_mode", False):
         mock_client = MagicMock()
         mock_client_cls.return_value.__enter__.return_value = mock_client
 
@@ -271,7 +271,7 @@ def test_gcp_provider_demo_status_and_methods():
 def test_gcp_provider_live_authentication_success():
     """Verify GCP provider handles successful token + Cloud Monitoring API reachability."""
     with patch.object(GCPCloudProvider, "_get_access_token", return_value="mock-gcp-token"):
-        with patch("httpx.Client") as mock_client_cls:
+        with patch("httpx.Client") as mock_client_cls, patch("app.cloud.gcp_provider.settings.demo_mode", False):
             mock_client = MagicMock()
             mock_client_cls.return_value.__enter__.return_value = mock_client
 

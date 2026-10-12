@@ -6,7 +6,7 @@ services:
     plan: free
     branch: main
     rootDir: .
-    buildCommand: "pip install -r backend/requirements.txt && cd backend/app/ml && python train.py || echo 'ML training failed'"
+    buildCommand: "pip install -r backend/requirements.txt && cd backend/app/ml && python train.py"
     startCommand: "python -m uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /health
     autoDeploy: true
@@ -33,6 +33,8 @@ services:
         sync: false   # https://<project-ref>.supabase.co
       - key: SUPABASE_PUBLISHABLE_KEY
         sync: false   # Required only if the project uses legacy HS256 signing
+      - key: CREDENTIAL_ENCRYPTION_KEY
+        sync: false   # Generate a Fernet key; keep it stable to decrypt stored credentials
 
       # ── Database (use Render PostgreSQL add-on for persistence) ───────────────
       # If not set, falls back to SQLite (ephemeral on Render free tier)

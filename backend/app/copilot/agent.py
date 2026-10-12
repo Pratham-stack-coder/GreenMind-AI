@@ -25,7 +25,11 @@ class CopilotAgent:
         self.openai_key = settings.openai_api_key
         self.gemini_key = settings.gemini_api_key
 
-    def process_message(self, req: CopilotChatRequest) -> CopilotChatResponse:
+    def process_message(
+        self,
+        req: CopilotChatRequest,
+        llm_credentials: dict[str, str] | None = None,
+    ) -> CopilotChatResponse:
         msg = req.message.lower().strip()
         sources: list[str] = []
         actions: list[CopilotAction] = []
@@ -83,8 +87,13 @@ class CopilotAgent:
         kb_docs = search_knowledge(msg, top_k=1)
 
         # ── LLM or Deterministic Generation ───────────────────────────────────
-        if self.gemini_key or self.openai_key:
-            answer = self._generate_with_llm(req.message, snapshot, kb_docs)
+        if llm_credentials is None:
+            gemini_key, openai_key = self.gemini_key, self.openai_key
+        else:
+            gemini_key = llm_credentials.get("gemini_api_key", "")
+            openai_key = llm_credentials.get("openai_api_key", "")
+        if gemini_key or openai_key:
+            answer = self._generate_with_llm(req.message, snapshot, kb_docs, llm_credentials)
         else:
             answer = self._generate_deterministic(msg, snapshot, kb_docs)
 
@@ -254,7 +263,13 @@ class CopilotAgent:
 
         return "\n".join(parts)
 
-    def _generate_with_llm(self, query: str, data: dict[str, Any], kb: list[dict[str, Any]]) -> str:
+    def _generate_with_llm(
+        self,
+        query: str,
+        data: dict[str, Any],
+        kb: list[dict[str, Any]],
+        llm_credentials: dict[str, str] | None = None,
+    ) -> str:
         """Call Gemini or OpenAI if API key is present."""
         from datetime import datetime, timezone
         from ..cloud import get_provider
@@ -278,10 +293,13 @@ class CopilotAgent:
         )
         context_str = f"Live Cloud Telemetry & Data:\n{data}\n\nRelevant Rules & Knowledge:\n{kb}"
 
-        if self.gemini_key:
+        gemini_key = self.gemini_key if llm_credentials is None else llm_credentials.get("gemini_api_key", "")
+        openai_key = self.openai_key if llm_credentials is None else llm_credentials.get("openai_api_key", "")
+
+        if gemini_key:
             try:
                 import google.generativeai as genai
-                genai.configure(api_key=self.gemini_key)
+                genai.configure(api_key=gemini_key)
                 model = genai.GenerativeModel("gemini-1.5-flash")
                 resp = model.generate_content(f"{system_instruction}\n\n{context_str}\n\nUser Question: {query}")
                 if resp.text:
@@ -289,10 +307,10 @@ class CopilotAgent:
             except Exception as e:
                 logger.warning(f"Gemini API call failed: {e}")
 
-        if self.openai_key:
+        if openai_key:
             try:
                 import openai
-                client = openai.OpenAI(api_key=self.openai_key)
+                client = openai.OpenAI(api_key=openai_key)
                 resp = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[

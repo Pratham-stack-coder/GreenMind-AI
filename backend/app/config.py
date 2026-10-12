@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     debug: bool = False
     demo_mode: bool = False  # False → try real cloud provider APIs
 
-    # ── Database (optional — falls back to in-memory if not set) ─────────────
+    # ── Database (optional — falls back to local SQLite if not set) ─────────────
     database_url: str = ""         # e.g. postgresql+asyncpg://user:pass@localhost/greenmind
     redis_url: str = ""            # e.g. redis://localhost:6379/0
 
@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     # Needed only for legacy HS256 tokens. Do not set the service-role key here.
     supabase_publishable_key: str = ""
+    credential_encryption_key: str = ""  # Fernet key used for stored per-user cloud credentials
 
     # ── Carbon API (optional) ─────────────────────────────────────────────────
     electricity_maps_api_key: str = ""

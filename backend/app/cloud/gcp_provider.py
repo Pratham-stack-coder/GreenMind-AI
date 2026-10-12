@@ -29,9 +29,11 @@ class GCPCloudProvider(BaseCloudProvider):
     otherwise provides a safe simulated demo adapter without claiming live connection.
     """
 
-    def __init__(self):
-        self.project_id = settings.gcp_project_id
-        self.service_account_json = settings.gcp_service_account_json
+    def __init__(self, credentials: dict[str, str] | None = None):
+        user_scoped = credentials is not None
+        credentials = credentials or {}
+        self.project_id = credentials.get("gcp_project_id", "" if user_scoped else settings.gcp_project_id)
+        self.service_account_json = credentials.get("gcp_service_account_json", "" if user_scoped else settings.gcp_service_account_json)
         
         # BUG-004 FIX: Require BOTH project_id AND service_account_json for is_configured.
         # Previously: `self.service_account_json or settings.gcp_project_id != ""` was always
@@ -445,6 +447,15 @@ class GCPCloudProvider(BaseCloudProvider):
                         "account_info": self.get_account_info(),
                         "last_tested": datetime.now(timezone.utc).isoformat(),
                     }
+                    if settings.demo_mode:
+                        self.is_live = False
+                        res["mode"] = "DEMO"
+                        res["telemetry_status"] = "DEMO"
+                        res["message"] = (
+                            f"GCP credentials verified for project '{proj}'; "
+                            "DEMO_MODE is enabled, so telemetry remains synthetic."
+                        )
+                        res["account_info"]["mode"] = "DEMO"
                 elif resp.status_code == 403:
                     self.is_live = False
                     body = resp.json()
