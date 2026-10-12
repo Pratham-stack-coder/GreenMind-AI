@@ -1,23 +1,18 @@
-name: CD Pipeline
+name: Container Image Publishing
 
 on:
   push:
     tags:
       - 'v*.*.*'
   workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Deployment Environment'
-        required: true
-        default: 'staging'
-        type: choice
-        options:
-          - staging
-          - production
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
-  deploy:
-    name: Build & Deploy Container Images
+  publish-images:
+    name: Build and publish container images
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -44,6 +39,7 @@ jobs:
             type=sha,format=short
 
       - name: Build & Push Backend Image
+        id: build-backend
         uses: docker/build-push-action@v5
         with:
           context: ./backend
@@ -62,6 +58,7 @@ jobs:
             type=sha,format=short
 
       - name: Build & Push Frontend Image
+        id: build-frontend
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
@@ -69,6 +66,11 @@ jobs:
           tags: ${{ steps.meta-frontend.outputs.tags }}
           labels: ${{ steps.meta-frontend.outputs.labels }}
 
-      - name: Deployment Smoke Verification
+      - name: Verify published image digests
+        env:
+          BACKEND_DIGEST: ${{ steps.build-backend.outputs.digest }}
+          FRONTEND_DIGEST: ${{ steps.build-frontend.outputs.digest }}
         run: |
-          echo "Successfully validated and prepared container images for GreenMind AI (${{ github.ref_name }})."
+          test -n "$BACKEND_DIGEST"
+          test -n "$FRONTEND_DIGEST"
+          echo "Backend and frontend images were published."
