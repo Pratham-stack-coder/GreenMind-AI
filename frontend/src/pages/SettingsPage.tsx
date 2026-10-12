@@ -43,7 +43,7 @@ export default function SettingsPage() {
       const result = await testBackendConnection(urlToTest ?? backendUrlInput)
       setBackendTestResult(result)
       if (result.connected) {
-        setBackendSuccessMsg(`Backend connected (${result.latencyMs}ms)! FastAPI v${result.version} running in ${result.cloud_mode?.toUpperCase() || 'DEMO'} mode.`)
+        setBackendSuccessMsg(`Backend health check passed (${result.latencyMs}ms). FastAPI v${result.version} reports ${result.cloud_mode?.toUpperCase() || 'DEMO'} mode.`)
       }
       return result
     } finally {
@@ -517,7 +517,7 @@ export default function SettingsPage() {
             {backendTestResult ? (
               backendTestResult.connected ? (
                 <span className="badge badge-emerald flex items-center gap-1">
-                  <CheckCircle2 size={11} /> LIVE CONNECTED ({backendTestResult.latencyMs}ms)
+                  <CheckCircle2 size={11} /> HEALTH CHECK OK ({backendTestResult.latencyMs}ms)
                 </span>
               ) : (
                 <span className="badge badge-red flex items-center gap-1">
@@ -605,7 +605,7 @@ export default function SettingsPage() {
                   className="btn btn-primary btn-sm flex items-center gap-1.5"
                 >
                   <Zap size={13} />
-                  Save if Trusted
+                  Use URL if Trusted
                 </button>
                 <button
                   type="button"
