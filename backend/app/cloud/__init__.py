@@ -42,7 +42,7 @@ def clear_provider_credentials(name: str) -> None:
 
 def sync_user_provider_credentials(user_id: str, credentials: dict[str, dict[str, str]]) -> None:
     """Refresh this user's provider credentials and invalidate changed clients."""
-    for provider_name in ("aws", "azure", "gcp"):
+    for provider_name in ("aws", "azure", "gcp", "llm", "openai", "gemini"):
         key = (user_id, provider_name)
         value = credentials.get(provider_name, {})
         if _USER_CREDENTIALS.get(key, {}) != value:
@@ -51,6 +51,14 @@ def sync_user_provider_credentials(user_id: str, credentials: dict[str, dict[str
             else:
                 _USER_CREDENTIALS.pop(key, None)
             _PROVIDERS.pop(key, None)
+
+
+def get_user_credentials(name: str) -> dict[str, str]:
+    """Return credentials for a provider belonging to the active user."""
+    user_id = get_current_user_id()
+    if not user_id:
+        return {}
+    return dict(_USER_CREDENTIALS.get((user_id, name.lower().strip()), {}))
 
 
 def get_provider(name: Any = "aws") -> BaseCloudProvider:
