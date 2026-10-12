@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { supabase } from '../auth/supabase'
 import type {
   CloudMetrics,
   PredictResponse,
@@ -93,6 +94,23 @@ export function resetActiveBackendUrl(): void {
   api.defaults.baseURL = normalizeApiBaseUrl(getActiveBackendUrl())
 }
 
+function expectedBackendOrigin(): string {
+  const configuredUrl = ((import.meta.env.VITE_API_BASE_URL as string | undefined) || '').trim()
+  if (configuredUrl) return new URL(configuredUrl, window.location.origin).origin
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return window.location.origin
+  }
+  return new URL(DEFAULT_PRODUCTION_BACKEND).origin
+}
+
+export function isTrustedBackendUrl(rawUrl = getActiveBackendUrl()): boolean {
+  try {
+    return new URL(normalizeApiBaseUrl(rawUrl), window.location.origin).origin === expectedBackendOrigin()
+  } catch {
+    return false
+  }
+}
+
 export interface BackendHealthCheckResult {
   connected: boolean
   url: string
@@ -102,6 +120,8 @@ export interface BackendHealthCheckResult {
   demo_mode?: boolean
   cloud_mode?: string
   database?: string
+  auth_configured?: boolean
+  backend_url_trusted?: boolean
   error?: string
 }
 
@@ -111,12 +131,13 @@ export interface BackendHealthCheckResult {
 export async function testBackendConnection(targetUrl?: string): Promise<BackendHealthCheckResult> {
   const rawUrl = targetUrl !== undefined ? targetUrl.trim() : getActiveBackendUrl()
   const base = normalizeApiBaseUrl(rawUrl)
-  const healthEndpoint = `${base}/health`
+  const backendRoot = rawUrl.replace(/\/api\/v1\/?$/, '').replace(/\/+$/, '')
+  const healthEndpoint = backendRoot ? `${backendRoot}/health` : '/health'
   const startTime = Date.now()
 
   try {
     const res = await axios.get(healthEndpoint, {
-      timeout: 35000,
+      timeout: 60000,
       headers: { 'Content-Type': 'application/json' },
     })
 
@@ -125,8 +146,10 @@ export async function testBackendConnection(targetUrl?: string): Promise<Backend
     }
 
     const latencyMs = Date.now() - startTime
-    return {
-      connected: res.data?.status === 'ok',
+    const authConfigured = res.data?.auth_configured === true
+    const backendUrlTrusted = isTrustedBackendUrl(rawUrl)
+    const healthResult: BackendHealthCheckResult = {
+      connected: false,
       url: base,
       latencyMs,
       status: res.data?.status || 'ok',
@@ -134,17 +157,52 @@ export async function testBackendConnection(targetUrl?: string): Promise<Backend
       demo_mode: Boolean(res.data?.demo_mode),
       cloud_mode: res.data?.cloud_mode,
       database: res.data?.database,
+      auth_configured: authConfigured,
+      backend_url_trusted: backendUrlTrusted,
+      ...(!authConfigured ? {
+        error: 'The Render backend does not report Supabase authentication as configured. Deploy the updated backend and set SUPABASE_URL.',
+      } : {}),
+      ...(authConfigured && !backendUrlTrusted ? {
+        error: 'The backend responded, but it does not match this build’s trusted API origin. Set VITE_API_BASE_URL and redeploy before connecting accounts to another host.',
+      } : {}),
+    }
+
+    if (res.data?.status !== 'ok' || !authConfigured || !backendUrlTrusted) return healthResult
+    if (!supabase) {
+      return { ...healthResult, error: 'Supabase browser authentication is not configured for this frontend.' }
+    }
+
+    const { data, error } = await supabase.auth.getSession()
+    if (error || !data.session?.access_token) {
+      return { ...healthResult, error: error?.message || 'Sign in again to validate your backend session.' }
+    }
+
+    try {
+      await axios.get(`${base}/auth/session`, {
+        timeout: 20000,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${data.session.access_token}`,
+        },
+      })
+      return { ...healthResult, connected: true, error: undefined }
+    } catch (authError: any) {
+      return {
+        ...healthResult,
+        error: authError?.response?.data?.detail || authError?.message || 'The backend could not verify this Supabase session.',
+      }
     }
   } catch (err: any) {
     const latencyMs = Date.now() - startTime
     const message =
-      err?.code === 'ECONNABORTED'
+      err?.code === 'ECONNABORTED' || err?.code === 'ETIMEDOUT'
         ? 'Connection timed out. If your Render free instance is sleeping, it takes ~30-50 seconds to warm up. Please retry in a few moments.'
         : err?.response?.data?.detail || err?.message || 'Failed to connect to backend server'
     return {
       connected: false,
       url: base,
       latencyMs,
+      backend_url_trusted: isTrustedBackendUrl(rawUrl),
       error: message,
     }
   }
@@ -157,9 +215,23 @@ const api = axios.create({
 })
 
 // Dynamically sync baseURL on each request in case localStorage changed
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
   const currentBase = normalizeApiBaseUrl(getActiveBackendUrl())
   config.baseURL = currentBase
+  if (supabase) {
+    // Do not send a bearer token to a runtime URL that differs from the
+    // backend selected for this build.
+    if (!isTrustedBackendUrl()) {
+      throw new Error('The selected backend does not match VITE_API_BASE_URL. Set the trusted backend URL in the deployment environment and rebuild.')
+    }
+
+    const { data, error } = await supabase.auth.getSession()
+    if (error) throw error
+    if (data.session?.access_token) {
+      config.headers = config.headers || {}
+      config.headers.Authorization = `Bearer ${data.session.access_token}`
+    }
+  }
   return config
 })
 

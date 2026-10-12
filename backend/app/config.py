@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     anthropic_api_key: str = ""
 
+    # ── Supabase Auth ─────────────────────────────────────────────────────────
+    supabase_url: str = ""
+    # Needed only for legacy HS256 tokens. Do not set the service-role key here.
+    supabase_publishable_key: str = ""
+
     # ── Carbon API (optional) ─────────────────────────────────────────────────
     electricity_maps_api_key: str = ""
     watttime_username: str = ""

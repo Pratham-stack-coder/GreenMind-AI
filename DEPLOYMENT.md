@@ -75,6 +75,20 @@ If setting up manually without Blueprint:
    - **Output Directory**: `frontend/dist` (or `dist` if Root Directory is `frontend`)
 5. Click **Deploy**.
 
+Use Node.js 22 or newer in the Vercel project settings; the current Supabase JavaScript SDK requires Node.js 22+.
+
+### Frontend environment variables
+
+In **Vercel → Project → Settings → Environment Variables**, set these for Production, Preview, and Development, then redeploy:
+
+| Variable | Value |
+| --- | --- |
+| `VITE_SUPABASE_URL` | Supabase project URL, such as `https://<project-ref>.supabase.co` |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key (or legacy anon key) |
+| `VITE_API_BASE_URL` | `https://greenmind-backend-zqn5.onrender.com` |
+
+The Supabase publishable/anon key is intended for browser use. Never add a Supabase service-role key, JWT signing secret, Google OAuth client secret, or cloud-provider secret to a `VITE_` variable.
+
 ---
 
 ## 🔗 Step 3: Connect Frontend to Backend
@@ -100,7 +114,47 @@ If setting up manually without Blueprint:
 
 ---
 
-## ⚡ Step 4: Instant Runtime Connection in the UI (No Rebuild Needed!)
+## 🔐 Step 4: Configure Supabase Authentication
+
+The frontend supports Google OAuth and email/password accounts. Supabase stores the browser session; the FastAPI backend verifies each protected request's bearer token. `/health` stays public for Render and connection checks.
+
+### A. Create the Supabase project and configure sign-in
+
+1. Create a Supabase project and copy its **Project URL** and **publishable key** from **Project Settings → API**.
+2. In **Authentication → Providers**, enable **Email**. Choose whether email confirmation is required; production email confirmation requires a configured SMTP provider.
+3. In **Authentication → URL Configuration**, set **Site URL** to the production Vercel URL. Add these allowed redirects:
+   - `http://localhost:5173/auth/callback`
+   - `https://<your-vercel-domain>/auth/callback`
+   - Add a Vercel preview pattern only if you want preview deployments to sign in.
+4. In **Authentication → Sign In / Providers → Google**, enable Google and copy the Supabase callback URL shown there.
+
+### B. Configure Google OAuth
+
+1. In Google Cloud Console, configure the OAuth consent screen / Google Auth Platform and create an OAuth client of type **Web application**.
+2. Add your production Vercel origin and `http://localhost:5173` under **Authorized JavaScript origins**.
+3. Add the exact Supabase callback URL from the Google provider page under **Authorized redirect URIs**. This is the Supabase callback, not `/auth/callback` on Vercel.
+4. Paste the Google client ID and client secret into the Google provider settings in Supabase. Do not put the Google client secret in Vercel or frontend code.
+
+### C. Configure backend verification on Render
+
+In **Render → greenmind-backend → Environment**, set:
+
+| Variable | Value |
+| --- | --- |
+| `SUPABASE_URL` | The same Supabase Project URL used by the frontend |
+| `SUPABASE_PUBLISHABLE_KEY` | Supabase publishable/anon key; required only for legacy HS256 signing keys |
+
+The backend verifies `ES256`/`RS256` access tokens against Supabase's public JWKS endpoint. For legacy `HS256` projects it asks Supabase Auth to validate the token. If using HS256, provide the publishable key; never provide the legacy JWT signing secret or service-role key. The backend fails closed when `SUPABASE_URL` is missing.
+
+### D. Configure Vercel frontend auth variables
+
+Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` in Vercel. These are public configuration values. Redeploy after saving them. A local copy can be created from [`frontend/.env.example`](frontend/.env.example) as `frontend/.env.local`.
+
+Once these values are set and the updated backend is deployed, successful sign-in automatically checks `https://greenmind-backend-zqn5.onrender.com/health`. The dashboard opens only after the backend reports Auth configured; Render cold starts retry automatically and also show a manual retry action.
+
+---
+
+## ⚡ Step 5: Instant Runtime Connection in the UI (No Rebuild Needed!)
 
 You don't need to wait for a Vercel rebuild to test or change your backend URL:
 1. Open your deployed Vercel application.

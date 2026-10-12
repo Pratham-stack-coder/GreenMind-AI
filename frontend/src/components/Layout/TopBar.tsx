@@ -1,8 +1,9 @@
 import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { Bell, Globe, Menu, Leaf } from 'lucide-react'
+import { Bell, Globe, Menu, Leaf, LogOut } from 'lucide-react'
 import { useAppStore } from '../../store'
 import { fetchHealth, fetchRecommendations, fetchLiveMetrics, getActiveBackendUrl } from '../../api/client'
+import { useAuth } from '../../auth/AuthContext'
 import { useEffect, useRef, useState } from 'react'
 
 function LiveClock() {
@@ -20,6 +21,7 @@ function LiveClock() {
 
 export default function TopBar() {
   const navigate = useNavigate()
+  const { session, signOut } = useAuth()
   const {
     provider, region, setProvider, setRegion,
     notifPanelOpen, setNotifPanelOpen,
@@ -192,6 +194,17 @@ export default function TopBar() {
               </span>
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            className="btn btn-ghost btn-sm topbar-signout"
+            title={`Sign out${session?.user.email ? ` · ${session.user.email}` : ''}`}
+            aria-label="Sign out"
+          >
+            <LogOut size={15} />
+            <span className="signout-label">Sign out</span>
+          </button>
 
           <button
             id="notif-bell-btn"
