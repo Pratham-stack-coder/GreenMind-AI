@@ -245,7 +245,7 @@ def test_cors_preflight_options(client):
         },
     )
     assert response.status_code == 200
-    assert response.headers.get("access-control-allow-origin") == "https://greenmind-dashboard.vercel.app"
+    assert response.headers.get("access-control-allow-origin") == "https://greenmind-ai.vercel.app"
     assert "GET" in response.headers.get("access-control-allow-methods", "")
 
 
