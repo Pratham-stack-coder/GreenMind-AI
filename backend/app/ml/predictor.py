@@ -11,6 +11,7 @@ from typing import NamedTuple
 
 import joblib
 import pandas as pd
+import math
 
 HERE = Path(__file__).resolve().parent
 MODEL_DIR = HERE
@@ -50,7 +51,13 @@ def _load(name: str):
             raise FileNotFoundError(
                 f"{name}_model.pkl not found — run `python train.py` inside backend/app/ml/"
             )
-        _MODELS[name] = joblib.load(path)
+        try:
+            model = joblib.load(path)
+        except Exception as exc:
+            raise ValueError(f"Invalid ML artifact {path.name}: could not load model") from exc
+        if not callable(getattr(model, "predict", None)):
+            raise ValueError(f"Invalid ML artifact {path.name}: missing predict method")
+        _MODELS[name] = model
         metrics_path = HERE / "metrics.json"
         if metrics_path.exists() and not _METRICS:
             _METRICS.update(json.loads(metrics_path.read_text()))
@@ -140,6 +147,40 @@ def predict_carbon(intensity: float, hour: float, day_of_week: int, cpu: float) 
         pred = intensity * 0.35 * 0.25  # kwh estimate
     delta = round((pred - intensity * 0.35 * 0.25) / max(intensity * 0.35 * 0.25, 0.1) * 100, 1)
     return Forecast(round(intensity * 0.35 * 0.25, 2), round(pred, 2), delta, _detect_anomaly("carbon", pred), 0.86)
+
+
+def validate_artifacts(model_dir: Path = MODEL_DIR) -> list[str]:
+    """Validate that all required model and metadata files exist, are non-empty and loadable."""
+    required = [f"{name}_model.pkl" for name in ("cpu", "memory", "network", "cost", "carbon")]
+    required.extend(["metrics.json", "feature_importance.json"])
+    problems: list[str] = []
+    for filename in required:
+        path = model_dir / filename
+        if not path.is_file() or path.stat().st_size == 0:
+            problems.append(f"missing or empty artifact: {filename}")
+            continue
+        if filename.endswith("_model.pkl"):
+            try:
+                model = joblib.load(path)
+                if not callable(getattr(model, "predict", None)):
+                    problems.append(f"invalid model artifact (no predict method): {filename}")
+            except Exception:
+                problems.append(f"invalid model artifact (could not deserialize): {filename}")
+        elif filename == "metrics.json":
+            try:
+                metrics = json.loads(path.read_text())
+                if not all(name in metrics and isinstance(metrics[name], dict) for name in ("cpu", "memory", "network", "cost", "carbon")):
+                    problems.append("invalid metrics.json: missing metric metadata")
+            except (OSError, json.JSONDecodeError):
+                problems.append("invalid metrics.json: could not parse JSON")
+        elif filename == "feature_importance.json":
+            try:
+                importances = json.loads(path.read_text())
+                if not all(name in importances and isinstance(importances[name], dict) for name in ("cpu", "memory", "network", "cost", "carbon")):
+                    problems.append("invalid feature_importance.json: missing metric data")
+            except (OSError, json.JSONDecodeError):
+                problems.append("invalid feature_importance.json: could not parse JSON")
+    return problems
 
 
 def model_info() -> dict:
