@@ -376,6 +376,7 @@ const DEMO_SETTINGS: SettingsStatusResponse = {
     is_persistent: true,
   },
   redis: false,
+  is_demo_fallback: true,
 }
 
 // ── Telemetry ──────────────────────────────────────────────────────────────
