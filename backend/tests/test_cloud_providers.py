@@ -33,7 +33,7 @@ def setup_function():
 
 # ── AWS PROVIDER TESTS ────────────────────────────────────────────────────────
 
-def test_aws_provider_demo_status_and_methods():
+def test_aws_provider_demo_status_and_methods(client):
     """Verify AWS provider exposes 4-tier model and normalized methods in unconfigured state."""
     provider = AWSCloudProvider()
     status = provider.get_status()
@@ -63,7 +63,7 @@ def test_aws_provider_demo_status_and_methods():
     assert any(r["id"] == "ap-south-1" for r in regions)
 
 
-def test_aws_provider_live_authentication_success():
+def test_aws_provider_live_authentication_success(client):
     """Verify AWS provider handles successful STS + CloudWatch authentication in LIVE mode."""
     with patch("boto3.Session") as mock_session_cls:
         mock_session = MagicMock()
@@ -116,7 +116,7 @@ def test_aws_provider_live_authentication_success():
         assert provider.is_live is True
 
 
-def test_aws_provider_authentication_failure():
+def test_aws_provider_authentication_failure(client):
     """Verify invalid AWS credentials return explicit ERROR status without falling back to DEMO."""
     with patch("boto3.Session") as mock_session_cls:
         mock_session = MagicMock()
@@ -152,7 +152,7 @@ def test_aws_provider_authentication_failure():
 
 # ── AZURE PROVIDER TESTS ──────────────────────────────────────────────────────
 
-def test_azure_provider_demo_status_and_methods():
+def test_azure_provider_demo_status_and_methods(client):
     """Verify Azure provider exposes 4-tier model and normalized methods."""
     provider = AzureCloudProvider()
     status = provider.get_status()
@@ -174,7 +174,7 @@ def test_azure_provider_demo_status_and_methods():
     assert any(r["id"] == "centralindia" for r in regions)
 
 
-def test_azure_provider_live_authentication_success():
+def test_azure_provider_live_authentication_success(client):
     """Verify Azure provider handles successful OAuth2 token + ARM subscription call."""
     with patch("httpx.Client") as mock_client_cls:
         mock_client = MagicMock()
@@ -215,7 +215,7 @@ def test_azure_provider_live_authentication_success():
         assert provider.is_live is True
 
 
-def test_azure_provider_authentication_failure():
+def test_azure_provider_authentication_failure(client):
     """Verify invalid Azure client credentials return explicit ERROR."""
     with patch("httpx.Client") as mock_client_cls:
         mock_client = MagicMock()
@@ -249,7 +249,7 @@ def test_azure_provider_authentication_failure():
 
 # ── GCP PROVIDER TESTS ────────────────────────────────────────────────────────
 
-def test_gcp_provider_demo_status_and_methods():
+def test_gcp_provider_demo_status_and_methods(client):
     """Verify GCP provider exposes 4-tier model and normalized methods."""
     provider = GCPCloudProvider()
     status = provider.get_status()
@@ -271,7 +271,7 @@ def test_gcp_provider_demo_status_and_methods():
     assert any(r["id"] == "asia-south1" for r in regions)
 
 
-def test_gcp_provider_live_authentication_success():
+def test_gcp_provider_live_authentication_success(client):
     """Verify GCP provider handles successful token + Cloud Monitoring API reachability."""
     with patch.object(GCPCloudProvider, "_get_access_token", return_value="mock-gcp-token"):
         with patch("httpx.Client") as mock_client_cls:
@@ -300,7 +300,7 @@ def test_gcp_provider_live_authentication_success():
             assert provider.is_live is True
 
 
-def test_gcp_provider_authentication_failure():
+def test_gcp_provider_authentication_failure(client):
     """Verify invalid GCP service account returns explicit ERROR."""
     with patch.object(GCPCloudProvider, "_get_access_token", return_value=None):
         provider = GCPCloudProvider()
@@ -321,7 +321,7 @@ def test_gcp_provider_authentication_failure():
 
 # ── SETTINGS ROUTER ENDPOINTS TESTS ──────────────────────────────────────────
 
-def test_settings_router_status_4tier():
+def test_settings_router_status_4tier(client):
     """Verify /api/v1/settings/status endpoint exposes 4-tier model for all providers."""
     resp = client.get("/api/v1/settings/status")
     assert resp.status_code == 200
@@ -342,7 +342,7 @@ def test_settings_router_status_4tier():
         assert "mode" in p_data
 
 
-def test_settings_account_info_and_regions():
+def test_settings_account_info_and_regions(client):
     """Verify /api/v1/settings/account-info and /regions endpoints."""
     # Account info
     resp_acct = client.get("/api/v1/settings/account-info/aws")
@@ -363,7 +363,7 @@ def test_settings_account_info_and_regions():
     assert resp_err.status_code == 400
 
 
-def test_settings_validate_credentials():
+def test_settings_validate_credentials(client):
     """Verify /api/v1/settings/validate-credentials tests connection without state side-effects."""
     payload = {
         "provider": "aws",
