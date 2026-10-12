@@ -37,7 +37,19 @@ def cost_analytics(
     provider_client = get_provider(provider)
     cost_data = provider_client.get_cost(region, days=days)
     data_source = cost_data.get("source", "DEMO")
-    total = max(0.0, float(cost_data.get("total_usd", 0.0)))
+    raw_total = cost_data.get("total_usd")
+    if data_source == "UNAVAILABLE" or raw_total is None:
+        return CostAnalyticsResponse(
+            period_days=days,
+            total_usd=None,
+            data_points=[],
+            breakdown_by_provider={},
+            top_cost_drivers=[],
+            source="UNAVAILABLE",
+            estimation_method=None,
+            confidence=0.0,
+        )
+    total = max(0.0, float(raw_total))
     confidence = float(cost_data.get("confidence", 1.0 if str(data_source).startswith("LIVE") else 0.85))
     provider_method = cost_data.get("estimation_method")
     if str(data_source).startswith("LIVE"):
@@ -85,6 +97,7 @@ def cost_analytics(
 def carbon_analytics(
     days: int = Query(7, ge=1, le=90),
     region: str = Query("us-east"),
+    provider: str = Query("aws"),
 ):
     """Carbon emissions breakdown over the past N days with PUE and Scope 2/3 power modeling."""
     now = datetime.now(timezone.utc)
@@ -112,7 +125,7 @@ def carbon_analytics(
         points.append(CarbonDataPoint(
             timestamp=ts.isoformat(),
             carbon_gco2=round(carbon_val * 1000.0, 2),
-            provider="aws",
+            provider=str(provider or "aws").strip().lower(),
             region=region,
             intensity_gco2_per_kwh=ci,
             power_draw_watts=power_w,
@@ -132,6 +145,7 @@ def carbon_analytics(
         source="ESTIMATED",
         methodology="GHG_PROTOCOL_SCOPE_2_3",
         confidence=0.88,
+        assumptions="Estimated regional emissions for a reference m5.large workload at 45% CPU; not measured workload emissions.",
     )
 
 

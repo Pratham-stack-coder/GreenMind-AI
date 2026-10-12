@@ -363,7 +363,7 @@ export const simulateChange = (payload: unknown): Promise<SimulationResult> =>
 // ── Analytics ──────────────────────────────────────────────────────────────
 export const fetchCostAnalytics = (days = 7, provider = 'aws', region = 'us-east'): Promise<{
   period_days: number
-  total_usd: number
+  total_usd: number | null
   data_points: CostDataPoint[]
   breakdown_by_provider: Record<string, number>
   top_cost_drivers: string[]
@@ -375,8 +375,8 @@ export const fetchCostAnalytics = (days = 7, provider = 'aws', region = 'us-east
     .then(r => r.data)
 
 
-export const fetchCarbonAnalytics = (days = 7, region = 'us-east'): Promise<{ period_days: number; total_gco2: number; data_points: CarbonDataPoint[]; breakdown_by_region: Record<string, number>; green_hours_pct: number }> =>
-  api.get('/analytics/carbon', { params: { days, region } })
+export const fetchCarbonAnalytics = (days = 7, region = 'us-east', provider = 'aws'): Promise<{ period_days: number; total_gco2: number; data_points: CarbonDataPoint[]; breakdown_by_region: Record<string, number>; green_hours_pct: number; assumptions?: string | null }> =>
+  api.get('/analytics/carbon', { params: { days, region, provider } })
     .then(r => r.data)
 
 

@@ -59,8 +59,8 @@
 - **Explainable AI (XAI)**: Every recommendation provides What Detected, Why It Matters, Evidence, Recommendation, Expected Impact, and real ML Feature Importance (`feature_importance.json`).
 - **LangGraph Multi-Agent Architecture with Conflict Resolution**: 5 specialized agents (Cost, Performance, Sustainability, Security, Reliability) with explicit transparent conflict resolution (`resolve_conflicts()`).
 - **Digital Twin Simulation Engine**: Non-destructive simulator evaluating Before vs After for `RIGHT_SIZE`, `SCALE_UP`, `SCALE_DOWN`, `CONSOLIDATE`, and `REGION_MIGRATION`. Labeled `SIMULATED / ESTIMATED`.
-- **AI Cloud Copilot Engine**: Provider-scoped telemetry, cost/carbon analysis, recommendations, health, forecasts, simulations, and recent process-local history. Forecasts and simulations report unavailable inputs instead of filling missing values with defaults; outputs identify demo and estimated data sources.
-- **Database & Persistence**: Async SQLAlchemy ORM supporting SQLite (`greenmind.db`) for demo/dev and PostgreSQL for production. Authenticated telemetry requests persist history under the signed-in user; an owner-scoped in-memory buffer supports fallback reads. Optional Redis caching.
+- **AI Cloud Copilot Engine**: Provider-scoped telemetry, cost/carbon analysis, recommendations, health, forecasts, simulations, and recent process-local history. Forecasts and simulations report unavailable inputs instead of filling missing values with defaults. Live health checks are marked unavailable until provider health APIs are integrated; cost analytics use live AWS Cost Explorer data when available and report unavailable for unsupported live billing integrations. Outputs identify demo and estimated data sources.
+- **Database & Persistence**: Async SQLAlchemy ORM supporting SQLite (`greenmind.db`) for demo/dev and PostgreSQL for production. Authenticated telemetry, recommendation dismissal state, and dry-run audit history are scoped to the signed-in user; recommendation and audit records are additionally scoped by provider and region. An owner-scoped in-memory buffer supports telemetry fallback reads. Optional Redis caching.
 - **Prometheus Monitoring & Observability**: Middleware & exposition at `/metrics/prometheus` tracking request rates, latencies, prediction counts, errors, and agent execution times. Grafana automated datasource and dashboard provisioning.
 - **Security Hardening**: PostgreSQL and Redis in `docker-compose.yml` are bound strictly to localhost loopback (`127.0.0.1`), secrets are parameterized via environment variables, and Docker healthchecks are implemented.
 - **Unified Clean API Router**: Complete root and `/api/v1/` routes preserving all legacy and existing endpoints.
@@ -194,7 +194,7 @@ All outputs explicitly report **`SIMULATED / ESTIMATED`** alongside Before vs Af
 | `GET` | `/recommendations` | Active AI recommendations with priority and category filters |
 | `GET` | `/api/v1/recommendations/{id}/explain` | Explainable AI attribution with real model feature importances |
 | `POST`| `/api/v1/recommendations/{id}/apply` | Dry-run preview; live cloud mutations return HTTP 501 |
-| `GET` | `/cost-analysis` | Provider period total and top cost drivers; hourly allocation is estimated and labeled |
+| `GET` | `/cost-analysis` | Provider and region scoped billing total when available; hourly allocation is estimated and labeled; unsupported live billing is marked unavailable |
 | `GET` | `/carbon-analysis` | Carbon emissions curve, green hours %, and regional comparison |
 | `GET` | `/agents` | List registered intelligence agents and status |
 | `POST`| `/agents/run` | Execute LangGraph multi-agent analysis with conflict resolution |

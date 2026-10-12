@@ -63,7 +63,7 @@ class CopilotAgent:
 
         if any(w in msg for w in ["carbon", "green", "emission", "co2", "renewable", "clean"]):
             sources.append("carbon_analysis")
-            carbon_data = tools.get_carbon_analysis(days=7, region=req.region)
+            carbon_data = tools.get_carbon_analysis(days=7, region=req.region, provider=req.provider)
             snapshot["carbon_analysis"] = carbon_data
 
         if any(w in msg for w in ["scale", "cpu", "memory", "predict", "workload", "forecast", "instance"]):
@@ -170,8 +170,8 @@ class CopilotAgent:
         parts: list[str] = []
 
         if any(word in msg for word in ("cost", "bill", "spend", "expensive", "saving")):
-            if not cost:
-                parts.append("Cost analytics are unavailable for the selected provider and region.")
+            if not cost or cost.get("source") == "UNAVAILABLE" or cost.get("total_usd") is None:
+                parts.append("Billing-period cost analytics are unavailable for the selected provider and region. No period total is being estimated.")
             else:
                 days = cost.get("period_days", "selected")
                 cost_source = cost.get("source", "UNKNOWN")
@@ -236,8 +236,9 @@ class CopilotAgent:
                 )
 
         elif "health" in msg or "status" in msg or "alarm" in msg or "risk" in msg:
-            if not health:
-                parts.append("Cloud health data is unavailable for the selected provider and region.")
+            if not health or health.get("source") == "UNAVAILABLE" or health.get("status") == "UNAVAILABLE":
+                note = (health or {}).get("note")
+                parts.append("Live cloud health checks are unavailable for the selected provider and region." + (f" {note}" if note else ""))
             else:
                 details = []
                 if health.get("status") is not None:

@@ -185,6 +185,19 @@ class RecommendationRecord(Base):
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
+class RecommendationStateRecord(Base):
+    __tablename__ = "recommendation_user_states"
+
+    owner_id = Column(String(255), primary_key=True)
+    provider = Column(String(32), primary_key=True)
+    region = Column(String(32), primary_key=True)
+    recommendation_id = Column(String(64), primary_key=True)
+    status = Column(String(32), nullable=False)
+    applied_at = Column(String(64), nullable=True)
+    steps_taken_json = Column(Text, default="[]")
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
 class AgentResultRecord(Base):
     __tablename__ = "agent_results"
 
@@ -233,6 +246,8 @@ class AuditLogRecord(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     owner_id = Column(String(255), nullable=True)
+    provider = Column(String(32), nullable=True, index=True)
+    region = Column(String(32), nullable=True, index=True)
     recommendation_id = Column(String(64), index=True)
     title = Column(String(255))
     action = Column(String(255))
@@ -271,6 +286,11 @@ def _ensure_owner_columns(sync_conn) -> None:
             sync_conn.execute(text(f"ALTER TABLE {table} ADD COLUMN owner_id VARCHAR(255)"))
         if table == "cloud_metrics" and "recorded_at" not in columns:
             sync_conn.execute(text("ALTER TABLE cloud_metrics ADD COLUMN recorded_at DATETIME"))
+        if table == "audit_log_records":
+            if "provider" not in columns:
+                sync_conn.execute(text("ALTER TABLE audit_log_records ADD COLUMN provider VARCHAR(32)"))
+            if "region" not in columns:
+                sync_conn.execute(text("ALTER TABLE audit_log_records ADD COLUMN region VARCHAR(32)"))
         sync_conn.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{table}_owner_id ON {table} (owner_id)"))
     if "cloud_metrics" in existing_tables:
         metric_columns = {column["name"] for column in inspect(sync_conn).get_columns("cloud_metrics")}
@@ -651,6 +671,8 @@ async def persist_audit_log(
     steps_taken: list[str],
     dry_run: bool = False,
     operator_notes: str | None = None,
+    provider: str = "aws",
+    region: str = "us-east",
 ) -> None:
     """Persist an applied/rollback remediation action to the audit table."""
     owner_id = get_current_user_id()
@@ -661,6 +683,8 @@ async def persist_audit_log(
         async with _async_session_maker() as session:
             log = AuditLogRecord(
                 owner_id=owner_id,
+                provider=provider.strip().lower(),
+                region=region.strip().lower(),
                 recommendation_id=rec_id,
                 title=title,
                 action=action,
@@ -678,3 +702,109 @@ async def persist_audit_log(
     except Exception:
         logger.exception("Unable to persist audit log entry")
         raise
+
+
+
+async def load_recommendation_states(provider: str, region: str) -> dict[str, dict[str, Any]]:
+    """Load recommendation status for the signed-in user and selected cloud scope."""
+    owner_id = get_current_user_id()
+    if not owner_id:
+        return {}
+    await init_db()
+    async with _async_session_maker() as session:
+        result = await session.execute(
+            select(RecommendationStateRecord).where(
+                RecommendationStateRecord.owner_id == owner_id,
+                RecommendationStateRecord.provider == provider.strip().lower(),
+                RecommendationStateRecord.region == region.strip().lower(),
+            )
+        )
+        states: dict[str, dict[str, Any]] = {}
+        for row in result.scalars().all():
+            try:
+                steps = json.loads(row.steps_taken_json or "[]")
+            except (TypeError, ValueError):
+                steps = []
+            states[row.recommendation_id] = {
+                "status": row.status,
+                "applied_at": row.applied_at,
+                "steps_taken": steps if isinstance(steps, list) else [],
+            }
+        return states
+
+
+async def persist_recommendation_state(
+    recommendation_id: str,
+    provider: str,
+    region: str,
+    status: str,
+    applied_at: str | None = None,
+    steps_taken: list[str] | None = None,
+) -> None:
+    """Persist a recommendation status under its user and cloud scope."""
+    owner_id = get_current_user_id()
+    if not owner_id:
+        raise RuntimeError("Recommendation state persistence requires an authenticated user.")
+    await init_db()
+    provider_key = provider.strip().lower()
+    region_key = region.strip().lower()
+    async with _async_session_maker() as session:
+        key = (owner_id, provider_key, region_key, recommendation_id)
+        row = await session.get(RecommendationStateRecord, key)
+        if row is None:
+            row = RecommendationStateRecord(
+                owner_id=owner_id,
+                provider=provider_key,
+                region=region_key,
+                recommendation_id=recommendation_id,
+                status=status,
+                applied_at=applied_at,
+                steps_taken_json=json.dumps(steps_taken or []),
+            )
+            session.add(row)
+        else:
+            row.status = status
+            row.applied_at = applied_at
+            row.steps_taken_json = json.dumps(steps_taken or [])
+            row.updated_at = datetime.now(timezone.utc)
+        await session.commit()
+
+
+async def query_audit_log(provider: str, region: str, limit: int = 100) -> list[dict[str, Any]]:
+    """Return audit events for the signed-in user and selected cloud scope."""
+    owner_id = get_current_user_id()
+    if not owner_id:
+        return []
+    await init_db()
+    async with _async_session_maker() as session:
+        result = await session.execute(
+            select(AuditLogRecord)
+            .where(
+                AuditLogRecord.owner_id == owner_id,
+                AuditLogRecord.provider == provider.strip().lower(),
+                AuditLogRecord.region == region.strip().lower(),
+                AuditLogRecord.dry_run.is_(False),
+                AuditLogRecord.status == "applied",
+            )
+            .order_by(AuditLogRecord.id.desc())
+            .limit(max(1, min(limit, 500)))
+        )
+        entries = []
+        for row in result.scalars().all():
+            try:
+                steps = json.loads(row.steps_taken_json or "[]")
+            except (TypeError, ValueError):
+                steps = []
+            entries.append({
+                "recommendation_id": row.recommendation_id,
+                "title": row.title,
+                "status": row.status,
+                "message": "Dry-run preview; no cloud resources were changed." if row.dry_run else f"Recorded action status: {row.status}.",
+                "estimated_monthly_savings_usd": row.monthly_savings_usd,
+                "estimated_carbon_reduction_pct": row.carbon_reduction_pct,
+                "applied_at": row.timestamp,
+                "steps_taken": steps if isinstance(steps, list) else [],
+                "dry_run": row.dry_run,
+                "new_score": row.new_score,
+            })
+        return entries

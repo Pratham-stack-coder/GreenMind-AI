@@ -94,10 +94,10 @@ def get_cost_analysis(days: int = 7, provider: str = "aws", region: str = "us-ea
     return res.model_dump()
 
 
-def get_carbon_analysis(days: int = 7, region: str = "us-east") -> dict[str, Any]:
+def get_carbon_analysis(days: int = 7, region: str = "us-east", provider: str = "aws") -> dict[str, Any]:
     """Retrieve carbon intensity analysis, clean energy window, and emissions breakdown."""
     from ..routers.analytics import carbon_analytics
-    res = carbon_analytics(days=days, region=region)
+    res = carbon_analytics(days=days, region=region, provider=provider)
     return res.model_dump()
 
 

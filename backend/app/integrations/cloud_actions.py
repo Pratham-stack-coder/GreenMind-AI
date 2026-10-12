@@ -24,6 +24,8 @@ class CloudActionDispatcher:
         dry_run: bool = False,
         operator_notes: str | None = None,
         new_score: int | None = None,
+        provider: str = "aws",
+        region: str = "us-east",
     ) -> ApplyResponse:
         """Return an honest dry-run result; live mutation is not implemented."""
         if not dry_run:
@@ -49,6 +51,8 @@ class CloudActionDispatcher:
             steps_taken=steps,
             dry_run=True,
             operator_notes=operator_notes,
+            provider=provider,
+            region=region,
         )
 
         return ApplyResponse(

@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from ..auth import get_current_user_id
+from ..database import load_recommendation_states, persist_recommendation_state, query_audit_log
 
 from .. import carbon
 from ..agents import orchestrator
@@ -89,6 +90,8 @@ def _build_recommendations(provider: str, region: str) -> tuple[list[Recommendat
 async def _execute_apply(
     rec: RecommendationItem,
     state: dict[str, Any],
+    provider: str,
+    region: str,
     dry_run: bool = False,
     operator_notes: str | None = None,
 ) -> ApplyResponse:
@@ -102,6 +105,8 @@ async def _execute_apply(
         dry_run=dry_run,
         operator_notes=operator_notes,
         new_score=target_score,
+        provider=provider,
+        region=region,
     )
 
     if not dry_run:
@@ -112,13 +117,21 @@ async def _execute_apply(
             state["dismissed"].remove(rec.id)
         state["score"] = target_score
         state["applied"][rec.id] = resp
+        await persist_recommendation_state(
+            recommendation_id=rec.id,
+            provider=provider,
+            region=region,
+            status="applied",
+            applied_at=resp.applied_at,
+            steps_taken=resp.steps_taken,
+        )
 
     return resp
 
 
 
 @router.get("", response_model=RecommendationsResponse)
-def list_recommendations(
+async def list_recommendations(
     provider: str = Query("aws"),
     region: str = Query("us-east"),
     refresh: bool = Query(False),
@@ -132,7 +145,16 @@ def list_recommendations(
     if refresh or not state["recommendations"]:
         _build_recommendations(provider, region)
 
+    persisted = await load_recommendation_states(provider, region)
     recs = state["recommendations"]
+    for rec in recs:
+        saved = persisted.get(rec.id)
+        if saved and saved["status"] in {"applied", "dismissed"}:
+            rec.status = saved["status"]
+            rec.applied_at = saved["applied_at"]
+            rec.steps_taken = saved["steps_taken"]
+            if saved["status"] == "dismissed":
+                state["dismissed"].add(rec.id)
     if category and category != "all":
         recs = [r for r in recs if r.category == category]
     if priority and priority != "all":
@@ -148,12 +170,13 @@ def list_recommendations(
 
 
 @router.get("/applied", response_model=list[ApplyResponse])
-def list_applied_recommendations(
+async def list_applied_recommendations(
     provider: str = Query("aws"),
     region: str = Query("us-east"),
 ):
-    """Get audit trail history for the selected cloud scope."""
-    return list(_user_state(provider, region)["applied"].values())
+    """Get durable, owner- and cloud-scope-filtered audit history."""
+    _user_state(provider, region)
+    return await query_audit_log(provider, region)
 
 
 @router.post("/apply-batch", response_model=BatchApplyResponse)
@@ -183,7 +206,7 @@ async def batch_apply_recommendations(
     total_carbon = 0.0
 
     for rec in targets:
-        res = await _execute_apply(rec, state, dry_run=req.dry_run)
+        res = await _execute_apply(rec, state, provider, region, dry_run=req.dry_run)
         results.append(res)
         total_savings += res.estimated_monthly_savings_usd
         total_carbon += res.estimated_carbon_reduction_pct
@@ -219,7 +242,9 @@ async def apply_recommendation(
 
     dry_run = req.dry_run if req else False
     operator_notes = req.operator_notes if req else None
-    return await _execute_apply(rec, state, dry_run=dry_run, operator_notes=operator_notes)
+    return await _execute_apply(
+        rec, state, provider, region, dry_run=dry_run, operator_notes=operator_notes
+    )
 
 
 @router.post("/{rec_id}/rollback", response_model=ApplyResponse)
@@ -232,7 +257,7 @@ def rollback_recommendation(rec_id: str):
 
 
 @router.post("/{rec_id}/dismiss")
-def dismiss_recommendation(
+async def dismiss_recommendation(
     rec_id: str,
     provider: str = Query("aws"),
     region: str = Query("us-east"),
@@ -247,6 +272,12 @@ def dismiss_recommendation(
             detail=f"Recommendation '{rec_id}' not found.",
         )
 
+    await persist_recommendation_state(
+        recommendation_id=rec.id,
+        provider=provider,
+        region=region,
+        status="dismissed",
+    )
     rec.status = "dismissed"
     state["dismissed"].add(rec_id)
     state["applied"].pop(rec_id, None)

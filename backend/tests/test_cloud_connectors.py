@@ -43,8 +43,10 @@ def test_aws_provider_demo_fallback():
     assert len(cost["top_services"]) > 0
 
     health = provider.get_health("us-east-1")
-    assert health["status"] == "HEALTHY"
-
+    assert health["status"] == "DEMO"
+    assert health["source"] == "DEMO"
+    assert health["health_score"] is None
+    assert health["active_alarms"] is None
 
 def test_azure_provider_demo_fallback():
     """Verify Azure provider returns structured metrics in demo mode."""
@@ -64,7 +66,10 @@ def test_azure_provider_demo_fallback():
     assert cost["total_usd"] > 0
 
     health = provider.get_health("eastus")
-    assert health["health_score"] >= 90
+    assert health["status"] == "DEMO"
+    assert health["source"] == "DEMO"
+    assert health["health_score"] is None
+    assert health["active_alarms"] is None
 
 
 def test_gcp_provider_demo_fallback():
@@ -85,8 +90,10 @@ def test_gcp_provider_demo_fallback():
     assert cost["total_usd"] > 0
 
     health = provider.get_health("us-central1")
-    assert health["status"] == "HEALTHY"
-
+    assert health["status"] == "DEMO"
+    assert health["source"] == "DEMO"
+    assert health["health_score"] is None
+    assert health["active_alarms"] is None
 
 def test_azure_provider_live_mock():
     """Verify Azure provider live metrics parsing with mocked HTTP responses."""

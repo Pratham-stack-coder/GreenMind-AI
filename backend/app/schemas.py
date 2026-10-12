@@ -379,7 +379,7 @@ class OptimizationScores(BaseModel):
 
 class CostAnalyticsResponse(BaseModel):
     period_days: int
-    total_usd: float
+    total_usd: float | None
     data_points: list[CostDataPoint]
     breakdown_by_provider: dict[str, float]
     top_cost_drivers: list[str]
@@ -391,6 +391,7 @@ class CostAnalyticsResponse(BaseModel):
 class CarbonAnalyticsResponse(BaseModel):
     period_days: int
     total_gco2: float
+    assumptions: str | None = None
     data_points: list[CarbonDataPoint]
     breakdown_by_region: dict[str, float]
     green_hours_pct: float

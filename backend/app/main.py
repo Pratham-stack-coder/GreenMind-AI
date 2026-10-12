@@ -294,7 +294,7 @@ def get_predictions(provider: str = "aws", region: str = "us-east"):
     from .copilot.tools import get_predictions as fetch_preds
     p = get_provider(provider)
     m = p.get_metrics(region)
-    return fetch_preds(cpu=m.get("cpu", 50.0))
+    return fetch_preds(cpu=m.get("cpu"), provider=provider, region=region, metrics=m)
 
 
 # ── Analytics & Optimizations ─────────────────────────────────────────────────
@@ -302,8 +302,8 @@ def get_predictions(provider: str = "aws", region: str = "us-east"):
 @app.get("/analytics", tags=["Analytics"], dependencies=protected)
 def analytics_overview(days: int = Query(7, ge=1, le=90), provider: str = "aws", region: str = "us-east"):
     """Unified analytics combining cost, carbon, and optimization scores."""
-    cost = analytics.cost_analytics(days=days)
-    carb = analytics.carbon_analytics(days=days, region=region)
+    cost = analytics.cost_analytics(days=days, provider=provider, region=region)
+    carb = analytics.carbon_analytics(days=days, region=region, provider=provider)
     scores = analytics.optimization_scores(provider=provider, region=region)
     return {
         "period_days": days,
@@ -314,26 +314,34 @@ def analytics_overview(days: int = Query(7, ge=1, le=90), provider: str = "aws",
 
 
 @app.get("/cost-analysis", tags=["Analytics"], dependencies=protected)
-def cost_analysis(days: int = Query(7, ge=1, le=90)):
-    """Cost breakdown and top cost drivers."""
-    return analytics.cost_analytics(days=days)
+def cost_analysis(
+    days: int = Query(7, ge=1, le=90),
+    provider: str = "aws",
+    region: str = "us-east",
+):
+    """Cost breakdown and top cost drivers for one provider and region."""
+    return analytics.cost_analytics(days=days, provider=provider, region=region)
 
 
 @app.get("/carbon-analysis", tags=["Analytics"], dependencies=protected)
-def carbon_analysis(days: int = Query(7, ge=1, le=90), region: str = "us-east"):
-    """Carbon emissions breakdown and green window analysis."""
-    return analytics.carbon_analytics(days=days, region=region)
+def carbon_analysis(
+    days: int = Query(7, ge=1, le=90),
+    region: str = "us-east",
+    provider: str = "aws",
+):
+    """Reference-workload carbon estimate for a region and provider selection."""
+    return analytics.carbon_analytics(days=days, region=region, provider=provider)
 
 
 @app.get("/recommendations", tags=["Recommendations"], dependencies=protected)
-def get_recommendations(
+async def get_recommendations(
     provider: str = Query("aws"),
     region: str = Query("us-east"),
     category: str | None = None,
     priority: str | None = None,
 ):
     """Retrieve optimization recommendations."""
-    return recommendations.list_recommendations(
+    return await recommendations.list_recommendations(
         provider=provider, region=region, category=category, priority=priority
     )
 
