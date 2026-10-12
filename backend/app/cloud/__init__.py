@@ -12,37 +12,65 @@ from .base_provider import BaseCloudProvider, NormalizedCloudMetric
 from .aws_provider import AWSCloudProvider
 from .azure_provider import AzureCloudProvider
 from .gcp_provider import GCPCloudProvider
+from ..auth import get_current_user_id
 
-_PROVIDERS: dict[str, BaseCloudProvider] = {}
+_PROVIDERS: dict[tuple[str | None, str], BaseCloudProvider] = {}
+_USER_CREDENTIALS: dict[tuple[str, str], dict[str, str]] = {}
+
+
+def update_provider_credentials(name: str, credentials: dict[str, str]) -> None:
+    """Update the active user's in-memory cloud credentials and provider instance."""
+    user_id = get_current_user_id()
+    if not user_id:
+        raise RuntimeError("Provider credentials require an authenticated user.")
+    provider_name = name.lower().strip()
+    key = (user_id, provider_name)
+    _USER_CREDENTIALS[key] = {**_USER_CREDENTIALS.get(key, {}), **credentials}
+    _PROVIDERS.pop((user_id, provider_name), None)
+
+
+def clear_provider_credentials(name: str) -> None:
+    """Clear only the active user's credentials and provider instance."""
+    user_id = get_current_user_id()
+    if not user_id:
+        raise RuntimeError("Provider credentials require an authenticated user.")
+    provider_name = name.lower().strip()
+    key = (user_id, provider_name)
+    _USER_CREDENTIALS.pop(key, None)
+    _PROVIDERS.pop((user_id, provider_name), None)
 
 
 def get_provider(name: Any = "aws") -> BaseCloudProvider:
-    """Return singleton instance of the requested cloud provider."""
+    """Return a provider instance scoped to the active authenticated user."""
     if hasattr(name, "default"):
         name = name.default
     if not isinstance(name, str):
         name = str(name) if name is not None else "aws"
     name_clean = name.lower().strip()
-    if name_clean not in _PROVIDERS:
+    user_id = get_current_user_id()
+    key = (user_id, name_clean)
+    if key not in _PROVIDERS:
+        credentials = _USER_CREDENTIALS.get((user_id, name_clean), {}) if user_id else None
         if name_clean == "azure":
-            _PROVIDERS[name_clean] = AzureCloudProvider()
+            _PROVIDERS[key] = AzureCloudProvider(credentials=credentials)
         elif name_clean == "gcp":
-            _PROVIDERS[name_clean] = GCPCloudProvider()
+            _PROVIDERS[key] = GCPCloudProvider(credentials=credentials)
         else:
-            _PROVIDERS[name_clean] = AWSCloudProvider()
-    return _PROVIDERS[name_clean]
+            _PROVIDERS[key] = AWSCloudProvider(credentials=credentials)
+    return _PROVIDERS[key]
 
 
 def reset_provider(name: str) -> None:
-    """Reset provider singleton so credentials or modes can be refreshed."""
+    """Reset the active user's provider instance."""
     name_clean = name.lower().strip()
-    if name_clean in _PROVIDERS:
-        del _PROVIDERS[name_clean]
+    key = (get_current_user_id(), name_clean)
+    _PROVIDERS.pop(key, None)
 
 
 def reset_all_providers() -> None:
-    """Clear all provider singletons."""
+    """Clear all provider instances and in-memory user credentials."""
     _PROVIDERS.clear()
+    _USER_CREDENTIALS.clear()
 
 
 def get_all_providers_status() -> dict[str, Any]:
