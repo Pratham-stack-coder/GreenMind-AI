@@ -28,6 +28,8 @@
   - `test_settings.py`: Validates zero-secret-leakage status endpoint, live provider connection test execution, session credential configuration, disconnect resets, and dual `/api/v1` path routing.
   - `test_telemetry_persistence.py`: Validates async DB persistence, ring buffer ingestion loop, and multi-granularity history queries (`5m`, `15m`, `1h`, `1d`).
   - `test_api.py`: Full API router integration coverage across all endpoints.
+  - `test_cors.py`: Confirms configured origins pass CORS preflight and unknown origins are rejected.
+  - `test_user_data_isolation.py`: Covers auth context scoping, separate telemetry/recommendation state, encrypted per-user credentials, and AWS environment credential isolation.
 - **Multi-Cloud Telemetry Connectors & Live Verification**:
   - **AWS**: CloudWatch EC2 metrics via `boto3` ([aws_collector.py](backend/app/services/aws_collector.py)). Real connection test using `sts:GetCallerIdentity` and `cloudwatch:ListMetrics`. Minimum IAM: `ec2:DescribeInstances`, `cloudwatch:GetMetricData`, `cloudwatch:ListMetrics`.
   - **Azure**: Direct Azure Monitor REST API client with OAuth2 client-credential token acquisition and subscription status validation ([azure_provider.py](backend/app/cloud/azure_provider.py)). Minimum Role: `Monitoring Reader`.
