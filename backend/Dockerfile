@@ -18,7 +18,8 @@ COPY . .
 # Running via `python -m app.ml.train` from /app fails because the CWD is /app
 # and generate_dataset.py is in /app/app/ml/, not /app.
 # Solution: cd into the ml directory before running train.py directly.
-RUN cd /app/app/ml && python train.py || echo "WARNING: ML model training failed. Models must be trained separately."
+RUN cd /app/app/ml && python train.py \
+    && python -c "from pathlib import Path; p=Path('/app/app/ml'); required=['cpu_model.pkl','memory_model.pkl','network_model.pkl','cost_model.pkl','carbon_model.pkl','metrics.json','feature_importance.json']; missing=[name for name in required if not (p/name).is_file() or (p/name).stat().st_size == 0]; assert not missing, f'Missing/empty ML artifacts: {missing}'"
 
 EXPOSE 8000
 
