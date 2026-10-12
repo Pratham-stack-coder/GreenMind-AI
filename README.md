@@ -18,7 +18,7 @@
 
 ### 🟢 IMPLEMENTED
 - **CI/CD Automation Pipeline**: GitHub Actions workflows ([.github/workflows/ci.yml](.github/workflows/ci.yml) & [deploy.yml](.github/workflows/deploy.yml)) validating Python 3.11/3.12 backend unit/ML tests, Node.js 22 frontend lint, TypeScript typecheck and Vite build, Docker Compose validation and GHCR container image publishing.
-- **Automated Test Suite (69 Tests Passing)**:
+- **Automated Test Suite (see current CI run for the verified test count)**:
   - `test_ml.py`: Validates all 5 trained Gradient Boosting models (`cpu_model.pkl`, `memory_model.pkl`, `network_model.pkl`, `cost_model.pkl`, `carbon_model.pkl`), temporal persistence baselines ($\hat{y}_t = y_{t-1}$), feature importances, and chronological validation criteria.
   - `test_agents.py`: Validates individual execution of all 5 domain agents (Cost, Performance, Sustainability, Security, Reliability), nullable guest OS memory handling, and transparent conflict resolution.
   - `test_digital_twin.py`: Validates mathematical calculations for `RIGHT_SIZE`, `SCALE_UP`, `SCALE_DOWN`, `CONSOLIDATE`, and `REGION_MIGRATION` scenarios with simulation persistence.
@@ -29,7 +29,7 @@
   - `test_telemetry_persistence.py`: Validates async DB persistence, ring buffer ingestion loop, and multi-granularity history queries (`5m`, `15m`, `1h`, `1d`).
   - `test_api.py`: Full API router integration coverage across all endpoints.
 - **Multi-Cloud Telemetry Connectors & Live Verification**:
-  - **AWS**: CloudWatch EC2 metrics via `boto3` ([aws_collector.py](backend/app/cloud/aws_provider.py)). Real connection test using `sts:GetCallerIdentity` and `cloudwatch:ListMetrics`. Minimum IAM: `ec2:DescribeInstances`, `cloudwatch:GetMetricData`, `cloudwatch:ListMetrics`.
+  - **AWS**: CloudWatch EC2 metrics via `boto3` ([aws_provider.py](backend/app/cloud/aws_provider.py)). Real connection test using `sts:GetCallerIdentity` and `cloudwatch:ListMetrics`. Minimum IAM: `ec2:DescribeInstances`, `cloudwatch:GetMetricData`, `cloudwatch:ListMetrics`.
   - **Azure**: Direct Azure Monitor REST API client with OAuth2 client-credential token acquisition and subscription status validation ([azure_provider.py](backend/app/cloud/azure_provider.py)). Minimum Role: `Monitoring Reader`.
   - **GCP**: Google Cloud Monitoring v3 client with official `google.oauth2.service_account` JWT authentication and metric descriptor validation ([gcp_provider.py](backend/app/cloud/gcp_provider.py)). Minimum Roles: `roles/monitoring.viewer`, `roles/compute.viewer`.
   - **Zero-Config Demo Mode**: Automatic, high-fidelity fallback when credentials are absent without fabricating live status.
