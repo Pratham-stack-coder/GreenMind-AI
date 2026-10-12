@@ -9,7 +9,7 @@ def client(authenticated_client):
     return authenticated_client
 
 
-def test_health():
+def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
@@ -20,7 +20,7 @@ def test_health():
     assert data["demo_mode"] == settings.demo_mode
 
 
-def test_cloud_metrics():
+def test_cloud_metrics(client):
     response = client.get("/cloud-metrics?region=us-east")
     assert response.status_code == 200
     data = response.json()
@@ -31,7 +31,7 @@ def test_cloud_metrics():
     assert data["source"] in ["DEMO", "LIVE", "LIVE_AWS"]
 
 
-def test_predict():
+def test_predict(client):
     response = client.post("/predict?cpu=55.0&hour=14.0&day_of_week=2")
     assert response.status_code == 200
     data = response.json()
@@ -41,7 +41,7 @@ def test_predict():
     assert data["risk"] in ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 
 
-def test_predictions_endpoint():
+def test_predictions_endpoint(client):
     response = client.get("/predictions?provider=aws&region=us-east")
     assert response.status_code == 200
     data = response.json()
@@ -53,7 +53,7 @@ def test_predictions_endpoint():
     assert "predicted" in data["cpu"]
 
 
-def test_analytics():
+def test_analytics(client):
     response = client.get("/analytics?days=7&provider=aws&region=us-east")
     assert response.status_code == 200
     data = response.json()
@@ -63,7 +63,7 @@ def test_analytics():
     assert data["scores"]["overall"] >= 0
 
 
-def test_cost_analysis():
+def test_cost_analysis(client):
     response = client.get("/cost-analysis?days=7")
     assert response.status_code == 200
     data = response.json()
@@ -72,7 +72,7 @@ def test_cost_analysis():
     assert "top_cost_drivers" in data
 
 
-def test_carbon_analysis():
+def test_carbon_analysis(client):
     response = client.get("/carbon-analysis?days=7&region=us-east")
     assert response.status_code == 200
     data = response.json()
@@ -80,7 +80,7 @@ def test_carbon_analysis():
     assert "green_hours_pct" in data
 
 
-def test_recommendations():
+def test_recommendations(client):
     response = client.get("/recommendations?provider=aws&region=us-east")
     assert response.status_code == 200
     data = response.json()
@@ -89,7 +89,7 @@ def test_recommendations():
     assert "optimization_score" in data
 
 
-def test_explain_recommendation():
+def test_explain_recommendation(client):
     # First fetch recommendations to get an ID
     recs_resp = client.get("/recommendations?provider=aws&region=us-east")
     assert recs_resp.status_code == 200
@@ -104,7 +104,7 @@ def test_explain_recommendation():
         assert "expected_impact" in data
 
 
-def test_agents_list():
+def test_agents_list(client):
     response = client.get("/agents")
     assert response.status_code == 200
     data = response.json()
@@ -113,7 +113,7 @@ def test_agents_list():
     assert "conflict_resolution" in data
 
 
-def test_agents_run():
+def test_agents_run(client):
     payload = {"provider": "aws", "region": "us-east"}
     response = client.post("/agents/run", json=payload)
     assert response.status_code == 200
@@ -127,7 +127,7 @@ def test_agents_run():
     assert isinstance(data["conflicts"], list)
 
 
-def test_digital_twin_simulate():
+def test_digital_twin_simulate(client):
     payload = {
         "baseline_metrics": {
             "timestamp": "2026-09-22T00:00:00Z",
@@ -161,7 +161,7 @@ def test_digital_twin_simulate():
     assert "confidence" in data
 
 
-def test_digital_twin_scenario():
+def test_digital_twin_scenario(client):
     payload = {
         "scenario": "RIGHT_SIZE",
         "current_state": {
@@ -183,7 +183,7 @@ def test_digital_twin_scenario():
     assert data["risk"] in ["LOW", "MEDIUM", "HIGH"]
 
 
-def test_copilot_chat():
+def test_copilot_chat(client):
     payload = {
         "message": "Why is my cloud cost high?",
         "provider": "aws",
@@ -199,7 +199,7 @@ def test_copilot_chat():
     assert "actions" in data
 
 
-def test_cloud_providers():
+def test_cloud_providers(client):
     response = client.get("/cloud/providers")
     assert response.status_code == 200
     data = response.json()
@@ -210,7 +210,7 @@ def test_cloud_providers():
     assert "gcp" in provider_ids
 
 
-def test_cloud_resources():
+def test_cloud_resources(client):
     response = client.get("/cloud/resources?provider=aws&region=us-east")
     assert response.status_code == 200
     data = response.json()
