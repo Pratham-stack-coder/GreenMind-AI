@@ -138,7 +138,7 @@ def test_all_entity_persist_helpers():
             dry_run=False,
         )
 
-    asyncio.run(_run())
+    asyncio.run(_run_as_test_user(_run))
 
 
 def test_collect_and_persist_telemetry_loop():
@@ -149,7 +149,7 @@ def test_collect_and_persist_telemetry_loop():
         history = get_telemetry_history(10)
         assert len(history) > 0
 
-    asyncio.run(_run())
+    asyncio.run(_run_as_test_user(_run))
 
 
 def test_telemetry_history_api():
