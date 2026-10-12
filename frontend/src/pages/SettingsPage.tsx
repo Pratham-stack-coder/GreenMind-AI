@@ -496,8 +496,8 @@ export default function SettingsPage() {
             <p className="text-xs text-secondary mt-1 leading-relaxed">
               GreenMind AI runs under a strict <strong>read-only telemetry policy</strong>. It will never modify, terminate,
               or resize live cloud infrastructure without explicit future operator sign-off.
-              All credentials tested or saved in this session are validated directly with cloud provider APIs in-memory,
-              never written in plaintext to databases, and never exposed in client API responses.
+              Cloud credentials belong to your signed-in account and are encrypted in the backend database with
+              CREDENTIAL_ENCRYPTION_KEY. They are never returned in client API responses.
             </p>
           </div>
         </div>
