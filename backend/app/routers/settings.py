@@ -39,7 +39,7 @@ class DisconnectProviderRequest(BaseModel):
 
 
 @router.get("/status")
-def get_settings_status() -> dict[str, Any]:
+async def get_settings_status() -> dict[str, Any]:
     """
     Return active status across multi-cloud providers, AI models, and database infrastructure.
     GUARANTEE: Secret keys and passwords are NEVER returned in this response.
@@ -57,6 +57,14 @@ def get_settings_status() -> dict[str, Any]:
     llm_status = "configured_unverified"
 
     db_type = "postgresql" if settings.database_url.startswith("postgresql") else "sqlite"
+    from ..database import _engine
+
+    try:
+        async with _engine.connect() as connection:
+            await connection.execute(__import__("sqlalchemy").text("SELECT 1"))
+        database_status = "connected"
+    except Exception:
+        database_status = "unavailable"
 
     return {
         "system_mode": global_mode,
@@ -81,7 +89,7 @@ def get_settings_status() -> dict[str, Any]:
         },
         "database": {
             "type": db_type,
-            "status": "connected",
+            "status": database_status,
             "is_persistent": True,
         },
         "redis": bool(settings.redis_url),
