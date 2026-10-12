@@ -168,8 +168,15 @@ export default function DashboardPage() {
           {/* Multi-cloud provider mini pills */}
           <div className="provider-pills-row">
             {(['aws', 'azure', 'gcp'] as const).map(p => {
-              const isConnected = pStatus?.status === 'connected'
-              const providerLabel = !pStatus ? 'UNKNOWN' : pStatus.status === 'error' ? 'ERROR' : isConnected ? 'LIVE' : 'DEMO'
+              const pStatus = settingsStatus?.providers?.[p]
+              const isConnected = pStatus?.mode === 'LIVE' && pStatus.status === 'connected'
+              const providerLabel = !pStatus
+                ? 'UNKNOWN'
+                : isConnected
+                  ? 'LIVE'
+                  : pStatus.mode === 'DEMO'
+                    ? 'DEMO'
+                    : 'ERROR'
               return (
                 <span
                   key={p}

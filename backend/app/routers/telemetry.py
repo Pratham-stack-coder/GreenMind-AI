@@ -124,7 +124,6 @@ def _generate_live_metrics(provider: str, region: str, *, record: bool = True) -
         memory_note="Synthetic DEMO data — configure cloud credentials for live telemetry.",
     )
     if record:
-        if record:
         record_telemetry(m.model_dump())
     return m
 
