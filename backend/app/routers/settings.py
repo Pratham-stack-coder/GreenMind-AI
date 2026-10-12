@@ -91,7 +91,7 @@ async def get_settings_status() -> dict[str, Any]:
         "database": {
             "type": db_type,
             "status": database_status,
-            "is_persistent": True,
+            "is_persistent": db_type == "postgresql",
         },
         "redis": bool(settings.redis_url),
         "timestamp": datetime.now(timezone.utc).isoformat(),
