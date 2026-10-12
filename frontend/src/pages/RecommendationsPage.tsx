@@ -56,7 +56,9 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
       })
 
     } catch (err: unknown) {
-      console.error('Failed to apply recommendation', err)
+      const message = err instanceof Error ? err.message : 'The dry-run request failed.'
+      console.error('Failed to prepare recommendation preview', err)
+      setApplyResult({ message: `Dry-run preview failed: ${message}`, steps: [], status: 'error' })
     } finally {
       setApplying(false)
     }
@@ -259,16 +261,16 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                 className="card"
                 style={{
                   background: 'rgba(0, 0, 0, 0.5)',
-                  borderColor: applyResult.status === 'applied' ? 'var(--emerald-500)' : 'var(--blue-400)',
+                  borderColor: applyResult.status === 'error' ? 'var(--red-500)' : 'var(--blue-400)',
                   padding: 14,
                 }}
               >
                 <div className="flex items-center gap-2 mb-2">
-                  <Terminal size={14} color={applyResult.status === 'applied' ? 'var(--emerald-400)' : 'var(--blue-400)'} />
+                  <Terminal size={14} color={applyResult.status === 'error' ? 'var(--red-400)' : 'var(--blue-400)'} />
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
-                    Dry-Run Preview Complete
+                    {applyResult.status === 'error' ? 'Dry-Run Preview Failed' : 'Dry-Run Preview Complete'}
                   </span>
-                  <span className={`badge ${applyResult.status === 'applied' ? 'badge-emerald' : 'badge-blue'}`} style={{ marginLeft: 'auto' }}>
+                  <span className={`badge ${applyResult.status === 'error' ? 'badge-red' : 'badge-blue'}`} style={{ marginLeft: 'auto' }}>
                     {applyResult.status}
                   </span>
                 </div>
@@ -365,6 +367,11 @@ function RecCard({
       })
     } catch (err: unknown) {
       console.error('Failed to prepare recommendation preview', err)
+      addNotification({
+        title: 'Dry-Run Preview Failed',
+        body: err instanceof Error ? err.message : 'The dry-run request failed.',
+        priority: 'high',
+      })
     } finally {
       setIsApplying(false)
     }
@@ -618,7 +625,12 @@ export default function RecommendationsPage() {
       })
       refreshAll()
     } catch (err: unknown) {
-      console.error('Batch apply error', err)
+      console.error('Batch preview error', err)
+      addNotification({
+        title: 'Batch Dry-Run Failed',
+        body: err instanceof Error ? err.message : 'The batch preview request failed.',
+        priority: 'high',
+      })
     } finally {
       setIsBatchApplying(false)
     }
