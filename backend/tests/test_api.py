@@ -4,6 +4,10 @@ import pytest
 from fastapi.testclient import TestClient
 from app.main import app, settings
 
+@pytest.fixture
+def client(authenticated_client):
+    return authenticated_client
+
 client = TestClient(app)
 
 
