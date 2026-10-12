@@ -23,7 +23,6 @@ from app.database import (
 )
 from app.routers.telemetry import collect_and_persist_telemetry
 
-client = TestClient(app)
 
 
 def test_init_db_and_persist_telemetry():
