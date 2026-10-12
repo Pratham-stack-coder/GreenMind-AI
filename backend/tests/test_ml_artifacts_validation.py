@@ -2,6 +2,7 @@
 import json
 
 from app.ml.predictor import validate_artifacts
+from app.ml import predictor
 
 
 def test_artifact_validation_reports_all_missing_required_files(tmp_path):
@@ -27,3 +28,16 @@ def test_artifact_validation_rejects_empty_files(tmp_path):
     problems = validate_artifacts(tmp_path)
     assert len(problems) == 7
     assert all("missing or empty" in problem for problem in problems)
+
+
+def test_cpu_model_invalid_artifact_is_not_treated_as_missing(tmp_path, monkeypatch):
+    from app.ml import predictor as module
+    (tmp_path / "cpu_model.pkl").write_bytes(b"invalid")
+    monkeypatch.setattr(module, "HERE", tmp_path)
+    module._MODELS.clear()
+    try:
+        import pytest
+        with pytest.raises(ValueError, match="Invalid ML artifact"):
+            module._load("cpu")
+    finally:
+        module._MODELS.clear()
