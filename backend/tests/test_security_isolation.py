@@ -42,9 +42,9 @@ def test_cors_rejects_unlisted_browser_origin():
     assert response.headers.get("access-control-allow-origin") != "https://attacker.vercel.app"
 
 
-def test_cross_user_recommendation_identifier_does_not_expose_private_user_state():
-    # Current recommendation route state is process-global rather than persisted with an owner.
-    # This test locks in that an unknown recommendation cannot be mutated or inspected.
+def test_unauthenticated_recommendation_mutation_is_denied():
+    # This verifies the authentication boundary only; it does not prove per-user isolation.
+    # The repository's shared recommendation store still needs an owner-scoped redesign.
     from app.routers import recommendations as recommendations_router
 
     previous_recs = recommendations_router._last_recommendations
@@ -124,3 +124,18 @@ def test_demo_apply_path_does_not_mark_recommendation_applied(monkeypatch):
     assert result.status == "simulated"
     assert recommendation.status != "applied"
     assert "demo-rec" not in rec_router._applied_recommendations
+
+
+def test_loopback_cors_origins_are_only_defaulted_outside_production():
+    production = Settings(
+        app_env="production",
+        allowed_origins="https://app.example.com",
+    )
+    development = Settings(
+        app_env="development",
+        allowed_origins="https://app.example.com",
+    )
+    assert "http://localhost:5173" not in production.get_allowed_origins()
+    assert "http://127.0.0.1:3000" not in production.get_allowed_origins()
+    assert "http://localhost:5173" in development.get_allowed_origins()
+    assert "http://127.0.0.1:3000" in development.get_allowed_origins()
