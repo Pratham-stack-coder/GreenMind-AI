@@ -247,33 +247,11 @@ def apply_recommendation(rec_id: str, req: ApplyRequest | None = None):
 
 @router.post("/{rec_id}/rollback", response_model=ApplyResponse)
 def rollback_recommendation(rec_id: str):
-    """Roll back an applied recommendation and restore original state."""
-    state = _user_state()
-
-    rec = next((r for r in state["recommendations"] if r.id == rec_id), None)
-    if not rec:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Recommendation '{rec_id}' not found.",
-        )
-
-    if rec.status != "applied" and rec_id not in state["applied"]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Recommendation '{rec_id}' is not in applied state.",
-        )
-
-    rec.status = "open"
-    rec.applied_at = None
-    rec.steps_taken = []
-    state["applied"].pop(rec_id, None)
-
-    # Decrement score back down
-    penalty = 4 if rec.priority in ("critical", "high") else 2
-    state["score"] = max(50, state["score"] - penalty)
-
-    from ..integrations.cloud_actions import CloudActionDispatcher
-    return CloudActionDispatcher.rollback_recommendation(rec, new_score=state["score"])
+    """Return a clear error until real rollback operations are implemented."""
+    raise HTTPException(
+        status_code=501,
+        detail="Cloud remediation rollback is not implemented.",
+    )
 
 
 @router.post("/{rec_id}/dismiss")
