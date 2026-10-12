@@ -64,6 +64,10 @@ jobs:
         working-directory: ./frontend
         run: npm ci
 
+      - name: Install pinned lint tooling without changing the project lockfile
+        working-directory: ./frontend
+        run: npm install --no-save --package-lock=false eslint@8.57.1 @typescript-eslint/parser@8.46.0 @typescript-eslint/eslint-plugin@8.46.0 eslint-plugin-react-hooks@5.2.0 eslint-plugin-react-refresh@0.4.24
+
       - name: Lint Frontend
         working-directory: ./frontend
         run: npm run lint
