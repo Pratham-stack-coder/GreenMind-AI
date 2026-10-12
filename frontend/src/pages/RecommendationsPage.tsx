@@ -266,7 +266,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                 <div className="flex items-center gap-2 mb-2">
                   <Terminal size={14} color={applyResult.status === 'applied' ? 'var(--emerald-400)' : 'var(--blue-400)'} />
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {applyResult.status === 'applied' ? 'Dry-Run Preview Complete' : 'Dry-Run Simulation Complete'}
+                    Dry-Run Preview Complete
                   </span>
                   <span className={`badge ${applyResult.status === 'applied' ? 'badge-emerald' : 'badge-blue'}`} style={{ marginLeft: 'auto' }}>
                     {applyResult.status}
