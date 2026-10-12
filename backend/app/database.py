@@ -21,6 +21,8 @@ from sqlalchemy import (
     String,
     Text,
     select,
+    inspect,
+    text,
 )
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -30,6 +32,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from .config import get_settings
+from .auth import get_current_user_id
 
 settings = get_settings()
 
@@ -68,6 +71,7 @@ class CloudResourceRecord(Base):
     __tablename__ = "cloud_resources"
 
     id = Column(String(128), primary_key=True)
+    owner_id = Column(String(255), nullable=True)
     name = Column(String(255))
     type = Column(String(64))
     provider = Column(String(32), index=True)
@@ -86,6 +90,7 @@ class TelemetryRecord(Base):
     __tablename__ = "cloud_metrics"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_id = Column(String(255), nullable=True)
     timestamp = Column(String(64), index=True)
     provider = Column(String(32), index=True)
     region = Column(String(32), index=True)
@@ -133,6 +138,7 @@ class PredictionRecord(Base):
     __tablename__ = "predictions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_id = Column(String(255), nullable=True)
     target = Column(String(32), index=True)
     current_value = Column(Float)
     predicted_value = Column(Float)
@@ -147,6 +153,7 @@ class RecommendationRecord(Base):
     __tablename__ = "recommendations"
 
     id = Column(String(64), primary_key=True)
+    owner_id = Column(String(255), nullable=True)
     category = Column(String(32), index=True)
     priority = Column(String(32), index=True)
     title = Column(String(255))
@@ -168,6 +175,7 @@ class AgentResultRecord(Base):
     __tablename__ = "agent_results"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_id = Column(String(255), nullable=True)
     run_id = Column(String(64), index=True)
     agent_name = Column(String(32), index=True)
     score = Column(Integer)
@@ -180,6 +188,7 @@ class OptimizationResultRecord(Base):
     __tablename__ = "optimization_results"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_id = Column(String(255), nullable=True)
     overall_score = Column(Integer)
     cost_score = Column(Integer)
     performance_score = Column(Integer)
@@ -194,6 +203,7 @@ class SimulationRecord(Base):
     __tablename__ = "simulation_results"
 
     id = Column(String(64), primary_key=True)
+    owner_id = Column(String(255), nullable=True)
     changes_json = Column(Text)
     before_json = Column(Text)
     after_json = Column(Text)
@@ -208,6 +218,7 @@ class AuditLogRecord(Base):
     __tablename__ = "audit_log_records"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
+    owner_id = Column(String(255), nullable=True)
     recommendation_id = Column(String(64), index=True)
     title = Column(String(255))
     action = Column(String(255))
@@ -225,9 +236,26 @@ class AuditLogRecord(Base):
 # ── Initialization ─────────────────────────────────────────────────────────────
 
 async def init_db() -> None:
-    """Create all tables if they do not exist."""
+    """Create tables and safely add per-user ownership to existing databases."""
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_ensure_owner_columns)
+
+
+def _ensure_owner_columns(sync_conn) -> None:
+    """Add ownership columns to databases created before tenant isolation."""
+    tables = (
+        "cloud_resources", "cloud_metrics", "predictions", "recommendations",
+        "agent_results", "optimization_results", "simulation_results", "audit_log_records",
+    )
+    existing_tables = set(inspect(sync_conn).get_table_names())
+    for table in tables:
+        if table not in existing_tables:
+            continue
+        columns = {column["name"] for column in inspect(sync_conn).get_columns(table)}
+        if "owner_id" not in columns:
+            sync_conn.execute(text(f"ALTER TABLE {table} ADD COLUMN owner_id VARCHAR(255)"))
+        sync_conn.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{table}_owner_id ON {table} (owner_id)"))
 
 
 async def get_db():
@@ -269,30 +297,40 @@ async def cache_set(key: str, value: Any, ttl: int = 30) -> None:
 # ── In-Memory Ring Buffer & Persistence Helpers ────────────────────────────────
 
 _HISTORY_MAX = 2000
-_telemetry_history: list[dict] = []
+_telemetry_history: dict[str, list[dict]] = {}
 
 
 def record_telemetry(entry: dict) -> None:
-    """Synchronous in-memory logging for high-speed loops."""
-    global _telemetry_history
+    """Store telemetry in the authenticated user's in-memory ring buffer."""
+    owner_id = get_current_user_id()
+    if not owner_id:
+        return
     if "recorded_at" not in entry:
         entry["recorded_at"] = datetime.now(timezone.utc).isoformat()
-    _telemetry_history.append(entry)
-    if len(_telemetry_history) > _HISTORY_MAX:
-        _telemetry_history = _telemetry_history[-_HISTORY_MAX:]
+    history = _telemetry_history.setdefault(owner_id, [])
+    history.append(dict(entry))
+    if len(history) > _HISTORY_MAX:
+        del history[:-_HISTORY_MAX]
 
 
 def get_telemetry_history(limit: int = 100) -> list[dict]:
-    """Retrieve telemetry history from in-memory ring buffer."""
-    return list(reversed(_telemetry_history[-limit:]))
+    """Retrieve telemetry only from the authenticated user's ring buffer."""
+    owner_id = get_current_user_id()
+    if not owner_id:
+        return []
+    return list(reversed(_telemetry_history.get(owner_id, [])[-limit:]))
 
 
 async def persist_telemetry_entry(entry: dict) -> None:
     """Persist telemetry reading to database, updating in-memory cache as well."""
     record_telemetry(entry)
+    owner_id = get_current_user_id()
+    if not owner_id:
+        return
     try:
         async with _async_session_maker() as session:
             record = TelemetryRecord(
+                owner_id=owner_id,
                 timestamp=entry.get("timestamp", datetime.now(timezone.utc).isoformat()),
                 provider=entry.get("provider", "aws"),
                 region=entry.get("region", "us-east"),
@@ -326,7 +364,10 @@ async def query_telemetry_history(
     """Query telemetry history from database with in-memory fallback."""
     try:
         async with _async_session_maker() as session:
-            stmt = select(TelemetryRecord)
+            owner_id = get_current_user_id()
+            if not owner_id:
+                return []
+            stmt = select(TelemetryRecord).where(TelemetryRecord.owner_id == owner_id)
             if provider:
                 stmt = stmt.where(TelemetryRecord.provider == provider.lower())
             if region:
@@ -358,9 +399,13 @@ async def persist_prediction_entry(
     horizon_minutes: int = 60,
 ) -> None:
     """Persist ML model prediction record to database."""
+    owner_id = get_current_user_id()
+    if not owner_id:
+        return
     try:
         async with _async_session_maker() as session:
             rec = PredictionRecord(
+                owner_id=owner_id,
                 target=target,
                 current_value=current_value,
                 predicted_value=predicted_value,
@@ -377,9 +422,13 @@ async def persist_prediction_entry(
 
 async def persist_recommendation_entry(rec_data: dict) -> None:
     """Persist recommendation to database."""
+    owner_id = get_current_user_id()
+    if not owner_id:
+        return
     try:
         async with _async_session_maker() as session:
             rec = RecommendationRecord(
+                owner_id=owner_id,
                 id=rec_data["id"],
                 category=rec_data.get("category", "cost"),
                 priority=rec_data.get("priority", "medium"),
@@ -408,9 +457,13 @@ async def persist_agent_result_entry(
     recommendations_count: int = 0,
 ) -> None:
     """Persist agent run outcome to database."""
+    owner_id = get_current_user_id()
+    if not owner_id:
+        return
     try:
         async with _async_session_maker() as session:
             rec = AgentResultRecord(
+                owner_id=owner_id,
                 run_id=run_id,
                 agent_name=agent_name,
                 score=score,
@@ -434,9 +487,13 @@ async def persist_simulation_entry(
     confidence: float = 0.8,
 ) -> None:
     """Persist Digital Twin simulation result to database."""
+    owner_id = get_current_user_id()
+    if not owner_id:
+        return
     try:
         async with _async_session_maker() as session:
             rec = SimulationRecord(
+                owner_id=owner_id,
                 id=sim_id,
                 changes_json=json.dumps(changes),
                 before_json=json.dumps(before),
@@ -465,9 +522,13 @@ async def persist_audit_log(
     operator_notes: str | None = None,
 ) -> None:
     """Persist an applied/rollback remediation action to the audit table."""
+    owner_id = get_current_user_id()
+    if not owner_id:
+        return
     try:
         async with _async_session_maker() as session:
             log = AuditLogRecord(
+                owner_id=owner_id,
                 recommendation_id=rec_id,
                 title=title,
                 action=action,
