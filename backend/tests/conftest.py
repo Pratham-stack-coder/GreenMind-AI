@@ -3,15 +3,22 @@
 from uuid import uuid4
 
 import pytest
+from cryptography.fernet import Fernet
 
 
 @pytest.fixture(autouse=True)
-def authenticated_test_user():
-    """Give API tests a fresh authenticated identity without calling Supabase."""
+def authenticated_test_user(monkeypatch):
+    """Give API tests a fresh auth identity and encryption key without Supabase."""
     from app.auth import _current_user_id, require_authenticated_user
+    from app.config import get_settings
     from app.main import app
 
     user_id = f"pytest-{uuid4()}"
+    monkeypatch.setattr(
+        get_settings(),
+        "credential_encryption_key",
+        Fernet.generate_key().decode("ascii"),
+    )
 
     async def override_authenticated_user():
         token = _current_user_id.set(user_id)
