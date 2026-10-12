@@ -66,8 +66,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: initialize database tables, background telemetry ingestion, and pre-load ML models."""
-    import asyncio
+    """Startup: initialize database tables and pre-load ML models."""
     # Initialize database tables (creates them if not present)
     try:
         await init_db()
@@ -82,26 +81,8 @@ async def lifespan(app: FastAPI):
     except FileNotFoundError:
         logger.warning("ML model files not found — run python -m app.ml.train to generate them.")
 
-    # Background telemetry ingestion job
-    async def _telemetry_worker():
-        while True:
-            try:
-                await telemetry.collect_and_persist_telemetry()
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.debug(f"Telemetry ingestion loop caught: {e}")
-            await asyncio.sleep(60)
-
-    ingest_task = asyncio.create_task(_telemetry_worker())
-
     yield
 
-    ingest_task.cancel()
-    try:
-        await ingest_task
-    except asyncio.CancelledError:
-        pass
     logger.info("GreenMind AI shutting down.")
 
 

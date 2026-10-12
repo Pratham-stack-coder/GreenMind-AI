@@ -17,7 +17,7 @@
 ## 📋 Status Breakdown
 
 ### 🟢 IMPLEMENTED
-- **Continuous Integration & Image Publishing**: GitHub Actions checks Python 3.11/3.12 backend tests, Node 22 frontend lint/typecheck/build, and Docker/Compose configuration. The image workflow publishes GHCR images for tags or manual runs; Render independently auto-deploys from `main`. Publishing an image does not deploy it.
+- **Continuous Integration & Image Publishing**: GitHub Actions checks Python 3.11/3.12 backend tests, Node 22 frontend lint/typecheck/build, and Docker/Compose configuration. The image workflow publishes GHCR images for tags or manual runs; Render independently auto-deploys from `main`. Publishing an image does not deploy it. GHCR frontend builds require repository Actions variables `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
 - **Automated Test Suite**:
   - `test_ml.py`: Validates all 5 trained Gradient Boosting models (`cpu_model.pkl`, `memory_model.pkl`, `network_model.pkl`, `cost_model.pkl`, `carbon_model.pkl`), temporal persistence baselines ($\hat{y}_t = y_{t-1}$), feature importances, and chronological validation criteria.
   - `test_agents.py`: Validates individual execution of all 5 domain agents (Cost, Performance, Sustainability, Security, Reliability), nullable guest OS memory handling, and transparent conflict resolution.
@@ -26,8 +26,8 @@
   - `test_cloud_connectors.py`: Validates provider factory, demo mode fallback, and live API mock parsing for AWS, Azure, and GCP.
   - `test_cloud_providers.py`: Validates 4-tier provider status (`NOT_CONFIGURED`, `CONNECTED_DEMO`, `CONNECTED_LIVE`, `ERROR`), live STS/OAuth/JWT authentication, and credential validation.
   - `test_settings.py`: Validates zero-secret-leakage status endpoint, live provider connection test execution, session credential configuration, disconnect resets, and dual `/api/v1` path routing.
-  - `test_telemetry_persistence.py`: Validates async DB persistence, ring buffer ingestion loop, and multi-granularity history queries (`5m`, `15m`, `1h`, `1d`).
-  - `test_api.py`: Full API router integration coverage across all endpoints.
+  - `test_telemetry_persistence.py`: Validates authenticated API persistence, owner-scoped durable history, and multi-granularity history queries (`5m`, `15m`, `1h`, `1d`).
+  - `test_api.py`: Smoke and integration checks for selected health, telemetry, analytics, prediction, recommendation, agent, digital-twin, Copilot, cloud-resource, Prometheus, and CORS endpoints.
   - `test_cors.py`: Confirms configured origins pass CORS preflight and unknown origins are rejected.
   - `test_user_data_isolation.py`: Covers auth context scoping, separate telemetry/recommendation state, encrypted per-user credentials, and AWS environment credential isolation.
 - **Multi-Cloud Telemetry Connectors & Live Verification**:
@@ -40,15 +40,15 @@
   - Runtime credential configuration and one-click Disconnect to Demo mode.
   - Per-user cloud credentials are encrypted in the backend database with `CREDENTIAL_ENCRYPTION_KEY`; plaintext secrets are not returned by API responses.
 - **Enterprise Dark React Cockpit (All 11 Dedicated Pages)**:
-  1. `Overview Dashboard` ([DashboardPage.tsx](frontend/src/pages/DashboardPage.tsx)): 8 metric cards, 6 live trend charts, dynamic multi-cloud provider badges (AWS/Azure/GCP Live vs Demo), and truthful telemetry source labeling.
-  2. `Cloud Resources` ([CloudResourcesPage.tsx](frontend/src/pages/CloudResourcesPage.tsx)): Searchable multi-cloud resource inventory with right-sizing candidate flags.
+  1. `Overview Dashboard` ([DashboardPage.tsx](frontend/src/pages/DashboardPage.tsx)): provider telemetry cards and history charts with live, demo, unavailable, and error source labels.
+  2. `Cloud Resources` ([CloudResourcesPage.tsx](frontend/src/pages/CloudResourcesPage.tsx)): Searchable provider inventory with right-sizing flags and explicit unavailable status when the inventory request fails.
   3. `Predictions` ([PredictionsPage.tsx](frontend/src/pages/PredictionsPage.tsx)): 60-minute multi-metric forecasting and model evaluation telemetry.
   4. `Cost Optimization` ([CostOptimizationPage.tsx](frontend/src/pages/CostOptimizationPage.tsx)): Spend curve, underutilization detection, and instant scenario simulator.
   5. `Carbon Intelligence` ([CarbonIntelligencePage.tsx](frontend/src/pages/CarbonIntelligencePage.tsx)): 24-hour grid carbon intensity curve, regional clean energy ranking, and time-shift scheduler.
   6. `AI Recommendations` ([RecommendationsPage.tsx](frontend/src/pages/RecommendationsPage.tsx)): Recommendation ledger with Explain and dry-run preview. Live apply and rollback are not implemented.
   7. `Multi-Agent AI` ([AgentsPage.tsx](frontend/src/pages/AgentsPage.tsx)): Visual orchestration flow, domain scores, and transparent conflict resolution matrix.
   8. `Digital Twin` ([DigitalTwinPage.tsx](frontend/src/pages/DigitalTwinPage.tsx)): Interactive simulation workbench for all 5 scenarios (including Region Migration).
-  9. `AI Copilot` ([CopilotPage.tsx](frontend/src/pages/CopilotPage.tsx)): Natural language interface citing real backend metrics and providing quick actions.
+  9. `AI Copilot` ([CopilotPage.tsx](frontend/src/pages/CopilotPage.tsx)): Natural language interface grounded in current backend telemetry and analysis tools.
   10. `Analytics` ([AnalyticsPage.tsx](frontend/src/pages/AnalyticsPage.tsx)): Historical spend and carbon analytics with provider breakdowns.
   11. `Settings` ([SettingsPage.tsx](frontend/src/pages/SettingsPage.tsx)): Fully functional credentials tester, provider connector, and architecture inspector.
 - **Production Deployment Blueprints & Guides**:
@@ -60,7 +60,7 @@
 - **LangGraph Multi-Agent Architecture with Conflict Resolution**: 5 specialized agents (Cost, Performance, Sustainability, Security, Reliability) with explicit transparent conflict resolution (`resolve_conflicts()`).
 - **Digital Twin Simulation Engine**: Non-destructive simulator evaluating Before vs After for `RIGHT_SIZE`, `SCALE_UP`, `SCALE_DOWN`, `CONSOLIDATE`, and `REGION_MIGRATION`. Labeled `SIMULATED / ESTIMATED`.
 - **AI Cloud Copilot Engine**: Natural language query processing grounded in 8 tools (`get_cloud_metrics`, `get_history`, `get_predictions`, `get_cost_analysis`, `get_carbon_analysis`, `get_recommendations`, `get_cloud_health`, `run_digital_twin_simulation`). Cites data sources without hallucinating.
-- **Database & Persistence**: Async SQLAlchemy ORM supporting both SQLite (`greenmind.db`) for demo/dev and PostgreSQL for production. Optional Redis caching.
+- **Database & Persistence**: Async SQLAlchemy ORM supporting SQLite (`greenmind.db`) for demo/dev and PostgreSQL for production. Authenticated telemetry requests persist history under the signed-in user; an owner-scoped in-memory buffer supports fallback reads. Optional Redis caching.
 - **Prometheus Monitoring & Observability**: Middleware & exposition at `/metrics/prometheus` tracking request rates, latencies, prediction counts, errors, and agent execution times. Grafana automated datasource and dashboard provisioning.
 - **Security Hardening**: PostgreSQL and Redis in `docker-compose.yml` are bound strictly to localhost loopback (`127.0.0.1`), secrets are parameterized via environment variables, and Docker healthchecks are implemented.
 - **Unified Clean API Router**: Complete root and `/api/v1/` routes preserving all legacy and existing endpoints.
@@ -185,7 +185,7 @@ All outputs explicitly report **`SIMULATED / ESTIMATED`** alongside Before vs Af
 | :--- | :--- | :--- |
 | `GET` | `/` | Platform status, version, and endpoint sitemap |
 | `GET` | `/health` | System health, database, Redis, and LLM connection status |
-| `GET` | `/metrics` | Current live cloud telemetry (CPU, Memory, Storage, Network, Cost, Carbon) |
+| `GET` | `/metrics` | Current live telemetry or explicitly labeled demo telemetry (CPU, Memory, Storage, Network, Cost, Carbon) |
 | `GET` | `/metrics/prometheus` | Prometheus openmetrics exposition format |
 | `GET` | `/history` | Recent historical telemetry entries |
 | `GET` | `/cloud-metrics` | Telemetry endpoint (preserves demo mode backward compatibility) |
@@ -200,7 +200,7 @@ All outputs explicitly report **`SIMULATED / ESTIMATED`** alongside Before vs Af
 | `POST`| `/agents/run` | Execute LangGraph multi-agent analysis with conflict resolution |
 | `POST`| `/digital-twin/simulate` | Custom infrastructure change simulation |
 | `POST`| `/digital-twin/scenario` | Standard scenario simulation (RIGHT_SIZE, SCALE_UP, etc.) |
-| `POST`| `/copilot/chat` | AI Cloud Copilot chat grounded in live metrics and tools |
+| `POST` | `/copilot/chat` | AI Cloud Copilot chat grounded in current provider telemetry and analysis tools |
 | `GET` | `/cloud/providers` | List supported cloud providers and operational modes |
 | `GET` | `/cloud/resources` | Cloud resource inventory with right-size candidate tags |
 
@@ -283,6 +283,6 @@ Backend configuration is loaded from environment variables:
 - `REDIS_URL` (optional cache)
 - `OPENAI_API_KEY`, `GEMINI_API_KEY` (optional server-configured Copilot keys)
 
-Cloud credentials entered in Settings are scoped to the authenticated Supabase user and stored encrypted in the database. Existing records without an owner remain inaccessible after the tenant migration. Server environment credentials are used only by background/system operations; authenticated user requests use that user's own credentials.
+Cloud credentials entered in Settings are scoped to the authenticated Supabase user and stored encrypted in the database. Existing records without an owner remain inaccessible after the tenant migration. Backend environment credentials are never used as a fallback for signed-in user requests.
 
 *.env, *.pem, private keys, and database files are strictly excluded via .gitignore.*

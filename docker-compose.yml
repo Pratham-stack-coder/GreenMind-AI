@@ -28,15 +28,13 @@ services:
       - GCP_SERVICE_ACCOUNT_JSON=${GCP_SERVICE_ACCOUNT_JSON:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
-    volumes:
-      - ./backend/app/ml:/app/app/ml
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "python", "-c", "import json, urllib.request; from pathlib import Path; model_dir=Path('/app/app/ml'); names=('cpu', 'memory', 'network', 'cost', 'carbon'); assert all((model_dir / f'{name}_model.pkl').is_file() for name in names); json.loads((model_dir / 'metrics.json').read_text()); urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 10s
       timeout: 5s
       retries: 5

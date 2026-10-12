@@ -1,9 +1,20 @@
 """Comprehensive tests for AI Cloud Copilot agent, tool invocation, and action dispatch."""
 
 import pytest
+from uuid import uuid4
 from app.copilot.agent import CopilotAgent
 from app.copilot.schemas import CopilotChatRequest
 from app.copilot import tools
+from app.auth import _current_user_id
+
+
+@pytest.fixture(autouse=True)
+def copilot_user_scope():
+    token = _current_user_id.set(f"copilot-test-{uuid4()}")
+    try:
+        yield
+    finally:
+        _current_user_id.reset(token)
 
 
 def test_copilot_all_tools():

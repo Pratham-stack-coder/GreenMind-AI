@@ -8,6 +8,7 @@ Defaults to local SQLite (greenmind.db) if DATABASE_URL is not set.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -36,6 +37,7 @@ from .auth import get_current_user_id
 from .credential_crypto import decrypt_credentials, encrypt_credentials
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 # Default to SQLite with aiosqlite for zero-config persistence
 db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "greenmind.db"))
@@ -407,8 +409,8 @@ async def persist_telemetry_entry(entry: dict) -> None:
             )
             session.add(record)
             await session.commit()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Unable to persist telemetry entry (%s)", type(exc).__name__)
 
 
 async def query_telemetry_history(

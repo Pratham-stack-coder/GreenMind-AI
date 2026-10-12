@@ -2,28 +2,28 @@ import asyncio
 import pytest
 from datetime import datetime, timezone
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.main import app
 from app.auth import _current_user_id
 from app.database import (
     init_db,
+    TelemetryRecord,
+    _async_session_maker,
     persist_telemetry_entry,
     query_telemetry_history,
-    record_telemetry,
-    get_telemetry_history,
     persist_prediction_entry,
     persist_recommendation_entry,
     persist_agent_result_entry,
     persist_simulation_entry,
     persist_audit_log,
 )
-from app.routers.telemetry import collect_and_persist_telemetry
 
 client = TestClient(app)
 
 
-async def _run_as_test_user(coroutine_function):
-    token = _current_user_id.set("test-persistence-user")
+async def _run_as_test_user(coroutine_function, user_id="test-persistence-user"):
+    token = _current_user_id.set(user_id)
     try:
         return await coroutine_function()
     finally:
@@ -141,18 +141,7 @@ def test_all_entity_persist_helpers():
     asyncio.run(_run_as_test_user(_run))
 
 
-def test_collect_and_persist_telemetry_loop():
-    """Verify periodic background ingestion function completes without error."""
-    async def _run():
-        await init_db()
-        await collect_and_persist_telemetry()
-        history = get_telemetry_history(10)
-        assert len(history) > 0
-
-    asyncio.run(_run_as_test_user(_run))
-
-
-def test_telemetry_history_api():
+def test_telemetry_history_api(authenticated_test_user):
     """Verify /api/v1/telemetry/history supports filters and granularities."""
     # Seed a metric
     res = client.get("/api/v1/telemetry/live?provider=aws&region=us-east")
@@ -161,7 +150,7 @@ def test_telemetry_history_api():
     assert "cpu" in live_data
     assert "source" in live_data
 
-    # Query history
+    # Query durable history under this authenticated user.
     for gran in ["5m", "15m", "1h", "1d"]:
         resp = client.get(f"/api/v1/telemetry/history?provider=aws&granularity={gran}&limit=10")
         assert resp.status_code == 200
@@ -170,3 +159,17 @@ def test_telemetry_history_api():
         assert "granularity" in data
         assert data["granularity"] == gran
         assert "count" in data
+        if gran == "5m":
+            assert any(entry["timestamp"] == live_data["timestamp"] for entry in data["entries"])
+
+    async def verify_persisted_for_owner():
+        async with _async_session_maker() as session:
+            result = await session.execute(
+                select(TelemetryRecord).where(
+                    TelemetryRecord.owner_id == authenticated_test_user,
+                    TelemetryRecord.timestamp == live_data["timestamp"],
+                )
+            )
+            assert result.scalars().first() is not None
+
+    asyncio.run(_run_as_test_user(verify_persisted_for_owner, authenticated_test_user))

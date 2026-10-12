@@ -20,7 +20,7 @@ from fastapi import APIRouter, HTTPException, Query
 from ..carbon import get_carbon_intensity
 from ..cloud import get_provider
 from ..config import get_settings
-from ..database import get_telemetry_history, record_telemetry
+from ..database import persist_telemetry_entry, query_telemetry_history, record_telemetry
 from ..schemas import CloudMetrics, TelemetryHistoryResponse
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ def _business_hour_factor(hour: float, day: int) -> float:
     return max(0.15, diurnal) * weekend
 
 
-def _generate_live_metrics(provider: str, region: str) -> CloudMetrics:
+def _generate_live_metrics(provider: str, region: str, *, record: bool = True) -> CloudMetrics:
     """Generate deterministic DEMO metrics with realistic time-of-day patterns.
 
     NOTE: This function is ONLY for DEMO mode. It MUST never be called when
@@ -123,7 +123,9 @@ def _generate_live_metrics(provider: str, region: str) -> CloudMetrics:
         memory_source="DEMO",
         memory_note="Synthetic DEMO data — configure cloud credentials for live telemetry.",
     )
-    record_telemetry(m.model_dump())
+    if record:
+        if record:
+        record_telemetry(m.model_dump())
     return m
 
 
@@ -158,7 +160,7 @@ def _provider_metrics_to_cloudmetrics(data: dict, provider: str, region: str) ->
 
 
 @router.get("/live", response_model=CloudMetrics)
-def live_metrics(
+async def live_metrics(
     provider: str = Query("aws", description="Cloud provider (aws, azure, gcp)"),
     region: str = Query("us-east", description="Region"),
 ):
@@ -176,7 +178,7 @@ def live_metrics(
         try:
             data = p.get_metrics(region)
             m = _provider_metrics_to_cloudmetrics(data, provider, region)
-            record_telemetry(m.model_dump())
+            await persist_telemetry_entry(m.model_dump())
             logger.info(
                 "Live telemetry collected",
                 extra={"provider": provider, "region": region, "source": m.source}
@@ -203,15 +205,17 @@ def live_metrics(
                 memory_note=f"Live metrics collection failed: {type(e).__name__}: {str(e)[:120]}",
                 last_updated=now.isoformat(),
             )
-            record_telemetry(err_m.model_dump())
+            await persist_telemetry_entry(err_m.model_dump())
             return err_m
     else:
         # Provider is not live (DEMO_MODE or unconfigured) → return correctly labeled DEMO data
-        return _generate_live_metrics(provider, region)
+        m = _generate_live_metrics(provider, region, record=False)
+        await persist_telemetry_entry(m.model_dump())
+        return m
 
 
 @router.get("/live/all")
-def live_all():
+async def live_all():
     """Live metrics from all providers and their primary regions."""
     results = []
     for prov, regions in _PROVIDER_REGIONS.items():
@@ -242,29 +246,21 @@ def live_all():
                         last_updated=now.isoformat(),
                     )
             else:
-                m = _generate_live_metrics(prov, region)
-            record_telemetry(m.model_dump())
+                m = _generate_live_metrics(prov, region, record=False)
+            await persist_telemetry_entry(m.model_dump())
             results.append(m)
     return {"providers": results}
 
 
 @router.get("/history", response_model=TelemetryHistoryResponse)
-def telemetry_history(
+async def telemetry_history(
     provider: str | None = Query(None, description="Filter by cloud provider"),
     region: str | None = Query(None, description="Filter by region"),
     granularity: str = Query("5m", pattern="^(5m|15m|1h|1d)$", description="Aggregation granularity"),
     limit: int = Query(50, ge=1, le=500, description="Max history points"),
 ):
     """Timestamped telemetry history with multi-cloud filtering and granularity support."""
-    entries_raw = get_telemetry_history(limit * 6)
-    filtered = []
-    for e in entries_raw:
-        if provider and e.get("provider", "").lower() != provider.lower():
-            continue
-        if region and e.get("region", "").lower() != region.lower():
-            continue
-        filtered.append(e)
-
+    entries_raw = await query_telemetry_history(limit * 6, provider=provider, region=region)
     # Step down / sample by granularity
     step = 1
     if granularity == "15m":
@@ -274,9 +270,9 @@ def telemetry_history(
     elif granularity == "1d":
         step = 288
 
-    sampled = filtered[::step][:limit]
+    sampled = entries_raw[::step][:limit]
     entries = [CloudMetrics(**e) for e in sampled]
-    dominant_source = entries[0].source if entries else "DEMO"
+    dominant_source = entries[0].source if entries else "UNAVAILABLE"
 
     return TelemetryHistoryResponse(
         entries=entries,
@@ -296,22 +292,4 @@ def provider_status():
         "providers": get_all_providers_status(),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
-
-
-async def collect_and_persist_telemetry() -> None:
-    """Periodic telemetry collection across configured providers/regions into database."""
-    from ..database import persist_telemetry_entry
-    from ..cloud import get_provider
-    for prov, regions in _PROVIDER_REGIONS.items():
-        p = get_provider(prov)
-        for region in regions[:1]:
-            try:
-                if p.is_live:
-                    data = p.get_metrics(region)
-                    m = _provider_metrics_to_cloudmetrics(data, prov, region)
-                else:
-                    m = _generate_live_metrics(prov, region)
-                await persist_telemetry_entry(m.model_dump())
-            except Exception as e:
-                logger.debug(f"Background telemetry collection error for {prov}/{region}: {e}")
 

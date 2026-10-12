@@ -57,7 +57,6 @@ export default function TopBar() {
         priority: r.priority as any,
       })
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recs])
 
   // ── Source 2: Live metric threshold alerts ───────────────────────────────
@@ -95,7 +94,6 @@ export default function TopBar() {
     }
 
     prevMetricsRef.current = { cpu: liveMetrics.cpu, cost: liveMetrics.cost_usd_per_hour }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveMetrics])
 
   // ── Source 3: Backend health status ─────────────────────────────────────
@@ -107,7 +105,6 @@ export default function TopBar() {
         priority: 'critical',
       })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [health?.status])
 
 
