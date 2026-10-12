@@ -1149,7 +1149,7 @@ export default function SettingsPage() {
               <div className="text-xs text-muted font-bold uppercase tracking-wider">Database Engine</div>
               <div className="text-sm text-primary font-medium mt-1 flex items-center gap-2">
                 <Database size={14} color="var(--emerald-400)" />
-                {statusData?.database === 'postgresql' ? 'PostgreSQL (Managed Production)' : 'SQLite (Local Development / Fallback)'}
+                {statusData?.database?.type === 'postgresql' ? 'PostgreSQL (Managed Production)' : 'SQLite (Local Development / Fallback)'}
               </div>
             </div>
 
