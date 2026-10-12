@@ -467,18 +467,11 @@ function RecCard({
               <button
                 className="btn btn-primary btn-sm"
                 style={{ padding: '4px 12px', fontSize: 12 }}
-                onClick={canApplyLive ? () => onExplain(rec) : handleApplyNow}
-                disabled={!canApplyLive && isApplying}
-                title={canApplyLive ? 'Review this AWS change and confirm before applying it.' : 'Prepare a dry-run preview; no cloud resources are changed.'}
+                onClick={() => onExplain(rec)}
+                title={canApplyLive ? 'Review this AWS change and confirm before applying it.' : 'Open this recommendation. Live execution may be unavailable for this action.'}
               >
-                {isApplying && !canApplyLive ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : canApplyLive ? (
-                  <Sparkles size={12} />
-                ) : (
-                  <Play size={12} />
-                )}
-                {canApplyLive ? 'Apply Changes' : 'Dry-Run'}
+                <Sparkles size={12} />
+                Apply Changes
               </button>
             </div>
           ) : (
