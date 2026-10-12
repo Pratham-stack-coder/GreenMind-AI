@@ -17,7 +17,6 @@ from app.database import (
     store_user_provider_credentials,
 )
 from app.routers import recommendations
-from app.services.aws_collector import AWSCollector
 
 
 def test_auth_dependency_sets_user_scope_and_resets_it(monkeypatch):
