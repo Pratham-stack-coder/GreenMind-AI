@@ -8,8 +8,6 @@ from app.main import app, settings
 def client(authenticated_client):
     return authenticated_client
 
-client = TestClient(app)
-
 
 def test_health():
     response = client.get("/health")
