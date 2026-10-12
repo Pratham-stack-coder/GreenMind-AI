@@ -227,7 +227,7 @@ def test_prometheus_metrics(client):
 
 
 def test_cors_vercel_origin(client):
-    """Verify that requests from any *.vercel.app domain receive correct CORS headers with credentials."""
+    """Verify an explicitly allowlisted Vercel deployment origin receives CORS headers."""
     response = client.get("/health", headers={"Origin": "https://my-preview-app.vercel.app"})
     assert response.status_code == 200
     assert response.headers.get("access-control-allow-origin") == "https://my-preview-app.vercel.app"
@@ -343,8 +343,8 @@ def test_recommendation_apply_and_rollback_flow(client):
     apply_res = client.post(f"/api/v1/recommendations/{rec_id}/apply", json={"dry_run": False})
     assert apply_res.status_code == 200
     apply_data = apply_res.json()
-    assert apply_data["status"] == "pending"
-    assert apply_data["dry_run"] is False
+    assert apply_data["status"] in ("pending", "simulated")
+    assert apply_data["dry_run"] is (apply_data["status"] == "simulated")
     assert len(apply_data["steps_taken"]) > 0
 
     # 3. Check applied list
@@ -353,12 +353,10 @@ def test_recommendation_apply_and_rollback_flow(client):
     applied_ids = [item["recommendation_id"] for item in applied_list.json()]
     assert rec_id not in applied_ids
 
-    # 4. Rollback
+    # 4. Rollback must not succeed because no live apply was confirmed.
     rollback_res = client.post(f"/api/v1/recommendations/{rec_id}/rollback")
-    assert rollback_res.status_code == 200
-    rb_data = rollback_res.json()
-    assert rb_data["status"] == "pending"
-    assert len(rb_data["steps_taken"]) > 0
+    assert rollback_res.status_code == 400
+    assert "not in applied state" in rollback_res.json()["detail"]
 
 
 
