@@ -342,6 +342,7 @@ export interface SettingsStatusResponse {
     is_persistent: boolean
   }
   redis: boolean
+  is_demo_fallback?: boolean
 }
 
 export interface TestConnectionResponse {
