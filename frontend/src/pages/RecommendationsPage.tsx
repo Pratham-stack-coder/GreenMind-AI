@@ -38,9 +38,13 @@ interface ExplainModalProps {
 }
 
 function ExplainModal({ rec, provider, region, onClose }: ExplainModalProps) {
-  const dryRun = true
+  const [dryRun, setDryRun] = useState(true)
+  const [resourceId, setResourceId] = useState('')
+  const [targetInstanceType, setTargetInstanceType] = useState('')
+  const [liveConfirmation, setLiveConfirmation] = useState('')
   const [applying, setApplying] = useState(false)
   const [applyResult, setApplyResult] = useState<{ message: string; steps: string[]; status: string } | null>(null)
+  const liveSupported = provider === 'aws' && ['terminate_idle', 'right_size_down'].includes(rec.action)
 
   const { data: explainData, isLoading: explainLoading } = useQuery({
     queryKey: ['explain', rec.id, provider, region],
@@ -50,7 +54,12 @@ function ExplainModal({ rec, provider, region, onClose }: ExplainModalProps) {
   const handleApply = async () => {
     try {
       setApplying(true)
-      const res = await applyRecommendation(rec.id, { dry_run: dryRun }, provider, region)
+      const res = await applyRecommendation(rec.id, {
+        dry_run: dryRun,
+        confirm_live: !dryRun && liveConfirmation === 'APPLY',
+        resource_id: resourceId.trim() || undefined,
+        target_instance_type: targetInstanceType.trim() || undefined,
+      }, provider, region)
       setApplyResult({
         message: res.message,
         steps: res.steps_taken,
@@ -58,9 +67,9 @@ function ExplainModal({ rec, provider, region, onClose }: ExplainModalProps) {
       })
 
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'The dry-run request failed.'
-      console.error('Failed to prepare recommendation preview', err)
-      setApplyResult({ message: `Dry-run preview failed: ${message}`, steps: [], status: 'error' })
+      const message = err instanceof Error ? err.message : 'The cloud action request failed.'
+      console.error('Recommendation action failed', err)
+      setApplyResult({ message: `Recommendation action failed: ${message}`, steps: [], status: 'error' })
     } finally {
       setApplying(false)
     }
@@ -290,16 +299,34 @@ function ExplainModal({ rec, provider, region, onClose }: ExplainModalProps) {
 
         {/* Modal Footer Controls */}
         <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-          <label className="flex items-center gap-2" style={{ cursor: 'pointer', userSelect: 'none' }}>
-            <input
-              type="checkbox"
-              checked={dryRun}
-              disabled
-              readOnly
-              style={{ accentColor: 'var(--emerald-500)', cursor: 'not-allowed' }}
-            />
-            <span className="text-xs text-secondary">Dry-Run only (no cloud resources are changed)</span>
-          </label>
+          <div style={{ flex: 1 }}>
+            <label className="flex items-center gap-2" style={{ cursor: liveSupported ? 'pointer' : 'not-allowed', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={dryRun}
+                disabled={!liveSupported || applying}
+                onChange={event => { setDryRun(event.target.checked); setLiveConfirmation('') }}
+                style={{ accentColor: 'var(--emerald-500)' }}
+              />
+              <span className="text-xs text-secondary">Dry-run preview</span>
+            </label>
+            {!dryRun && liveSupported && (
+              <div className="mt-3" style={{ display: 'grid', gap: 10, maxWidth: 420 }}>
+                <p className="text-xs text-amber">This will change the selected live AWS instance. Stop is reversible; resize causes downtime.</p>
+                <label className="text-xs text-secondary" htmlFor="live-resource-id">AWS EC2 instance ID</label>
+                <input id="live-resource-id" value={resourceId} onChange={event => setResourceId(event.target.value)} placeholder="i-0123456789abcdef0" autoComplete="off" />
+                {rec.action === 'right_size_down' && (
+                  <>
+                    <label className="text-xs text-secondary" htmlFor="live-target-type">Smaller EC2 instance type</label>
+                    <input id="live-target-type" value={targetInstanceType} onChange={event => setTargetInstanceType(event.target.value)} placeholder="e.g. t3.medium" autoComplete="off" />
+                  </>
+                )}
+                <label className="text-xs text-secondary" htmlFor="live-confirmation">Type APPLY to confirm this live change</label>
+                <input id="live-confirmation" value={liveConfirmation} onChange={event => setLiveConfirmation(event.target.value)} autoComplete="off" />
+              </div>
+            )}
+            {!liveSupported && <p className="text-xs text-muted mt-2">Live execution is available only for AWS idle-stop and right-size recommendations. Other actions remain previews.</p>}
+          </div>
 
           <div className="flex gap-2">
             <button className="btn btn-secondary btn-sm" onClick={onClose}>
@@ -308,12 +335,12 @@ function ExplainModal({ rec, provider, region, onClose }: ExplainModalProps) {
             <button
               className="btn btn-primary btn-sm"
               onClick={handleApply}
-              disabled={applying || (rec.status === 'applied' && !dryRun)}
+              disabled={applying || (rec.status === 'applied' && !dryRun) || (!dryRun && (!liveSupported || !resourceId.trim() || liveConfirmation !== 'APPLY' || (rec.action === 'right_size_down' && !targetInstanceType.trim())) )}
             >
               {applying ? (
                 <>
                   <Loader2 size={14} className="animate-spin" />
-                  Preparing preview...
+                  {dryRun ? 'Preparing preview...' : 'Applying live change...'}
                 </>
               ) : rec.status === 'applied' && !dryRun ? (
                 <>

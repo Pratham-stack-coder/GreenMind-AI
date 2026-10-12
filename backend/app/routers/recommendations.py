@@ -94,6 +94,9 @@ async def _execute_apply(
     region: str,
     dry_run: bool = False,
     operator_notes: str | None = None,
+    confirm_live: bool = False,
+    resource_id: str | None = None,
+    target_instance_type: str | None = None,
 ) -> ApplyResponse:
     from ..integrations.cloud_actions import CloudActionDispatcher
 
@@ -107,24 +110,32 @@ async def _execute_apply(
         new_score=target_score,
         provider=provider,
         region=region,
+        confirm_live=confirm_live,
+        resource_id=resource_id,
+        target_instance_type=target_instance_type,
     )
 
     if not dry_run:
+        try:
+            await persist_recommendation_state(
+                recommendation_id=rec.id,
+                provider=provider,
+                region=region,
+                status="applied",
+                applied_at=resp.applied_at,
+                steps_taken=resp.steps_taken,
+            )
+        except Exception as exc:
+            raise HTTPException(
+                status_code=500,
+                detail="The cloud action was confirmed, but recommendation state could not be saved. Check the AWS audit history before retrying.",
+            ) from exc
         rec.status = "applied"
         rec.applied_at = resp.applied_at
         rec.steps_taken = resp.steps_taken
-        if rec.id in state["dismissed"]:
-            state["dismissed"].remove(rec.id)
+        state["dismissed"].discard(rec.id)
         state["score"] = target_score
         state["applied"][rec.id] = resp
-        await persist_recommendation_state(
-            recommendation_id=rec.id,
-            provider=provider,
-            region=region,
-            status="applied",
-            applied_at=resp.applied_at,
-            steps_taken=resp.steps_taken,
-        )
 
     return resp
 
@@ -191,6 +202,8 @@ async def batch_apply_recommendations(
     if not state["recommendations"]:
         _build_recommendations(provider, region)
 
+    if not req.dry_run:
+        raise HTTPException(status_code=400, detail="Live changes must be applied one resource at a time.")
     targets = [r for r in state["recommendations"] if r.status != "applied"]
 
     if req.category and req.category != "all":
@@ -240,10 +253,17 @@ async def apply_recommendation(
             detail=f"Recommendation '{rec_id}' not found.",
         )
 
-    dry_run = req.dry_run if req else False
-    operator_notes = req.operator_notes if req else None
+    request = req or ApplyRequest()
     return await _execute_apply(
-        rec, state, provider, region, dry_run=dry_run, operator_notes=operator_notes
+        rec,
+        state,
+        provider,
+        region,
+        dry_run=request.dry_run,
+        operator_notes=request.operator_notes,
+        confirm_live=request.confirm_live,
+        resource_id=request.resource_id,
+        target_instance_type=request.target_instance_type,
     )
 
 

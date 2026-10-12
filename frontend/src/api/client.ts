@@ -315,7 +315,7 @@ export const fetchExplain = (id: string, provider = 'aws', region = 'us-east'): 
 
 export const applyRecommendation = (
   id: string,
-  options?: { dry_run?: boolean; operator_notes?: string },
+  options?: { dry_run?: boolean; confirm_live?: boolean; resource_id?: string; target_instance_type?: string; operator_notes?: string },
   provider = 'aws',
   region = 'us-east'
 ): Promise<ApplyResponse> =>

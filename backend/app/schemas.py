@@ -156,8 +156,11 @@ class RecommendationsResponse(BaseModel):
 
 
 class ApplyRequest(BaseModel):
-    dry_run: bool = False
-    operator_notes: str | None = None
+    dry_run: bool = True
+    confirm_live: bool = False
+    resource_id: str | None = Field(default=None, min_length=1, max_length=256)
+    target_instance_type: str | None = Field(default=None, max_length=128)
+    operator_notes: str | None = Field(default=None, max_length=1000)
 
 
 class ApplyResponse(BaseModel):
