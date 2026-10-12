@@ -1,24 +1,17 @@
 """
-Cloud Action Execution Dispatcher.
-Executes real platform API calls against AWS/Azure/GCP when credentials are
-present, and executes verified simulation with realistic platform step logs and
-safety guardrails when in demo mode or dry-run.
+Cloud Action Dispatcher.
+Returns dry-run previews and rejects live remediation until provider mutations
+and rollback state tracking are implemented.
 """
 
 from __future__ import annotations
 
-import os
 from datetime import datetime, timezone
-from typing import Any
 
 from fastapi import HTTPException
 
-from ..config import get_settings
 from ..database import persist_audit_log
 from ..schemas import ApplyResponse, RecommendationItem
-from .cloud_adapter import CloudTelemetryAdapter
-
-settings = get_settings()
 
 
 class CloudActionDispatcher:
