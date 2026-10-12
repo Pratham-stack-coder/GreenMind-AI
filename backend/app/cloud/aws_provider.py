@@ -28,8 +28,8 @@ settings = get_settings()
 class AWSCloudProvider(BaseCloudProvider):
     """AWS provider adapter supporting both LIVE CloudWatch telemetry and DEMO simulation."""
 
-    def __init__(self):
-        self.collector = AWSCollector()
+    def __init__(self, credentials: dict[str, str] | None = None):
+        self.collector = AWSCollector(credentials=credentials)
         is_live = not settings.demo_mode and self.collector.is_configured
         super().__init__(provider_name="aws", is_live=is_live)
 
