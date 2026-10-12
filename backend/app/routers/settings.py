@@ -14,7 +14,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 from ..auth import get_current_user_id
-from ..cloud import clear_provider_credentials, get_all_providers_status, get_provider, update_provider_credentials
+from ..cloud import clear_provider_credentials, get_all_providers_status, get_provider, get_user_credentials, update_provider_credentials
 from ..database import delete_user_provider_credentials, store_user_provider_credentials
 from ..config import get_settings
 
@@ -47,6 +47,14 @@ def get_settings_status() -> dict[str, Any]:
     statuses = get_all_providers_status()
     any_live = any(p.get("mode") == "LIVE" for p in statuses.values())
     global_mode = "LIVE" if any_live else "DEMO"
+    llm_credentials = {
+        **get_user_credentials("gemini"),
+        **get_user_credentials("openai"),
+        **get_user_credentials("llm"),
+    }
+    gemini_configured = bool(llm_credentials.get("gemini_api_key"))
+    openai_configured = bool(llm_credentials.get("openai_api_key"))
+    llm_status = "configured_unverified"
 
     db_type = "postgresql" if settings.database_url.startswith("postgresql") else "sqlite"
 
@@ -56,18 +64,18 @@ def get_settings_status() -> dict[str, Any]:
         "demo_mode": settings.demo_mode,
         "providers": statuses,
         "llm": {
-            "gemini_configured": bool(settings.gemini_api_key),
-            "openai_configured": bool(settings.openai_api_key),
+            "gemini_configured": gemini_configured,
+            "openai_configured": openai_configured,
         },
         "ai": {
             "gemini": {
-                "configured": bool(settings.gemini_api_key),
-                "status": "connected" if settings.gemini_api_key else "not_configured",
+                "configured": gemini_configured,
+                "status": llm_status if gemini_configured else "not_configured",
                 "model": "gemini-1.5-flash",
             },
             "openai": {
-                "configured": bool(settings.openai_api_key),
-                "status": "connected" if settings.openai_api_key else "not_configured",
+                "configured": openai_configured,
+                "status": llm_status if openai_configured else "not_configured",
                 "model": "gpt-4o-mini",
             },
         },
@@ -97,7 +105,11 @@ def test_provider_connection(req: TestConnectionRequest) -> dict[str, Any]:
         return res
 
     elif prov_name in ["gemini", "openai"]:
-        api_key = creds.get("api_key") or (settings.gemini_api_key if prov_name == "gemini" else settings.openai_api_key)
+        stored = {
+            **get_user_credentials(prov_name),
+            **get_user_credentials("llm"),
+        }
+        api_key = creds.get("api_key") or creds.get(f"{prov_name}_api_key") or stored.get(f"{prov_name}_api_key", "")
         if not api_key:
             return {
                 "provider": prov_name,
@@ -119,10 +131,10 @@ def test_provider_connection(req: TestConnectionRequest) -> dict[str, Any]:
             }
         return {
             "provider": prov_name,
-            "success": True,
-            "status": "connected",
-            "mode": "LIVE",
-            "message": f"{prov_name.capitalize()} API key format validated and ready for Copilot.",
+            "success": False,
+            "status": "configured_unverified",
+            "mode": "DEMO",
+            "message": "Key format looks plausible, but live LLM API verification is not implemented.",
             "last_tested": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -178,26 +190,19 @@ async def configure_provider(req: ConfigureProviderRequest) -> dict[str, Any]:
             "test_result": test_res,
         }
 
-    if prov_name == "gemini":
-        if "gemini_api_key" in creds:
-            settings.gemini_api_key = creds["gemini_api_key"]
-        elif "api_key" in creds:
-            settings.gemini_api_key = creds["api_key"]
-        return {"status": "ok", "success": True, "provider": "gemini", "message": "Gemini API key configured."}
-
-    if prov_name == "openai":
-        if "openai_api_key" in creds:
-            settings.openai_api_key = creds["openai_api_key"]
-        elif "api_key" in creds:
-            settings.openai_api_key = creds["api_key"]
-        return {"status": "ok", "success": True, "provider": "openai", "message": "OpenAI API key configured."}
-
-    if prov_name == "llm":
-        if "gemini_api_key" in creds:
-            settings.gemini_api_key = creds["gemini_api_key"]
-        if "openai_api_key" in creds:
-            settings.openai_api_key = creds["openai_api_key"]
-        return {"status": "ok", "success": True, "provider": "llm", "message": "AI keys updated successfully."}
+    if prov_name in {"gemini", "openai", "llm"}:
+        user_id = get_current_user_id()
+        if not user_id:
+            raise HTTPException(status_code=401, detail="An authenticated user is required.")
+        stored_credentials = await store_user_provider_credentials(user_id, prov_name, creds)
+        update_provider_credentials(prov_name, stored_credentials)
+        return {
+            "status": "configured_unverified",
+            "success": True,
+            "connection_verified": False,
+            "provider": prov_name,
+            "message": "AI credentials were saved for your account. Live provider verification is not implemented.",
+        }
 
     raise HTTPException(status_code=400, detail=f"Unsupported provider: {req.provider}")
 
@@ -213,14 +218,18 @@ async def disconnect_provider(req: DisconnectProviderRequest) -> dict[str, Any]:
         await delete_user_provider_credentials(user_id, prov_name)
         clear_provider_credentials(prov_name)
     elif prov_name == "llm":
-        settings.gemini_api_key = ""
-        settings.openai_api_key = ""
+        user_id = get_current_user_id()
+        if not user_id:
+            raise HTTPException(status_code=401, detail="An authenticated user is required.")
+        for credential_provider in ("llm", "gemini", "openai"):
+            await delete_user_provider_credentials(user_id, credential_provider)
+            clear_provider_credentials(credential_provider)
         return {
             "status": "disconnected",
             "success": True,
             "provider": "llm",
             "mode": "DEMO",
-            "message": "AI keys cleared; Copilot reset to deterministic engine.",
+            "message": "Your AI keys were deleted; Copilot uses the deterministic engine.",
         }
 
     p = get_provider(prov_name)
