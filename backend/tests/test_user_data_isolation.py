@@ -4,9 +4,11 @@ import asyncio
 from uuid import uuid4
 
 from fastapi.security import HTTPAuthorizationCredentials
+from types import SimpleNamespace
+import sys
 
 from app import auth, database
-from app.cloud import sync_user_provider_credentials
+from app.cloud.aws_provider import AWSCloudProvider
 from app.database import (
     delete_user_provider_credentials,
     get_telemetry_history,
@@ -111,11 +113,33 @@ def test_saved_credentials_are_encrypted_and_scoped_to_owner():
 
 
 def test_user_scoped_aws_connection_test_does_not_fall_back_to_server_credentials(monkeypatch):
-    monkeypatch.setattr("app.services.aws_collector.settings.aws_access_key_id", "SERVER_ACCESS_KEY")
-    monkeypatch.setattr("app.services.aws_collector.settings.aws_secret_access_key", "SERVER_SECRET_KEY")
+    from app.services import aws_collector
 
-    collector = AWSCollector(credentials={})
-    result = collector.test_connection(access_key_id="", secret_access_key="")
+    monkeypatch.setattr(aws_collector.settings, "aws_access_key_id", "SERVER_ACCESS_KEY")
+    monkeypatch.setattr(aws_collector.settings, "aws_secret_access_key", "SERVER_SECRET_KEY")
+    sessions = []
+
+    class FakeClient:
+        def get_caller_identity(self):
+            return {"Account": "server-account", "Arn": "arn:aws:iam::server-account:user/server"}
+
+        def describe_regions(self):
+            return {}
+
+        def list_metrics(self, **_kwargs):
+            return {}
+
+    class FakeSession:
+        def __init__(self, **kwargs):
+            sessions.append(kwargs)
+
+        def client(self, *_args, **_kwargs):
+            return FakeClient()
+
+    monkeypatch.setitem(sys.modules, "boto3", SimpleNamespace(Session=FakeSession))
+    provider = AWSCloudProvider(credentials={})
+    result = provider.test_connection(credentials={})
 
     assert result["status"] == "not_configured"
     assert result["credentials_status"] == "NOT_CONFIGURED"
+    assert sessions == []
