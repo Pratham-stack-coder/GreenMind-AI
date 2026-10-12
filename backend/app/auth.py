@@ -167,6 +167,17 @@ async def require_authenticated_user(
 
     context_token = _current_user_id.set(user_id)
     try:
+        try:
+            from .database import get_user_provider_credentials
+            from .cloud import sync_user_provider_credentials
+
+            user_credentials = await get_user_provider_credentials(user_id)
+            sync_user_provider_credentials(user_id, user_credentials)
+        except Exception:
+            # If credential storage is unavailable, fail closed for provider access.
+            from .cloud import sync_user_provider_credentials
+
+            sync_user_provider_credentials(user_id, {})
         yield claims
     finally:
         _current_user_id.reset(context_token)
