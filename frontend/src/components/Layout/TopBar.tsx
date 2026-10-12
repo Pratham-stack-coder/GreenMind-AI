@@ -2,8 +2,22 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Bell, Globe, Menu, Leaf, LogOut } from 'lucide-react'
 import { useAppStore } from '../../store'
-import { fetchHealth } from '../../api/client'
+import { fetchHealth, fetchRecommendations, fetchLiveMetrics, getActiveBackendUrl } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
+import { useEffect, useRef, useState } from 'react'
+
+function LiveClock() {
+  const [time, setTime] = useState(() => new Date())
+  useEffect(() => {
+    const id = setInterval(() => setTime(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  return (
+    <span style={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace", color: 'var(--text-muted)', letterSpacing: '0.05em' }}>
+      {time.toUTCString().slice(17, 25)} UTC
+    </span>
+  )
+}
 
 export default function TopBar() {
   const navigate = useNavigate()
@@ -11,7 +25,7 @@ export default function TopBar() {
   const {
     provider, region, setProvider, setRegion,
     notifPanelOpen, setNotifPanelOpen,
-    notifications,
+    notifications, addNotification,
     sidebarOpen, setSidebarOpen,
   } = useAppStore()
   const { data: health } = useQuery({
@@ -19,6 +33,80 @@ export default function TopBar() {
     queryFn: fetchHealth,
     refetchInterval: 30_000,
   })
+
+  const { data: recs } = useQuery({
+    queryKey: ['topbar-recs', provider, region],
+    queryFn: () => fetchRecommendations({ provider, region }),
+    refetchInterval: 120_000,
+  })
+
+  const { data: liveMetrics } = useQuery({
+    queryKey: ['topbar-live', provider, region],
+    queryFn: () => fetchLiveMetrics(provider, region),
+    refetchInterval: 15_000,
+  })
+
+  // ── Source 1: Critical/High recommendations ──────────────────────────────
+  useEffect(() => {
+    if (!Array.isArray(recs?.recommendations)) return
+    const urgent = recs.recommendations.filter(r => r.priority === 'critical' || r.priority === 'high')
+    urgent.slice(0, 4).forEach(r => {
+      addNotification({
+        title: `💡 ${r.title}`,
+        body: r.impact_summary,
+        priority: r.priority as any,
+      })
+    })
+  }, [recs])
+
+  // ── Source 2: Live metric threshold alerts ───────────────────────────────
+  const prevMetricsRef = useRef<{ cpu?: number; cost?: number }>({})
+  useEffect(() => {
+    if (!liveMetrics || typeof liveMetrics.cpu !== 'number') return
+    const prev = prevMetricsRef.current
+
+    // CPU spike alert (>85% and not already alerted in this session)
+    if (liveMetrics.cpu > 85 && (prev.cpu == null || prev.cpu <= 85)) {
+      addNotification({
+        title: `⚡ CPU Spike Detected`,
+        body: `${provider.toUpperCase()} ${region}: CPU at ${liveMetrics.cpu.toFixed(1)}% — consider scaling up or checking for runaway processes.`,
+        priority: liveMetrics.cpu > 95 ? 'critical' : 'high',
+      })
+    }
+
+    // Cost spike alert (>20% above baseline $0.22/hr)
+    const baseline = 0.22
+    if (liveMetrics.cost_usd_per_hour > baseline * 1.2 && (prev.cost == null || prev.cost <= baseline * 1.2)) {
+      addNotification({
+        title: `💰 Cost Spike Alert`,
+        body: `${provider.toUpperCase()} ${region}: cost at $${liveMetrics.cost_usd_per_hour.toFixed(4)}/hr — ${((liveMetrics.cost_usd_per_hour / baseline - 1) * 100).toFixed(0)}% above baseline.`,
+        priority: 'high',
+      })
+    }
+
+    // High carbon intensity alert
+    if (liveMetrics.carbon_gco2_per_hour > 150) {
+      addNotification({
+        title: `🌿 High Carbon Intensity`,
+        body: `${region}: ${liveMetrics.carbon_gco2_per_hour.toFixed(1)} gCO₂/hr — consider deferring non-urgent batch workloads.`,
+        priority: 'medium',
+      })
+    }
+
+    prevMetricsRef.current = { cpu: liveMetrics.cpu, cost: liveMetrics.cost_usd_per_hour }
+  }, [liveMetrics])
+
+  // ── Source 3: Backend health status ─────────────────────────────────────
+  useEffect(() => {
+    if (health && health.status !== 'ok') {
+      addNotification({
+        title: '🔴 Backend Health Degraded',
+        body: `API returned status: ${health.status}. Some features may be unavailable.`,
+        priority: 'critical',
+      })
+    }
+  }, [health?.status])
+
 
   const providers = ['aws', 'azure', 'gcp']
   const regions: Record<string, string[]> = {
@@ -85,19 +173,21 @@ export default function TopBar() {
 
         {/* Right: Clock, Status, Notification Bell */}
         <div className="topbar-right">
-          
+          <div className="hidden-md">
+            <LiveClock />
+          </div>
 
           {health && (
             <button
               onClick={() => navigate('/settings')}
               className="btn btn-ghost btn-sm topbar-status-btn"
-              title={`Backend status: ${health.demo_mode ? 'Demo mode' : 'Live mode'}. Click to configure.`}
+              title={`Backend: ${getActiveBackendUrl() || 'Local Proxy (/api/v1)'} (${health.demo_mode ? 'Demo Mode' : 'Live Mode'}) · Click to configure`}
             >
               <span
                 className={`status-dot ${health.status === 'ok' ? 'online animate-pulse-glow' : 'error'}`}
               />
               <span className="text-xs text-secondary status-text">
-                {health.demo_mode ? 'Demo' : 'Live'}
+                <span className="hidden-sm">v{health.version} · </span>{health.demo_mode ? 'Demo' : 'Live'}
               </span>
             </button>
           )}
@@ -118,9 +208,7 @@ export default function TopBar() {
             className="btn btn-ghost btn-sm notif-btn"
             onClick={() => setNotifPanelOpen(!notifPanelOpen)}
             title="Notifications"
-            aria-label={`Notifications, ${unread} unread`}
-            aria-expanded={notifPanelOpen}
-            aria-controls="notifications-panel"
+            aria-label="Notifications"
           >
             <Bell size={17} />
             {unread > 0 && (

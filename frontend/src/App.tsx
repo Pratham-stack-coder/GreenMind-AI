@@ -17,7 +17,6 @@ import CopilotPage from './pages/CopilotPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import SettingsPage from './pages/SettingsPage'
 import AuthPage, { AuthCallbackPage } from './pages/AuthPage'
-import LegalPage from './pages/LegalPage'
 import { useAuth } from './auth/AuthContext'
 import { testBackendConnection } from './api/client'
 import { useAppStore } from './store'
@@ -98,13 +97,13 @@ function BackendConnectionGate() {
           <h1>{checking ? 'Connecting your workspace' : 'Could not connect to GreenMind'}</h1>
           <p className="connection-copy">
             {checking
-              ? 'Your sign in is ready. Checking the configured API connection.'
+              ? 'Your sign in is ready. Waking the Render service and checking its secure API connection.'
               : result?.error || 'The backend did not respond. Try again in a moment.'}
           </p>
-          {checking && <p className="connection-attempt">Connection check {attempt} of 3 The service may take a moment to start.</p>}
+          {checking && <p className="connection-attempt">Connection check {attempt} of 3 · Render can take up to a minute to wake.</p>}
           {!checking && configurationIssue && (
             <div className="auth-alert auth-alert-error" role="alert">
-              Deploy the updated backend and set its Supabase Auth environment variables on the hosting service. Your dashboard stays locked until the backend verifies sessions.
+              Deploy the updated backend and set its Supabase Auth environment variables on Render. Your dashboard stays locked until the backend verifies sessions.
             </div>
           )}
           <div className="connection-actions">
@@ -152,8 +151,7 @@ function DashboardLayout() {
             <button type="button" className="btn btn-secondary text-xs" onClick={() => setApiError(null)}>Dismiss</button>
           </div>
         )}
-        <a className="skip-link" href="#main-content">Skip to content</a>
-        <main id="main-content" className="page-content">
+        <main className="page-content">
           <AnimatePresence mode="wait">
             <motion.div key={location.pathname} {...pageTransition}>
               <Outlet />
@@ -168,8 +166,6 @@ function DashboardLayout() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/privacy" element={<LegalPage kind="privacy" />} />
-      <Route path="/terms" element={<LegalPage kind="terms" />} />
       <Route path="/login" element={<AuthPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       <Route element={<RequireAuth />}>
