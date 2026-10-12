@@ -12,7 +12,6 @@ import {
   fetchRecommendations,
   fetchExplain,
   applyRecommendation,
-  rollbackRecommendation,
   batchApplyRecommendations
 } from '../api/client'
 import type { RecommendationItem, ExplainResponse } from '../types'
@@ -34,12 +33,11 @@ const categoryColors: Record<string, string> = {
 interface ExplainModalProps {
   rec: RecommendationItem
   onClose: () => void
-  onApplySuccess: () => void
 }
 
-function ExplainModal({ rec, onClose, onApplySuccess }: ExplainModalProps) {
+function ExplainModal({ rec, onClose }: ExplainModalProps) {
   const { addNotification } = useAppStore()
-  const [dryRun, setDryRun] = useState(false)
+  const dryRun = true
   const [applying, setApplying] = useState(false)
   const [applyResult, setApplyResult] = useState<{ message: string; steps: string[]; status: string } | null>(null)
 
@@ -57,14 +55,7 @@ function ExplainModal({ rec, onClose, onApplySuccess }: ExplainModalProps) {
         steps: res.steps_taken,
         status: res.status,
       })
-      if (!dryRun) {
-        addNotification({
-          title: 'Optimization Applied',
-          body: `${rec.title} was successfully executed. Score improved to ${res.new_score || 85}/100.`,
-          priority: rec.priority === 'critical' ? 'critical' : 'high',
-        })
-        onApplySuccess()
-      }
+
     } catch (err: unknown) {
       console.error('Failed to apply recommendation', err)
     } finally {
@@ -301,10 +292,11 @@ function ExplainModal({ rec, onClose, onApplySuccess }: ExplainModalProps) {
             <input
               type="checkbox"
               checked={dryRun}
-              onChange={(e) => setDryRun(e.target.checked)}
-              style={{ accentColor: 'var(--emerald-500)', cursor: 'pointer' }}
+              disabled
+              readOnly
+              style={{ accentColor: 'var(--emerald-500)', cursor: 'not-allowed' }}
             />
-            <span className="text-xs text-secondary">Dry-Run (Simulate without changing cloud state)</span>
+            <span className="text-xs text-secondary">Dry-Run only (no cloud resources are changed)</span>
           </label>
 
           <div className="flex gap-2">
@@ -319,7 +311,7 @@ function ExplainModal({ rec, onClose, onApplySuccess }: ExplainModalProps) {
               {applying ? (
                 <>
                   <Loader2 size={14} className="animate-spin" />
-                  Executing...
+                  Preparing preview...
                 </>
               ) : rec.status === 'applied' && !dryRun ? (
                 <>
@@ -329,7 +321,7 @@ function ExplainModal({ rec, onClose, onApplySuccess }: ExplainModalProps) {
               ) : dryRun ? (
                 <>
                   <Play size={14} />
-                  Run Simulation
+                  Run Dry-Run
                 </>
               ) : (
                 <>
@@ -349,16 +341,13 @@ function ExplainModal({ rec, onClose, onApplySuccess }: ExplainModalProps) {
 function RecCard({
   rec,
   onExplain,
-  onApplySuccess,
 }: {
   rec: RecommendationItem
   onExplain: (rec: RecommendationItem) => void
-  onApplySuccess: () => void
 }) {
   const { addNotification } = useAppStore()
   const [expanded, setExpanded] = useState(false)
   const [isApplying, setIsApplying] = useState(false)
-  const [isRollingBack, setIsRollingBack] = useState(false)
 
   const isApplied = rec.status === 'applied'
   const color = categoryColors[rec.category] || 'muted'
@@ -369,35 +358,16 @@ function RecCard({
     e.stopPropagation()
     try {
       setIsApplying(true)
-      const res = await applyRecommendation(rec.id, { dry_run: false })
+      const res = await applyRecommendation(rec.id, { dry_run: true })
       addNotification({
-        title: 'Optimization Applied',
-        body: `${rec.title} applied successfully. Optimization score is now ${res.new_score || 85}/100.`,
+        title: 'Dry-Run Preview Ready',
+        body: res.message,
         priority: rec.priority === 'critical' ? 'critical' : 'high',
       })
-      onApplySuccess()
     } catch (err: unknown) {
-      console.error('Failed to apply recommendation', err)
+      console.error('Failed to prepare recommendation preview', err)
     } finally {
       setIsApplying(false)
-    }
-  }
-
-  const handleRollbackNow = async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    try {
-      setIsRollingBack(true)
-      await rollbackRecommendation(rec.id)
-      addNotification({
-        title: 'Optimization Rolled Back',
-        body: `Reverted ${rec.title} back to open state.`,
-        priority: 'medium',
-      })
-      onApplySuccess()
-    } catch (err: unknown) {
-      console.error('Failed to rollback recommendation', err)
-    } finally {
-      setIsRollingBack(false)
     }
   }
 
@@ -470,7 +440,7 @@ function RecCard({
                 ) : (
                   <Play size={12} />
                 )}
-                Apply
+                Dry-Run
               </button>
             </div>
           ) : (
@@ -478,15 +448,11 @@ function RecCard({
               <button
                 className="btn btn-secondary btn-sm"
                 style={{ padding: '4px 10px', fontSize: 12, color: 'var(--text-muted)' }}
-                onClick={handleRollbackNow}
-                disabled={isRollingBack}
+                disabled
+                title="Live remediation and rollback are not implemented."
               >
-                {isRollingBack ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <RotateCcw size={12} />
-                )}
-                Rollback
+                <RotateCcw size={12} />
+                Rollback unavailable
               </button>
             </div>
           )}
@@ -645,10 +611,10 @@ export default function RecommendationsPage() {
   const handleBatchApply = async (priority?: string) => {
     try {
       setIsBatchApplying(true)
-      const res = await batchApplyRecommendations({ priority, dry_run: false })
+      const res = await batchApplyRecommendations({ priority, dry_run: true })
       addNotification({
-        title: 'Batch Optimizations Applied',
-        body: `Applied ${res.applied_count} recommendations. Saved $${res.total_monthly_savings_usd}/mo. New score: ${res.new_score}/100.`,
+        title: 'Dry-Run Previews Ready',
+        body: `Prepared ${res.results.length} previews. No cloud resources were changed.`,
         priority: 'high',
       })
       refreshAll()
@@ -736,7 +702,7 @@ export default function RecommendationsPage() {
                   disabled={isBatchApplying}
                 >
                   <AlertTriangle size={13} />
-                  Apply All Critical ({criticalOpenCount})
+                  Dry-Run Critical ({criticalOpenCount})
                 </button>
               )}
               <button
@@ -747,12 +713,12 @@ export default function RecommendationsPage() {
                 {isBatchApplying ? (
                   <>
                     <Loader2 size={14} className="animate-spin" />
-                    Executing Batch Remediation...
+                    Preparing dry-run previews...
                   </>
                 ) : (
                   <>
                     <Sparkles size={14} />
-                    Apply All Open ({openRecs.length})
+                    Dry-Run All Open ({openRecs.length})
                   </>
                 )}
               </button>
@@ -873,8 +839,7 @@ export default function RecommendationsPage() {
               key={rec.id}
               rec={rec}
               onExplain={(r) => setSelectedExplainRec(r)}
-              onApplySuccess={refreshAll}
-            />
+              />
           ))}
         </div>
       )}
@@ -885,9 +850,6 @@ export default function RecommendationsPage() {
           <ExplainModal
             rec={selectedExplainRec}
             onClose={() => setSelectedExplainRec(null)}
-            onApplySuccess={() => {
-              refreshAll()
-            }}
           />
         )}
       </AnimatePresence>
