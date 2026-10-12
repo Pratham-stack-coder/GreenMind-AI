@@ -53,7 +53,6 @@ export default function SettingsPage() {
 
   const handleSaveBackend = async () => {
     setBackendSuccessMsg(null)
-    setActiveBackendUrl(backendUrlInput)
     const result = await handleTestBackend(backendUrlInput)
     queryClient.invalidateQueries({ queryKey: ['health'] })
     queryClient.invalidateQueries({ queryKey: ['settings-status'] })
@@ -66,9 +65,12 @@ export default function SettingsPage() {
         : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
           ? window.location.origin
           : new URL('https://greenmind-backend-zqn5.onrender.com').origin
-      setBackendSuccessMsg(targetOrigin === trustedOrigin
-        ? `Active backend URL updated to: ${normalizeApiBaseUrl(backendUrlInput)}`
-        : `Health check passed, but authenticated API calls remain pinned to the build-time backend. Set VITE_API_BASE_URL to ${backendUrlInput} and redeploy to switch safely.`)
+      if (targetOrigin === trustedOrigin) {
+        setActiveBackendUrl(backendUrlInput)
+        setBackendSuccessMsg(`Trusted backend URL updated to: ${normalizeApiBaseUrl(backendUrlInput)}`)
+      } else {
+        setBackendSuccessMsg(`Health check passed. Authenticated requests still use the trusted backend for this build. Change VITE_API_BASE_URL in Vercel and redeploy to switch hosts.`)
+      }
     }
   }
 
@@ -522,7 +524,7 @@ export default function SettingsPage() {
                   <AlertCircle size={11} /> UNREACHABLE / ERROR
                 </span>
               )
-            ) : statusData ? (
+            ) : statusData && !statusData.is_demo_fallback ? (
               <span className="badge badge-emerald flex items-center gap-1">
                 <CheckCircle2 size={11} /> ACTIVE ({getActiveBackendUrl() ? 'RENDER' : 'LOCAL'})
               </span>
@@ -603,7 +605,7 @@ export default function SettingsPage() {
                   className="btn btn-primary btn-sm flex items-center gap-1.5"
                 >
                   <Zap size={13} />
-                  Save & Connect
+                  Save if Trusted
                 </button>
                 <button
                   type="button"
