@@ -80,7 +80,7 @@ class Settings(BaseSettings):
         ]
         if self.app_env.strip().lower() in {"development", "test"}:
             configured = local_development_origins + configured
-        return list(dict.fromkeys(configured)
+        return list(dict.fromkeys(configured))
 
 
 
