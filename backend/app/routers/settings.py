@@ -183,10 +183,11 @@ async def configure_provider(req: ConfigureProviderRequest) -> dict[str, Any]:
         test_res = provider.test_connection()
         test_res["provider"] = prov_name
         return {
-            "status": "configured" if test_res.get("success") else "validation_failed",
-            "success": test_res.get("success", False),
+            "status": "ok",
+            "success": True,
+            "connection_verified": test_res.get("success", False),
             "provider": prov_name,
-            "message": test_res.get("message", "Cloud credentials were checked."),
+            "message": test_res.get("message", "Cloud credentials were saved."),
             "test_result": test_res,
         }
 
