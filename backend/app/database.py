@@ -288,6 +288,7 @@ async def get_user_provider_credentials(owner_id: str) -> dict[str, dict[str, st
 
 async def store_user_provider_credentials(owner_id: str, provider: str, credentials: dict[str, str]) -> dict[str, str]:
     """Merge and persist credentials encrypted under the configured Fernet key."""
+    await init_db()
     async with _async_session_maker() as session:
         row = await session.get(UserProviderCredentialRecord, (owner_id, provider))
         existing = decrypt_credentials(row.encrypted_credentials) if row else {}
