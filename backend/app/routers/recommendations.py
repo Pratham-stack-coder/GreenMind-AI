@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query
 from .. import carbon
 from ..agents import orchestrator
 from ..cloud import get_provider
+from ..config import get_settings
 from ..decision_engine import right_size, scaling_advice
 from ..ml import predictor
 from ..schemas import (
@@ -23,6 +24,7 @@ from ..schemas import (
 )
 
 router = APIRouter(prefix="/recommendations", tags=["Recommendations"])
+settings = get_settings()
 
 # Cache last generated recommendations (in-memory, simple)
 _last_recommendations: list[RecommendationItem] = []
@@ -68,57 +70,19 @@ def _build_recommendations(provider: str, region: str) -> tuple[list[Recommendat
 
 
 def _generate_execution_steps(rec: RecommendationItem) -> list[str]:
-    cat_steps = {
-        "cost": [
-            "Analyzed current resource utilization against capacity threshold",
-            f"Executed right-sizing API workflow: {rec.action}",
-            "Reconfigured target capacity & instance family attributes",
-            "Verified zero SLO breach and service health check passed",
-            f"Estimated monthly savings of ${rec.estimated_monthly_savings_usd:.0f}/mo locked in",
-        ],
-        "performance": [
-            "Captured baseline p95/p99 latency distribution",
-            f"Applied concurrency & scaling adjustment: {rec.action}",
-            "Warmed up caches and re-balanced traffic ingress",
-            "Verified latency normalized below saturation threshold",
-            "Updated auto-scaling response triggers",
-        ],
-        "sustainability": [
-            "Queried regional carbon intensity grid forecast for optimization window",
-            f"Scheduled carbon-aware policy: {rec.action}",
-            "Shifted batch and deferred workloads to lowest-carbon time windows",
-            f"Achieved estimated -{rec.estimated_carbon_reduction_pct:.0f}% carbon emission reduction",
-            "Published carbon telemetry metric to GreenMind dashboard",
-        ],
-        "security": [
-            "Inspected firewall rules, security groups, and IAM permissions",
-            f"Remediated identified security exposure: {rec.action}",
-            "Enforced principle of least privilege and encrypted traffic channels",
-            "Logged audit trail record in compliance ledger",
-            "Verified attack surface reduction without service interruption",
-        ],
-        "reliability": [
-            "Evaluated multi-zone redundancy and single-point-of-failure risks",
-            f"Implemented resiliency measure: {rec.action}",
-            "Configured automated health probes and failover routing",
-            "Synchronized replica state with zero downtime",
-            "Updated high-availability runbook and monitoring alarms",
-        ],
-    }
-    return cat_steps.get(rec.category, [
-        "Analyzed system telemetry baseline",
-        f"Executed optimization action: {rec.action}",
-        "Verified system stability post-execution",
-        "Updated audit log",
-    ])
-
+    """Return proposal steps only; no cloud mutation is performed here."""
+    return [
+        f"Recommendation reviewed: {rec.title}",
+        f"Proposed action: {rec.action}",
+        "Savings and carbon impact are estimates; no live infrastructure change is confirmed.",
+    ]
 
 def _execute_apply(rec: RecommendationItem, dry_run: bool = False, operator_notes: str | None = None) -> ApplyResponse:
     global _last_score, _applied_recommendations
     from ..integrations.cloud_actions import CloudActionDispatcher
 
     boost = 4 if rec.priority in ("critical", "high") else 2
-    target_score = _last_score if dry_run else min(98, _last_score + boost)
+    target_score = _last_score if (dry_run or settings.demo_mode) else min(98, _last_score + boost)
 
     resp = CloudActionDispatcher.execute_recommendation(
         rec=rec,
@@ -127,7 +91,7 @@ def _execute_apply(rec: RecommendationItem, dry_run: bool = False, operator_note
         new_score=target_score,
     )
 
-    if not dry_run:
+    if not dry_run and not settings.demo_mode and resp.status == "applied":
         rec.status = "applied"
         rec.applied_at = resp.applied_at
         rec.steps_taken = resp.steps_taken
@@ -251,17 +215,18 @@ def rollback_recommendation(rec_id: str):
             detail=f"Recommendation '{rec_id}' is not in applied state.",
         )
 
-    rec.status = "open"
-    rec.applied_at = None
-    rec.steps_taken = []
-    _applied_recommendations.pop(rec_id, None)
-
-    # Decrement score back down
-    penalty = 4 if rec.priority in ("critical", "high") else 2
-    _last_score = max(50, _last_score - penalty)
-
     from ..integrations.cloud_actions import CloudActionDispatcher
-    return CloudActionDispatcher.rollback_recommendation(rec, new_score=_last_score)
+    result = CloudActionDispatcher.rollback_recommendation(rec, new_score=_last_score)
+
+    # Do not mutate application state until a real rollback is confirmed.
+    if result.status == "rolled_back":
+        rec.status = "open"
+        rec.applied_at = None
+        rec.steps_taken = []
+        _applied_recommendations.pop(rec_id, None)
+        penalty = 4 if rec.priority in ("critical", "high") else 2
+        _last_score = max(50, _last_score - penalty)
+    return result
 
 
 @router.post("/{rec_id}/dismiss")

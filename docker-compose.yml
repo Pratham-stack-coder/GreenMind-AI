@@ -10,6 +10,7 @@ services:
       - "8000:8000"
     environment:
       - DEMO_MODE=${DEMO_MODE:-true}
+      - APP_ENV=${APP_ENV:-development}
       - PORT=8000
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-greenmind}:${POSTGRES_PASSWORD:-greenmind_secure_pass}@postgres:5432/${POSTGRES_DB:-greenmind}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}

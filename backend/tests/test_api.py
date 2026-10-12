@@ -4,10 +4,12 @@ import pytest
 from fastapi.testclient import TestClient
 from app.main import app, settings
 
-client = TestClient(app)
+@pytest.fixture
+def client(authenticated_client):
+    return authenticated_client
 
 
-def test_health():
+def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
@@ -18,7 +20,7 @@ def test_health():
     assert data["demo_mode"] == settings.demo_mode
 
 
-def test_cloud_metrics():
+def test_cloud_metrics(client):
     response = client.get("/cloud-metrics?region=us-east")
     assert response.status_code == 200
     data = response.json()
@@ -29,7 +31,7 @@ def test_cloud_metrics():
     assert data["source"] in ["DEMO", "LIVE", "LIVE_AWS"]
 
 
-def test_predict():
+def test_predict(client):
     response = client.post("/predict?cpu=55.0&hour=14.0&day_of_week=2")
     assert response.status_code == 200
     data = response.json()
@@ -39,7 +41,7 @@ def test_predict():
     assert data["risk"] in ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
 
 
-def test_predictions_endpoint():
+def test_predictions_endpoint(client):
     response = client.get("/predictions?provider=aws&region=us-east")
     assert response.status_code == 200
     data = response.json()
@@ -51,7 +53,7 @@ def test_predictions_endpoint():
     assert "predicted" in data["cpu"]
 
 
-def test_analytics():
+def test_analytics(client):
     response = client.get("/analytics?days=7&provider=aws&region=us-east")
     assert response.status_code == 200
     data = response.json()
@@ -61,7 +63,7 @@ def test_analytics():
     assert data["scores"]["overall"] >= 0
 
 
-def test_cost_analysis():
+def test_cost_analysis(client):
     response = client.get("/cost-analysis?days=7")
     assert response.status_code == 200
     data = response.json()
@@ -70,7 +72,7 @@ def test_cost_analysis():
     assert "top_cost_drivers" in data
 
 
-def test_carbon_analysis():
+def test_carbon_analysis(client):
     response = client.get("/carbon-analysis?days=7&region=us-east")
     assert response.status_code == 200
     data = response.json()
@@ -78,7 +80,7 @@ def test_carbon_analysis():
     assert "green_hours_pct" in data
 
 
-def test_recommendations():
+def test_recommendations(client):
     response = client.get("/recommendations?provider=aws&region=us-east")
     assert response.status_code == 200
     data = response.json()
@@ -87,7 +89,7 @@ def test_recommendations():
     assert "optimization_score" in data
 
 
-def test_explain_recommendation():
+def test_explain_recommendation(client):
     # First fetch recommendations to get an ID
     recs_resp = client.get("/recommendations?provider=aws&region=us-east")
     assert recs_resp.status_code == 200
@@ -102,7 +104,7 @@ def test_explain_recommendation():
         assert "expected_impact" in data
 
 
-def test_agents_list():
+def test_agents_list(client):
     response = client.get("/agents")
     assert response.status_code == 200
     data = response.json()
@@ -111,7 +113,7 @@ def test_agents_list():
     assert "conflict_resolution" in data
 
 
-def test_agents_run():
+def test_agents_run(client):
     payload = {"provider": "aws", "region": "us-east"}
     response = client.post("/agents/run", json=payload)
     assert response.status_code == 200
@@ -125,7 +127,7 @@ def test_agents_run():
     assert isinstance(data["conflicts"], list)
 
 
-def test_digital_twin_simulate():
+def test_digital_twin_simulate(client):
     payload = {
         "baseline_metrics": {
             "timestamp": "2026-09-22T00:00:00Z",
@@ -159,7 +161,7 @@ def test_digital_twin_simulate():
     assert "confidence" in data
 
 
-def test_digital_twin_scenario():
+def test_digital_twin_scenario(client):
     payload = {
         "scenario": "RIGHT_SIZE",
         "current_state": {
@@ -181,7 +183,7 @@ def test_digital_twin_scenario():
     assert data["risk"] in ["LOW", "MEDIUM", "HIGH"]
 
 
-def test_copilot_chat():
+def test_copilot_chat(client):
     payload = {
         "message": "Why is my cloud cost high?",
         "provider": "aws",
@@ -197,7 +199,7 @@ def test_copilot_chat():
     assert "actions" in data
 
 
-def test_cloud_providers():
+def test_cloud_providers(client):
     response = client.get("/cloud/providers")
     assert response.status_code == 200
     data = response.json()
@@ -208,7 +210,7 @@ def test_cloud_providers():
     assert "gcp" in provider_ids
 
 
-def test_cloud_resources():
+def test_cloud_resources(client):
     response = client.get("/cloud/resources?provider=aws&region=us-east")
     assert response.status_code == 200
     data = response.json()
@@ -217,37 +219,37 @@ def test_cloud_resources():
     assert len(data["resources"]) > 0
 
 
-def test_prometheus_metrics():
+def test_prometheus_metrics(client):
     response = client.get("/metrics/prometheus")
     assert response.status_code == 200
     assert "greenmind_api_requests_total" in response.text
     assert "greenmind_cloud_collections_total" in response.text
 
 
-def test_cors_vercel_origin():
-    """Verify that requests from any *.vercel.app domain receive correct CORS headers with credentials."""
-    response = client.get("/health", headers={"Origin": "https://my-preview-app.vercel.app"})
+def test_cors_vercel_origin(client):
+    """Verify an explicitly allowlisted Vercel deployment origin receives CORS headers."""
+    response = client.get("/health", headers={"Origin": "https://greenmind-ai.vercel.app"})
     assert response.status_code == 200
-    assert response.headers.get("access-control-allow-origin") == "https://my-preview-app.vercel.app"
+    assert response.headers.get("access-control-allow-origin") == "https://greenmind-ai.vercel.app"
     assert response.headers.get("access-control-allow-credentials") == "true"
 
 
-def test_cors_preflight_options():
+def test_cors_preflight_options(client):
     """Verify OPTIONS preflight request from Vercel is authorized cleanly."""
     response = client.options(
         "/api/v1/telemetry/live",
         headers={
-            "Origin": "https://greenmind-dashboard.vercel.app",
+            "Origin": "https://greenmind-ai.vercel.app",
             "Access-Control-Request-Method": "GET",
             "Access-Control-Request-Headers": "content-type",
         },
     )
     assert response.status_code == 200
-    assert response.headers.get("access-control-allow-origin") == "https://greenmind-dashboard.vercel.app"
+    assert response.headers.get("access-control-allow-origin") == "https://greenmind-ai.vercel.app"
     assert "GET" in response.headers.get("access-control-allow-methods", "")
 
 
-def test_telemetry_provider_status():
+def test_telemetry_provider_status(client):
     """Verify provider connectivity status endpoint."""
     response = client.get("/api/v1/telemetry/provider-status")
     assert response.status_code == 200
@@ -258,7 +260,7 @@ def test_telemetry_provider_status():
     assert "gcp" in data["providers"]
 
 
-def test_agent_execution_trace():
+def test_agent_execution_trace(client):
     """Verify that multi-agent execution emits detailed LangGraph node traces."""
     response = client.post("/api/v1/agents/run", json={"provider": "aws", "region": "us-east"})
     assert response.status_code == 200
@@ -272,7 +274,7 @@ def test_agent_execution_trace():
     assert "thoughts" in step1
 
 
-def test_digital_twin_latency_and_risk():
+def test_digital_twin_latency_and_risk(client):
     """Verify that digital twin computes M/M/1 queueing latency and risk scores."""
     req_body = {
         "baseline_metrics": {
@@ -303,7 +305,7 @@ def test_digital_twin_latency_and_risk():
     assert "p95_latency_pct" in data["delta"]
 
 
-def test_explain_quantitative_evidence():
+def test_explain_quantitative_evidence(client):
     """Verify that recommendation explanation returns quantitative telemetry comparisons."""
     recs_res = client.get("/api/v1/recommendations?provider=aws&region=us-east")
     assert recs_res.status_code == 200
@@ -321,7 +323,7 @@ def test_explain_quantitative_evidence():
     assert "counterfactual" in exp_data
 
 
-def test_recommendation_apply_and_rollback_flow():
+def test_recommendation_apply_and_rollback_flow(client):
     """Verify applying a recommendation (dry-run & live) and rolling it back."""
     recs_res = client.get("/api/v1/recommendations?provider=aws&region=us-east")
     assert recs_res.status_code == 200
@@ -341,22 +343,20 @@ def test_recommendation_apply_and_rollback_flow():
     apply_res = client.post(f"/api/v1/recommendations/{rec_id}/apply", json={"dry_run": False})
     assert apply_res.status_code == 200
     apply_data = apply_res.json()
-    assert apply_data["status"] == "applied"
-    assert apply_data["dry_run"] is False
+    assert apply_data["status"] in ("pending", "simulated")
+    assert apply_data["dry_run"] is (apply_data["status"] == "simulated")
     assert len(apply_data["steps_taken"]) > 0
 
     # 3. Check applied list
     applied_list = client.get("/api/v1/recommendations/applied")
     assert applied_list.status_code == 200
     applied_ids = [item["recommendation_id"] for item in applied_list.json()]
-    assert rec_id in applied_ids
+    assert rec_id not in applied_ids
 
-    # 4. Rollback
+    # 4. Rollback must not succeed because no live apply was confirmed.
     rollback_res = client.post(f"/api/v1/recommendations/{rec_id}/rollback")
-    assert rollback_res.status_code == 200
-    rb_data = rollback_res.json()
-    assert rb_data["status"] == "rolled_back"
-    assert len(rb_data["steps_taken"]) > 0
+    assert rollback_res.status_code == 400
+    assert "not in applied state" in rollback_res.json()["detail"]
 
 
 

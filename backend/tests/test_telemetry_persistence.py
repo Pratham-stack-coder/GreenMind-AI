@@ -4,6 +4,11 @@ from datetime import datetime, timezone
 from fastapi.testclient import TestClient
 
 from app.main import app
+
+@pytest.fixture
+def client(authenticated_client):
+    return authenticated_client
+
 from app.database import (
     init_db,
     persist_telemetry_entry,
@@ -18,7 +23,6 @@ from app.database import (
 )
 from app.routers.telemetry import collect_and_persist_telemetry
 
-client = TestClient(app)
 
 
 def test_init_db_and_persist_telemetry():
@@ -143,7 +147,7 @@ def test_collect_and_persist_telemetry_loop():
     asyncio.run(_run())
 
 
-def test_telemetry_history_api():
+def test_telemetry_history_api(client):
     """Verify /api/v1/telemetry/history supports filters and granularities."""
     # Seed a metric
     res = client.get("/api/v1/telemetry/live?provider=aws&region=us-east")

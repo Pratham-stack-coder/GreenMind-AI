@@ -118,24 +118,15 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS configuration supporting deployed Vercel and local dev origins
-cors_origins = list(settings.allowed_origins)
-if settings.cors_origins:
-    cors_origins.extend([o.strip() for o in settings.cors_origins.replace(";", ",").split(",") if o.strip()])
-
-# In demo mode allow all HTTP/HTTPS origins while preserving credentials support.
-# In production (DEMO_MODE=false): allow all *.vercel.app domains plus explicitly configured origins.
-origin_regex = r"^https?:\/\/.*$" if settings.demo_mode else r"^https:\/\/.*\.vercel\.app$"
-
-# Middleware
+# Exact-match CORS allowlist for demo and production.
+# Configure every deployed frontend origin explicitly in ALLOWED_ORIGINS/CORS_ORIGINS.
 app.add_middleware(PrometheusMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_origin_regex=origin_regex,
+    allow_origins=settings.get_allowed_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
 )
 
 # ── API v1 routers ─────────────────────────────────────────────────────────────

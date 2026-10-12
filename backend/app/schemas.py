@@ -168,7 +168,7 @@ class ApplyResponse(BaseModel):
     message: str
     estimated_monthly_savings_usd: float = 0.0
     estimated_carbon_reduction_pct: float = 0.0
-    applied_at: str
+    applied_at: str | None = None
     steps_taken: list[str] = []
     dry_run: bool = False
     new_score: int | None = None
