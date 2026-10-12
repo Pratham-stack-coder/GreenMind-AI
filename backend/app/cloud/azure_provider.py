@@ -532,6 +532,15 @@ class AzureCloudProvider(BaseCloudProvider):
                         },
                         "last_tested": datetime.now(timezone.utc).isoformat(),
                     }
+                    if settings.demo_mode:
+                        self.is_live = False
+                        res["mode"] = "DEMO"
+                        res["telemetry_status"] = "DEMO"
+                        res["message"] = (
+                            f"Azure credentials verified for subscription '{display_name}'; "
+                            "DEMO_MODE is enabled, so telemetry remains synthetic."
+                        )
+                        res["account_info"]["mode"] = "DEMO"
                 elif sub_res.status_code == 403:
                     self.is_live = False
                     res = {
