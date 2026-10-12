@@ -228,9 +228,9 @@ def test_prometheus_metrics(client):
 
 def test_cors_vercel_origin(client):
     """Verify an explicitly allowlisted Vercel deployment origin receives CORS headers."""
-    response = client.get("/health", headers={"Origin": "https://my-preview-app.vercel.app"})
+    response = client.get("/health", headers={"Origin": "https://greenmind-ai.vercel.app"})
     assert response.status_code == 200
-    assert response.headers.get("access-control-allow-origin") == "https://my-preview-app.vercel.app"
+    assert response.headers.get("access-control-allow-origin") == "https://greenmind-ai.vercel.app"
     assert response.headers.get("access-control-allow-credentials") == "true"
 
 
