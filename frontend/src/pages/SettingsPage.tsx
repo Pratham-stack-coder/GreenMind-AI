@@ -45,6 +45,7 @@ export default function SettingsPage() {
       if (result.connected) {
         setBackendSuccessMsg(`Backend connected (${result.latencyMs}ms)! FastAPI v${result.version} running in ${result.cloud_mode?.toUpperCase() || 'DEMO'} mode.`)
       }
+      return result
     } finally {
       setBackendTesting(false)
     }
@@ -53,11 +54,22 @@ export default function SettingsPage() {
   const handleSaveBackend = async () => {
     setBackendSuccessMsg(null)
     setActiveBackendUrl(backendUrlInput)
-    await handleTestBackend(backendUrlInput)
+    const result = await handleTestBackend(backendUrlInput)
     queryClient.invalidateQueries({ queryKey: ['health'] })
     queryClient.invalidateQueries({ queryKey: ['settings-status'] })
     queryClient.invalidateQueries({ queryKey: ['topbar-live'] })
-    setBackendSuccessMsg(`Active backend URL updated to: ${normalizeApiBaseUrl(backendUrlInput)}`)
+    if (result?.connected) {
+      const buildUrl = ((import.meta.env.VITE_API_BASE_URL as string | undefined) || '').trim()
+      const targetOrigin = new URL(backendUrlInput || window.location.origin, window.location.origin).origin
+      const trustedOrigin = buildUrl
+        ? new URL(buildUrl, window.location.origin).origin
+        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+          ? window.location.origin
+          : new URL('https://greenmind-backend-zqn5.onrender.com').origin
+      setBackendSuccessMsg(targetOrigin === trustedOrigin
+        ? `Active backend URL updated to: ${normalizeApiBaseUrl(backendUrlInput)}`
+        : `Health check passed, but authenticated API calls remain pinned to the build-time backend. Set VITE_API_BASE_URL to ${backendUrlInput} and redeploy to switch safely.`)
+    }
   }
 
   const handleResetBackend = () => {
@@ -523,7 +535,7 @@ export default function SettingsPage() {
 
           <p className="text-xs text-secondary mb-4 leading-relaxed">
             Connect this Vercel-deployed frontend cockpit to your FastAPI backend running on Render.com
-            (or local dev server). You can test connectivity, update the target URL on the fly, or configure build-time variables.
+            (or local dev server). You can test connectivity and save a runtime URL. For security, authenticated API calls only send your session to the backend configured with <code>VITE_API_BASE_URL</code>; change that variable and redeploy to switch hosts.
           </p>
 
           {/* Active URL Status Box */}

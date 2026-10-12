@@ -1,6 +1,7 @@
-import React from 'react'
-import { Routes, Route } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Activity, AlertTriangle, LogOut, RefreshCw } from 'lucide-react'
 import Sidebar from './components/Layout/Sidebar'
 import TopBar from './components/Layout/TopBar'
 import NotificationsPanel from './components/Layout/NotificationsPanel'
@@ -15,7 +16,11 @@ import DigitalTwinPage from './pages/DigitalTwinPage'
 import CopilotPage from './pages/CopilotPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import SettingsPage from './pages/SettingsPage'
+import AuthPage, { AuthCallbackPage } from './pages/AuthPage'
+import { useAuth } from './auth/AuthContext'
+import { testBackendConnection } from './api/client'
 import { useAppStore } from './store'
+import type { BackendHealthCheckResult } from './api/client'
 
 const pageTransition = {
   initial: { opacity: 0, y: 12 },
@@ -24,37 +29,147 @@ const pageTransition = {
   transition: { duration: 0.25 },
 }
 
-export default function App() {
+function AuthLoadingScreen({ label }: { label: string }) {
+  return (
+    <main className="auth-loading" role="status" aria-live="polite">
+      <span className="auth-spinner" aria-hidden="true" />
+      <span>{label}</span>
+    </main>
+  )
+}
+
+function RequireAuth() {
+  const { loading, session } = useAuth()
+  const location = useLocation()
+
+  if (loading) return <AuthLoadingScreen label="Restoring your session…" />
+  if (!session) return <Navigate to="/login" replace state={{ from: location }} />
+  return <Outlet />
+}
+
+function BackendConnectionGate() {
+  const { session, signOut } = useAuth()
+  const [checking, setChecking] = useState(true)
+  const [attempt, setAttempt] = useState(1)
+  const [result, setResult] = useState<BackendHealthCheckResult | null>(null)
+  const runId = useRef(0)
+
+  const connect = useCallback(async () => {
+    const currentRun = ++runId.current
+    setChecking(true)
+    setResult(null)
+
+    for (let currentAttempt = 1; currentAttempt <= 3; currentAttempt += 1) {
+      if (runId.current !== currentRun) return
+      setAttempt(currentAttempt)
+      const nextResult = await testBackendConnection()
+      if (runId.current !== currentRun) return
+      setResult(nextResult)
+      if (nextResult.connected) {
+        setChecking(false)
+        return
+      }
+
+      // Configuration problems need a deploy-time fix; retrying cannot repair them.
+      if (nextResult.auth_configured === false || nextResult.backend_url_trusted === false) break
+      if (currentAttempt < 3) {
+        await new Promise(resolve => window.setTimeout(resolve, 12_000))
+      }
+    }
+
+    if (runId.current === currentRun) setChecking(false)
+  }, [])
+
+  useEffect(() => {
+    void connect()
+    return () => { runId.current += 1 }
+  }, [connect, session?.user.id])
+
+  if (checking || !result?.connected) {
+    const configurationIssue = result?.auth_configured === false || result?.backend_url_trusted === false
+    return (
+      <main className="connection-shell">
+        <section className="connection-card">
+          <div className={`connection-icon ${checking ? 'is-checking' : 'has-error'}`}>
+            {checking ? <Activity size={24} /> : <AlertTriangle size={24} />}
+          </div>
+          <p className="auth-eyebrow">GREENMIND AI</p>
+          <h1>{checking ? 'Connecting your workspace' : 'Could not connect to GreenMind'}</h1>
+          <p className="connection-copy">
+            {checking
+              ? 'Your sign in is ready. Waking the Render service and checking its secure API connection.'
+              : result?.error || 'The backend did not respond. Try again in a moment.'}
+          </p>
+          {checking && <p className="connection-attempt">Connection check {attempt} of 3 · Render can take up to a minute to wake.</p>}
+          {!checking && configurationIssue && (
+            <div className="auth-alert auth-alert-error" role="alert">
+              Deploy the updated backend and set its Supabase Auth environment variables on Render. Your dashboard stays locked until the backend verifies sessions.
+            </div>
+          )}
+          <div className="connection-actions">
+            {!checking && (
+              <button type="button" className="auth-submit-button" onClick={() => void connect()}>
+                <RefreshCw size={16} /> Retry connection
+              </button>
+            )}
+            <button type="button" className="auth-secondary-button" onClick={() => void signOut()}>
+              <LogOut size={16} /> Sign out
+            </button>
+          </div>
+        </section>
+      </main>
+    )
+  }
+
+  return <Outlet />
+}
+
+function DashboardLayout() {
   const { sidebarCollapsed } = useAppStore()
   const sidebarWidth = sidebarCollapsed ? 64 : 240
+  const location = useLocation()
 
   return (
-    <div
-      className="main-layout"
-      style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}
-    >
+    <div className="main-layout" style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}>
       <Sidebar />
       <div className="content-area">
         <TopBar />
         <NotificationsPanel />
         <main className="page-content">
           <AnimatePresence mode="wait">
-            <Routes>
-              <Route path="/" element={<motion.div {...pageTransition}><DashboardPage /></motion.div>} />
-              <Route path="/cloud-resources" element={<motion.div {...pageTransition}><CloudResourcesPage /></motion.div>} />
-              <Route path="/predictions" element={<motion.div {...pageTransition}><PredictionsPage /></motion.div>} />
-              <Route path="/cost-optimization" element={<motion.div {...pageTransition}><CostOptimizationPage /></motion.div>} />
-              <Route path="/carbon-intelligence" element={<motion.div {...pageTransition}><CarbonIntelligencePage /></motion.div>} />
-              <Route path="/recommendations" element={<motion.div {...pageTransition}><RecommendationsPage /></motion.div>} />
-              <Route path="/agents" element={<motion.div {...pageTransition}><AgentsPage /></motion.div>} />
-              <Route path="/digital-twin" element={<motion.div {...pageTransition}><DigitalTwinPage /></motion.div>} />
-              <Route path="/copilot" element={<motion.div {...pageTransition}><CopilotPage /></motion.div>} />
-              <Route path="/analytics" element={<motion.div {...pageTransition}><AnalyticsPage /></motion.div>} />
-              <Route path="/settings" element={<motion.div {...pageTransition}><SettingsPage /></motion.div>} />
-            </Routes>
+            <motion.div key={location.pathname} {...pageTransition}>
+              <Outlet />
+            </motion.div>
           </AnimatePresence>
         </main>
       </div>
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/login" element={<AuthPage />} />
+      <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      <Route element={<RequireAuth />}>
+        <Route element={<BackendConnectionGate />}>
+          <Route element={<DashboardLayout />}>
+            <Route index element={<DashboardPage />} />
+            <Route path="cloud-resources" element={<CloudResourcesPage />} />
+            <Route path="predictions" element={<PredictionsPage />} />
+            <Route path="cost-optimization" element={<CostOptimizationPage />} />
+            <Route path="carbon-intelligence" element={<CarbonIntelligencePage />} />
+            <Route path="recommendations" element={<RecommendationsPage />} />
+            <Route path="agents" element={<AgentsPage />} />
+            <Route path="digital-twin" element={<DigitalTwinPage />} />
+            <Route path="copilot" element={<CopilotPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
+        </Route>
+      </Route>
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }

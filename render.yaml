@@ -28,6 +28,12 @@ services:
       - key: CORS_ORIGINS
         sync: false   # Set in Render dashboard: https://your-app.vercel.app
 
+      # ── Supabase Auth (protects API routes) ───────────────────────────────────
+      - key: SUPABASE_URL
+        sync: false   # https://<project-ref>.supabase.co
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false   # Required only if the project uses legacy HS256 signing
+
       # ── Database (use Render PostgreSQL add-on for persistence) ───────────────
       # If not set, falls back to SQLite (ephemeral on Render free tier)
       - key: DATABASE_URL

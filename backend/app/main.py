@@ -19,10 +19,11 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import carbon
+from .auth import require_authenticated_user
 from .cloud import get_provider
 from .config import get_settings
 from .database import init_db
@@ -139,15 +140,16 @@ app.add_middleware(
 
 # ── API v1 routers ─────────────────────────────────────────────────────────────
 PREFIX = "/api/v1"
-app.include_router(telemetry.router, prefix=PREFIX)
-app.include_router(predictions.router, prefix=PREFIX)
-app.include_router(recommendations.router, prefix=PREFIX)
-app.include_router(agents.router, prefix=PREFIX)
-app.include_router(digital_twin.router, prefix=PREFIX)
-app.include_router(analytics.router, prefix=PREFIX)
-app.include_router(copilot.router, prefix=PREFIX)
-app.include_router(settings_router.router, prefix=PREFIX)
-app.include_router(settings_router.router, prefix="")
+protected = [Depends(require_authenticated_user)]
+app.include_router(telemetry.router, prefix=PREFIX, dependencies=protected)
+app.include_router(predictions.router, prefix=PREFIX, dependencies=protected)
+app.include_router(recommendations.router, prefix=PREFIX, dependencies=protected)
+app.include_router(agents.router, prefix=PREFIX, dependencies=protected)
+app.include_router(digital_twin.router, prefix=PREFIX, dependencies=protected)
+app.include_router(analytics.router, prefix=PREFIX, dependencies=protected)
+app.include_router(copilot.router, prefix=PREFIX, dependencies=protected)
+app.include_router(settings_router.router, prefix=PREFIX, dependencies=protected)
+app.include_router(settings_router.router, prefix="", dependencies=protected)
 
 
 
@@ -188,11 +190,18 @@ def health():
         "database": "sqlite" if not settings.database_url else "postgresql",
         "redis": bool(settings.redis_url),
         "llm_configured": bool(settings.openai_api_key or settings.gemini_api_key),
+        "auth_configured": bool(settings.supabase_url),
     }
 
 
-@app.get("/api/v1/ready", tags=["System"])
-@app.get("/ready", tags=["System"])
+@app.get("/api/v1/auth/session", tags=["Authentication"], dependencies=protected)
+def verify_session_connection():
+    """Authenticated connection probe used by the frontend before opening the dashboard."""
+    return {"status": "ok"}
+
+
+@app.get("/api/v1/ready", tags=["System"], dependencies=protected)
+@app.get("/ready", tags=["System"], dependencies=protected)
 async def ready():
     """Readiness probe: verifies database connectivity and ML model availability."""
     from .database import _engine
@@ -246,7 +255,7 @@ def metrics_prometheus():
     return Response(content=content, media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
-@app.get("/metrics", tags=["Telemetry"])
+@app.get("/metrics", tags=["Telemetry"], dependencies=protected)
 def metrics(request: Request, provider: str = "aws", region: str = "us-east", format: str | None = None):
     """Current live metrics from cloud provider (JSON), or Prometheus text format if requested."""
     accept = request.headers.get("accept", "")
@@ -258,13 +267,13 @@ def metrics(request: Request, provider: str = "aws", region: str = "us-east", fo
     return p.get_metrics(region)
 
 
-@app.get("/history", tags=["Telemetry"])
+@app.get("/history", tags=["Telemetry"], dependencies=protected)
 def history(limit: int = Query(50, le=500)):
     """Recent telemetry history."""
     return telemetry.telemetry_history(limit=limit)
 
 
-@app.get("/cloud-metrics", response_model=CloudMetrics, tags=["Telemetry"])
+@app.get("/cloud-metrics", response_model=CloudMetrics, tags=["Telemetry"], dependencies=protected)
 def cloud_metrics(region: str = carbon.DEFAULT_REGION, provider: str = "aws"):
     """Cloud metrics endpoint (preserves demo mode compatibility)."""
     track_cloud_collection()
@@ -275,7 +284,7 @@ def cloud_metrics(region: str = carbon.DEFAULT_REGION, provider: str = "aws"):
 
 # ── AI Predictions & Forecasts ────────────────────────────────────────────────
 
-@app.post("/predict", tags=["ML"])
+@app.post("/predict", tags=["ML"], dependencies=protected)
 def predict(cpu: float = 45.0, hour: float = 12.0, day_of_week: int = 0):
     """Predict CPU utilization using trained Gradient Boosting model."""
     track_prediction_request()
@@ -293,7 +302,7 @@ def predict(cpu: float = 45.0, hour: float = 12.0, day_of_week: int = 0):
         raise HTTPException(status_code=503, detail=str(exc))
 
 
-@app.get("/predictions", tags=["ML"])
+@app.get("/predictions", tags=["ML"], dependencies=protected)
 def get_predictions(provider: str = "aws", region: str = "us-east"):
     """Multi-metric 60-minute forecast across all 5 dimensions."""
     track_prediction_request()
@@ -305,7 +314,7 @@ def get_predictions(provider: str = "aws", region: str = "us-east"):
 
 # ── Analytics & Optimizations ─────────────────────────────────────────────────
 
-@app.get("/analytics", tags=["Analytics"])
+@app.get("/analytics", tags=["Analytics"], dependencies=protected)
 def analytics_overview(days: int = Query(7, ge=1, le=90), provider: str = "aws", region: str = "us-east"):
     """Unified analytics combining cost, carbon, and optimization scores."""
     cost = analytics.cost_analytics(days=days)
@@ -319,19 +328,19 @@ def analytics_overview(days: int = Query(7, ge=1, le=90), provider: str = "aws",
     }
 
 
-@app.get("/cost-analysis", tags=["Analytics"])
+@app.get("/cost-analysis", tags=["Analytics"], dependencies=protected)
 def cost_analysis(days: int = Query(7, ge=1, le=90)):
     """Cost breakdown and top cost drivers."""
     return analytics.cost_analytics(days=days)
 
 
-@app.get("/carbon-analysis", tags=["Analytics"])
+@app.get("/carbon-analysis", tags=["Analytics"], dependencies=protected)
 def carbon_analysis(days: int = Query(7, ge=1, le=90), region: str = "us-east"):
     """Carbon emissions breakdown and green window analysis."""
     return analytics.carbon_analytics(days=days, region=region)
 
 
-@app.get("/recommendations", tags=["Recommendations"])
+@app.get("/recommendations", tags=["Recommendations"], dependencies=protected)
 def get_recommendations(
     provider: str = Query("aws"),
     region: str = Query("us-east"),
@@ -346,7 +355,7 @@ def get_recommendations(
 
 # ── Multi-Agent AI ────────────────────────────────────────────────────────────
 
-@app.get("/agents", tags=["Multi-Agent"])
+@app.get("/agents", tags=["Multi-Agent"], dependencies=protected)
 def get_agents():
     """List registered agents and operational status."""
     return {
@@ -362,7 +371,7 @@ def get_agents():
     }
 
 
-@app.post("/agents/run", response_model=AgentRunResponse, tags=["Multi-Agent"])
+@app.post("/agents/run", response_model=AgentRunResponse, tags=["Multi-Agent"], dependencies=protected)
 def post_agents_run(req: AgentRunRequest):
     """Run full LangGraph multi-agent analysis with transparent conflict resolution."""
     return agents.run_agents(req)
@@ -370,7 +379,7 @@ def post_agents_run(req: AgentRunRequest):
 
 # ── Digital Twin Simulation ───────────────────────────────────────────────────
 
-@app.post("/digital-twin/simulate", response_model=SimulationResult, tags=["Digital Twin"])
+@app.post("/digital-twin/simulate", response_model=SimulationResult, tags=["Digital Twin"], dependencies=protected)
 def post_digital_twin_simulate(req: SimulationRequest):
     """Simulate infrastructure changes."""
     return digital_twin.simulate(req)
@@ -378,7 +387,7 @@ def post_digital_twin_simulate(req: SimulationRequest):
 
 # ── AI Copilot ────────────────────────────────────────────────────────────────
 
-@app.post("/copilot/chat", response_model=CopilotResponse, tags=["AI Copilot"])
+@app.post("/copilot/chat", response_model=CopilotResponse, tags=["AI Copilot"], dependencies=protected)
 async def post_copilot_chat(req: CopilotRequest):
     """Conversational cloud copilot chat grounded in real telemetry and tools."""
     return await copilot.chat(req)
@@ -386,8 +395,8 @@ async def post_copilot_chat(req: CopilotRequest):
 
 # ── Cloud Provider & Resource Inventory ───────────────────────────────────────
 
-@app.get("/api/v1/cloud/providers", tags=["Cloud Providers"])
-@app.get("/cloud/providers", tags=["Cloud Providers"])
+@app.get("/api/v1/cloud/providers", tags=["Cloud Providers"], dependencies=protected)
+@app.get("/cloud/providers", tags=["Cloud Providers"], dependencies=protected)
 def cloud_providers():
     """List supported cloud providers and connection statuses."""
     aws_p = get_provider("aws")
@@ -424,8 +433,8 @@ def cloud_providers():
     }
 
 
-@app.get("/api/v1/cloud/resources", tags=["Cloud Providers"])
-@app.get("/cloud/resources", tags=["Cloud Providers"])
+@app.get("/api/v1/cloud/resources", tags=["Cloud Providers"], dependencies=protected)
+@app.get("/cloud/resources", tags=["Cloud Providers"], dependencies=protected)
 def cloud_resources(provider: str = Query("aws"), region: str = Query("us-east")):
     """List inventory of cloud resources (VMs, DBs, Storage)."""
     p = get_provider(provider)
@@ -439,14 +448,14 @@ def cloud_resources(provider: str = Query("aws"), region: str = Query("us-east")
 
 # ── Legacy v1 endpoints (backward compatibility) ──────────────────────────────
 
-@app.get("/api/v1/regions", tags=["System"])
-@app.get("/regions", tags=["Legacy"])
+@app.get("/api/v1/regions", tags=["System"], dependencies=protected)
+@app.get("/regions", tags=["Legacy"], dependencies=protected)
 def legacy_regions():
     return {"regions": carbon.available_regions()}
 
 
-@app.get("/api/v1/carbon-curve", tags=["Carbon"])
-@app.get("/carbon-curve", tags=["Legacy"])
+@app.get("/api/v1/carbon-curve", tags=["Carbon"], dependencies=protected)
+@app.get("/carbon-curve", tags=["Legacy"], dependencies=protected)
 def legacy_carbon_curve(region: str = carbon.DEFAULT_REGION):
     return {
         "region": region,
@@ -455,7 +464,7 @@ def legacy_carbon_curve(region: str = carbon.DEFAULT_REGION):
     }
 
 
-@app.post("/schedule-recommendation", response_model=ScheduleResponse, tags=["Legacy"])
+@app.post("/schedule-recommendation", response_model=ScheduleResponse, tags=["Legacy"], dependencies=protected)
 def legacy_schedule(req: ScheduleRequest):
     rec = recommend(
         predicted_cpu=req.predicted_cpu,
