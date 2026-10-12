@@ -469,57 +469,20 @@ export const applyRecommendation = (
 ): Promise<ApplyResponse> =>
   api.post(`/recommendations/${id}/apply`, options || {})
     .then(r => r.data)
-    .catch(() => ({
-      recommendation_id: id,
-      title: 'Right-size Underutilized EC2 Instances',
-      status: (options?.dry_run ? 'simulated' : 'applied') as any,
-      message: options?.dry_run
-        ? 'Dry-run evaluation passed: Target instance type t4g.medium verified compatible.'
-        : 'Recommendation successfully applied to infrastructure ledger.',
-      estimated_monthly_savings_usd: 58.4,
-      estimated_carbon_reduction_pct: 14.2,
-      applied_at: new Date().toISOString(),
-      steps_taken: [
-        'Checked target instance family quotas',
-        'Simulated network and memory headroom',
-        'Logged audit entry to compliance ledger',
-      ],
-      dry_run: options?.dry_run ?? false,
-      new_score: 86,
-    }))
 
 export const rollbackRecommendation = (id: string): Promise<ApplyResponse> =>
   api.post(`/recommendations/${id}/rollback`)
     .then(r => r.data)
-    .catch(() => ({
-      recommendation_id: id,
-      title: 'Rollback Action',
-      status: 'rolled_back' as any,
-      message: 'Infrastructure configuration restored to previous baseline.',
-      estimated_monthly_savings_usd: 0,
-      estimated_carbon_reduction_pct: 0,
-      applied_at: new Date().toISOString(),
-      steps_taken: ['Restored previous instance configuration'],
-      new_score: 84,
-    }))
 
 export const dismissRecommendation = (id: string): Promise<{ status: string; recommendation_id: string }> =>
   api.post(`/recommendations/${id}/dismiss`)
     .then(r => r.data)
-    .catch(() => ({ status: 'dismissed', recommendation_id: id }))
 
 export const batchApplyRecommendations = (payload?: {
   category?: string; priority?: string; recommendation_ids?: string[]; dry_run?: boolean
 }): Promise<BatchApplyResponse> =>
   api.post('/recommendations/apply-batch', payload || {})
     .then(r => r.data)
-    .catch(() => ({
-      applied_count: 2,
-      total_monthly_savings_usd: 58.4,
-      total_carbon_reduction_pct: 14.2,
-      results: [],
-      new_score: 86,
-    }))
 
 export const fetchAppliedRecommendations = (): Promise<ApplyResponse[]> =>
   api.get('/recommendations/applied')
