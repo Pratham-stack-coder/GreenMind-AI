@@ -336,7 +336,11 @@ export interface SettingsStatusResponse {
     openai_configured: boolean
     gemini_configured: boolean
   }
-  database: string
+  database: {
+    type: string
+    status: string
+    is_persistent: boolean
+  }
   redis: boolean
 }
 
