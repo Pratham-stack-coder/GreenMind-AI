@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Query
 from .. import carbon
 from ..agents import orchestrator
 from ..cloud import get_provider
+from ..config import get_settings
 from ..decision_engine import right_size, scaling_advice
 from ..ml import predictor
 from ..schemas import (
@@ -23,6 +24,7 @@ from ..schemas import (
 )
 
 router = APIRouter(prefix="/recommendations", tags=["Recommendations"])
+settings = get_settings()
 
 # Cache last generated recommendations (in-memory, simple)
 _last_recommendations: list[RecommendationItem] = []
