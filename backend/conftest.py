@@ -1,25 +1,29 @@
-"""
-Root conftest.py — adds the backend directory to sys.path so that
-`import app.*` works regardless of how pytest is invoked (pytest / python -m pytest).
-"""
+"""Pytest setup for backend tests; protected endpoints remain authenticated by default."""
 import sys
 from pathlib import Path
 
 import pytest
 
-# Ensure the backend/ directory is on sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
-@pytest.fixture(autouse=True)
-def authenticate_api_requests_in_tests():
-    """Keep existing endpoint tests focused on API behavior, not JWT plumbing."""
+@pytest.fixture
+def authenticated_client():
+    """Explicit opt-in auth mock for tests focused on non-auth API behavior."""
+    from fastapi.testclient import TestClient
     from app.auth import require_authenticated_user
     from app.main import app
 
+    previous = app.dependency_overrides.get(require_authenticated_user)
     app.dependency_overrides[require_authenticated_user] = lambda: {
         "sub": "test-user",
         "role": "authenticated",
     }
-    yield
-    app.dependency_overrides.pop(require_authenticated_user, None)
+    try:
+        with TestClient(app) as client:
+            yield client
+    finally:
+        if previous is None:
+            app.dependency_overrides.pop(require_authenticated_user, None)
+        else:
+            app.dependency_overrides[require_authenticated_user] = previous
