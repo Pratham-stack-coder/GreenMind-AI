@@ -142,3 +142,25 @@ def test_user_scoped_aws_connection_test_does_not_fall_back_to_server_credential
     assert result["status"] == "not_configured"
     assert result["credentials_status"] == "NOT_CONFIGURED"
     assert sessions == []
+
+def test_demo_mode_remains_synthetic_after_successful_aws_verification(monkeypatch):
+    from app.cloud import aws_provider
+
+    monkeypatch.setattr(aws_provider.settings, "demo_mode", True)
+    provider = AWSCloudProvider(credentials={})
+    provider.collector.test_connection = lambda **_kwargs: {
+        "success": True,
+        "status": "connected",
+        "mode": "LIVE",
+        "telemetry_status": "OPERATIONAL",
+        "message": "Connected.",
+        "account_info": {"mode": "LIVE"},
+    }
+
+    result = provider.test_connection(credentials={"aws_access_key_id": "user-key"})
+
+    assert result["success"] is True
+    assert result["mode"] == "DEMO"
+    assert result["telemetry_status"] == "DEMO"
+    assert provider.is_live is False
+    assert result["account_info"]["mode"] == "DEMO"
