@@ -14,7 +14,7 @@ export default function CloudResourcesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [filterCandidate, setFilterCandidate] = useState(false)
 
-  const { data: resourceData, isLoading, refetch } = useQuery({
+  const { data: resourceData, isLoading, isError, refetch } = useQuery({
     queryKey: ['cloudResources', provider, region],
     queryFn: () => fetchCloudResources(provider, region),
     refetchInterval: 30_000,
@@ -37,6 +37,21 @@ export default function CloudResourcesPage() {
   })
 
   const rightSizeCount = resources.filter(r => r.right_size_candidate).length
+  const providerMode = providersData?.providers?.find(p => p.id === provider)?.mode
+  const inventoryLabel = isError
+    ? 'UNAVAILABLE'
+    : providerMode === 'LIVE'
+      ? `LIVE ${provider.toUpperCase()}`
+      : providerMode === 'DEMO'
+        ? 'DEMO MODE'
+        : 'SOURCE UNKNOWN'
+  const inventoryBadgeClass = isError
+    ? 'badge badge-red'
+    : providerMode === 'LIVE'
+      ? 'badge badge-emerald'
+      : providerMode === 'DEMO'
+        ? 'badge badge-blue'
+        : 'badge badge-muted'
 
   return (
     <div className="animate-fade-in">
@@ -50,9 +65,7 @@ export default function CloudResourcesPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="badge badge-emerald">
-            {providersData?.providers?.find(p => p.id === provider)?.mode === 'LIVE' ? 'LIVE AWS' : 'DEMO MODE'}
-          </span>
+          <span className={inventoryBadgeClass}>{inventoryLabel}</span>
           <button
             onClick={() => refetch()}
             className="btn btn-secondary text-xs flex items-center gap-1"
@@ -67,22 +80,26 @@ export default function CloudResourcesPage() {
       <div className="grid-4 mb-4">
         <div className="card">
           <div className="text-xs text-muted mb-1 font-semibold uppercase">Total Tracked Resources</div>
-          <div className="text-2xl font-black">{resources.length}</div>
+          <div className="text-2xl font-black">{isLoading ? '…' : isError ? '—' : resources.length}</div>
           <div className="text-xs text-secondary mt-1">EC2, Containers, EBS, RDS</div>
         </div>
 
         <div className="card">
           <div className="text-xs text-muted mb-1 font-semibold uppercase">Right-Size Candidates</div>
-          <div className="text-2xl font-black text-amber-400">{rightSizeCount}</div>
+          <div className="text-2xl font-black text-amber-400">{isLoading ? '…' : isError ? '—' : rightSizeCount}</div>
           <div className="text-xs text-secondary mt-1">Sustained CPU &lt; 25%</div>
         </div>
 
         <div className="card">
           <div className="text-xs text-muted mb-1 font-semibold uppercase">Average Resource Load</div>
           <div className="text-2xl font-black text-emerald-400">
-            {resources.length
-              ? (resources.reduce((acc, r) => acc + r.cpu_utilization, 0) / resources.length).toFixed(1)
-              : '0'}%
+            {isLoading
+              ? '…'
+              : isError
+                ? '—'
+                : resources.length
+                ? `${(resources.reduce((acc, r) => acc + r.cpu_utilization, 0) / resources.length).toFixed(1)}%`
+                : '—'}
           </div>
           <div className="text-xs text-secondary mt-1">Across active workloads</div>
         </div>
@@ -90,7 +107,7 @@ export default function CloudResourcesPage() {
         <div className="card">
           <div className="text-xs text-muted mb-1 font-semibold uppercase">Total Hourly Burn</div>
           <div className="text-2xl font-black text-indigo-400">
-            ${resources.reduce((acc, r) => acc + r.cost_per_hour, 0).toFixed(3)}/hr
+            {isLoading ? '…' : isError ? '—' : `$${resources.reduce((acc, r) => acc + r.cost_per_hour, 0).toFixed(3)}/hr`}
           </div>
           <div className="text-xs text-secondary mt-1">Compute & storage compute run-rate</div>
         </div>
@@ -161,6 +178,12 @@ export default function CloudResourcesPage() {
                 <tr>
                   <td colSpan={7} style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
                     Loading cloud resource inventory...
+                  </td>
+                </tr>
+              ) : isError ? (
+                <tr>
+                  <td colSpan={7} role="status" style={{ padding: 24, textAlign: 'center', color: 'var(--red-400)' }}>
+                    <AlertTriangle size={14} aria-hidden="true" /> Resource inventory could not be loaded. No inventory values are available.
                   </td>
                 </tr>
               ) : filtered.length === 0 ? (

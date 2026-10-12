@@ -7,12 +7,16 @@ from fastapi.security import HTTPAuthorizationCredentials
 from types import SimpleNamespace
 import sys
 
+from sqlalchemy import select
+
 from app import auth, database
 from app.cloud.aws_provider import AWSCloudProvider
 from app.database import (
     delete_user_provider_credentials,
     get_telemetry_history,
     get_user_provider_credentials,
+    persist_telemetry_entry,
+    query_telemetry_history,
     record_telemetry,
     store_user_provider_credentials,
 )
@@ -80,6 +84,61 @@ def test_recommendation_and_telemetry_state_are_isolated_by_user():
         auth._current_user_id.reset(token_a)
         recommendations._user_states.pop(user_a, None)
         recommendations._user_states.pop(user_b, None)
+
+
+def test_persisted_telemetry_history_is_isolated_by_user():
+    user_a = f"durable-a-{uuid4()}"
+    user_b = f"durable-b-{uuid4()}"
+
+    async def exercise_storage():
+        await database.init_db()
+        token_a = auth._current_user_id.set(user_a)
+        try:
+            await persist_telemetry_entry({
+                "timestamp": "2026-10-12T00:00:00+00:00",
+                "provider": "aws",
+                "region": "tenant-isolation",
+                "cpu": 11,
+                "memory": 40,
+                "storage": 50,
+                "network": 100,
+                "cost_usd_per_hour": 0.1,
+                "carbon_gco2_per_hour": 20,
+                "source": "DEMO",
+            })
+            owner_a_rows = await query_telemetry_history(
+                limit=10, provider="aws", region="tenant-isolation"
+            )
+            assert any(row["cpu"] == 11 for row in owner_a_rows)
+            async with database._async_session_maker() as session:
+                result = await session.execute(
+                    select(database.TelemetryRecord).where(
+                        database.TelemetryRecord.owner_id == user_a,
+                        database.TelemetryRecord.region == "tenant-isolation",
+                    )
+                )
+                assert result.scalars().first() is not None
+
+            token_b = auth._current_user_id.set(user_b)
+            try:
+                owner_b_rows = await query_telemetry_history(
+                    limit=10, provider="aws", region="tenant-isolation"
+                )
+                assert owner_b_rows == []
+                async with database._async_session_maker() as session:
+                    result = await session.execute(
+                        select(database.TelemetryRecord).where(
+                            database.TelemetryRecord.owner_id == user_b,
+                            database.TelemetryRecord.region == "tenant-isolation",
+                        )
+                    )
+                    assert result.scalars().first() is None
+            finally:
+                auth._current_user_id.reset(token_b)
+        finally:
+            auth._current_user_id.reset(token_a)
+
+    asyncio.run(exercise_storage())
 
 
 def test_saved_credentials_are_encrypted_and_scoped_to_owner():

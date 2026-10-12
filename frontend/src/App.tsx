@@ -128,6 +128,16 @@ function DashboardLayout() {
   const { sidebarCollapsed } = useAppStore()
   const sidebarWidth = sidebarCollapsed ? 64 : 240
   const location = useLocation()
+  const [apiError, setApiError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const onApiError = (event: Event) => {
+      const message = (event as CustomEvent<{ message?: string }>).detail?.message
+      if (message) setApiError(message)
+    }
+    window.addEventListener('greenmind-api-error', onApiError)
+    return () => window.removeEventListener('greenmind-api-error', onApiError)
+  }, [])
 
   return (
     <div className="main-layout" style={{ '--sidebar-width': `${sidebarWidth}px` } as React.CSSProperties}>
@@ -135,6 +145,12 @@ function DashboardLayout() {
       <div className="content-area">
         <TopBar />
         <NotificationsPanel />
+        {apiError && (
+          <div className="auth-alert auth-alert-error" role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '12px 20px 0' }}>
+            <span><AlertTriangle size={14} aria-hidden="true" /> {apiError}</span>
+            <button type="button" className="btn btn-secondary text-xs" onClick={() => setApiError(null)}>Dismiss</button>
+          </div>
+        )}
         <main className="page-content">
           <AnimatePresence mode="wait">
             <motion.div key={location.pathname} {...pageTransition}>

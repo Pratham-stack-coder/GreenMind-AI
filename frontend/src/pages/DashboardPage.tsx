@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { motion } from 'framer-motion'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -50,11 +50,10 @@ function ScoreRadar({ scores }: { scores: OptimizationScores }) {
 }
 
 export default function DashboardPage() {
-  const queryClient = useQueryClient()
   const { provider, region, addNotification } = useAppStore()
   const [applyingId, setApplyingId] = useState<string | null>(null)
 
-  const { data: metrics, isLoading: metricsLoading } = useQuery({
+  const { data: metrics } = useQuery({
     queryKey: ['liveMetrics', provider, region],
     queryFn: () => fetchLiveMetrics(provider, region),
     refetchInterval: 15_000,
@@ -67,8 +66,8 @@ export default function DashboardPage() {
   })
 
   const { data: history } = useQuery({
-    queryKey: ['history'],
-    queryFn: () => fetchTelemetryHistory(48),
+    queryKey: ['history', provider, region],
+    queryFn: () => fetchTelemetryHistory(48, provider, region),
     refetchInterval: 60_000,
   })
 
@@ -82,14 +81,14 @@ export default function DashboardPage() {
     queryKey: ['forecast', metrics?.cpu, region],
     queryFn: () =>
       fetchForecast({
-        cpu: metrics?.cpu ?? 50,
-        memory: metrics?.memory ?? 55,
-        network: metrics?.network ?? 450,
+        cpu: metrics!.cpu,
+        memory: metrics!.memory as number,
+        network: metrics!.network as number,
         hour: new Date().getUTCHours(),
         day_of_week: new Date().getUTCDay(),
         region,
       }),
-    enabled: !!metrics,
+    enabled: Boolean(metrics && metrics.source !== 'ERROR' && metrics.cpu != null && metrics.memory != null && metrics.network != null),
   })
 
   const { data: settingsStatus } = useQuery({
@@ -101,46 +100,54 @@ export default function DashboardPage() {
   const handleApplyRec = async (id: string, title: string) => {
     try {
       setApplyingId(id)
-      const res = await applyRecommendation(id, { dry_run: false })
+      await applyRecommendation(id, { dry_run: true })
       addNotification({
-        title: 'Optimization Applied',
-        body: `${title} applied successfully. Score updated to ${res.new_score || 85}/100.`,
+        title: 'Dry-run preview ready',
+        body: `${title}: preview completed. No cloud resources were changed.`,
         priority: 'high',
       })
-      queryClient.invalidateQueries({ queryKey: ['recommendations'] })
-      queryClient.invalidateQueries({ queryKey: ['scores'] })
-      queryClient.invalidateQueries({ queryKey: ['liveMetrics'] })
     } catch (err) {
-      console.error('Failed to apply recommendation', err)
+      addNotification({
+        title: 'Preview failed',
+        body: err instanceof Error ? err.message : 'The recommendation preview could not be completed.',
+        priority: 'high',
+      })
     } finally {
       setApplyingId(null)
     }
   }
 
   // Determine Data Source Badge truthfully based on actual source
-  const isLive = Boolean(metrics?.source && typeof metrics.source === 'string' && metrics.source.startsWith('LIVE'))
-  const sourceLabel = isLive ? `LIVE ${provider.toUpperCase()}` : 'DEMO MODE (SYNTHETIC)'
+  const metricsAvailable = Boolean(metrics && metrics.source !== 'ERROR')
+  const isLive = Boolean(metricsAvailable && metrics?.source?.startsWith('LIVE'))
+  const sourceLabel = metrics?.source === 'ERROR'
+    ? 'PROVIDER ERROR'
+    : isLive
+      ? `LIVE ${provider.toUpperCase()}`
+      : metrics?.source === 'DEMO'
+        ? 'DEMO MODE (SYNTHETIC)'
+        : 'DATA UNAVAILABLE'
 
   // Prepare chart histories
   const rawEntries = Array.isArray(history?.entries) ? history.entries.slice(0, 24).reverse() : []
   const chartData = rawEntries.map((e: CloudMetrics, i: number) => ({
-    time: `${i * 15}m`,
-    CPU: typeof e?.cpu === 'number' ? e.cpu : 45,
-    Memory: typeof e?.memory === 'number' ? e.memory : 55,
-    Network: typeof e?.network === 'number' ? e.network : 400,
-    Cost: typeof e?.cost_usd_per_hour === 'number' ? e.cost_usd_per_hour : 0.19,
-    Carbon: typeof e?.carbon_gco2_per_hour === 'number' ? e.carbon_gco2_per_hour : 75,
+    time: e.timestamp ? new Date(e.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Unknown time',
+    CPU: typeof e?.cpu === 'number' ? e.cpu : null,
+    Memory: typeof e?.memory === 'number' ? e.memory : null,
+    Network: typeof e?.network === 'number' ? e.network : null,
+    Cost: typeof e?.cost_usd_per_hour === 'number' ? e.cost_usd_per_hour : null,
+    Carbon: typeof e?.carbon_gco2_per_hour === 'number' ? e.carbon_gco2_per_hour : null,
   }))
 
   // Chart data for Predicted CPU (Historical + Future Projection)
-  const currentCpu = typeof metrics?.cpu === 'number' ? metrics.cpu : 50
-  const predictedChartData = [
-    ...chartData.slice(-6).map((c, i) => ({ time: `T-${(6 - i) * 15}m`, Actual: c.CPU, Projected: null as number | null })),
-    { time: 'Now', Actual: currentCpu, Projected: currentCpu },
-    { time: '+15m', Actual: null, Projected: Math.round(((currentCpu * 0.6) + ((forecast?.cpu?.predicted ?? 50) * 0.4)) * 10) / 10 },
-    { time: '+30m', Actual: null, Projected: Math.round(((currentCpu * 0.3) + ((forecast?.cpu?.predicted ?? 50) * 0.7)) * 10) / 10 },
-    { time: '+60m', Actual: null, Projected: forecast?.cpu?.predicted ?? 50 },
-  ]
+  const currentCpu = typeof metrics?.cpu === 'number' ? metrics.cpu : null
+  const predictedChartData = forecast?.cpu && currentCpu != null
+    ? [
+        ...chartData.slice(-6).map(c => ({ time: c.time, Actual: c.CPU, Projected: null as number | null })),
+        { time: 'Now', Actual: currentCpu, Projected: currentCpu },
+        { time: '+60m', Actual: null, Projected: forecast.cpu.predicted },
+      ]
+    : []
 
   const recsList = Array.isArray(recs?.recommendations) ? recs.recommendations : []
   const criticalCount = recsList.filter(r => r.priority === 'critical').length
@@ -153,7 +160,7 @@ export default function DashboardPage() {
         <div className="dashboard-header-title">
           <h1 style={{ fontSize: 22, fontWeight: 800 }}>Cloud Overview Dashboard</h1>
           <p className="text-secondary text-sm mt-1">
-            Telemetry ingestion &amp; autonomous green cloud management · {provider.toUpperCase()} · {region}
+            Cloud telemetry and efficiency recommendations · {provider.toUpperCase()} · {region}
           </p>
         </div>
 
@@ -162,16 +169,23 @@ export default function DashboardPage() {
           <div className="provider-pills-row">
             {(['aws', 'azure', 'gcp'] as const).map(p => {
               const pStatus = settingsStatus?.providers?.[p]
-              const isConnected = pStatus?.status === 'connected'
+              const isConnected = pStatus?.mode === 'LIVE' && pStatus.status === 'connected'
+              const providerLabel = !pStatus
+                ? 'UNKNOWN'
+                : isConnected
+                  ? 'LIVE'
+                  : pStatus.mode === 'DEMO'
+                    ? 'DEMO'
+                    : 'ERROR'
               return (
                 <span
                   key={p}
-                  className={`badge ${isConnected ? 'badge-emerald' : 'badge-muted'}`}
+                  className={`badge ${providerLabel === 'LIVE' ? 'badge-emerald' : providerLabel === 'ERROR' ? 'badge-red' : 'badge-muted'}`}
                   style={{ fontSize: 10, padding: '2px 7px', flexShrink: 0 }}
                   title={pStatus?.message || p.toUpperCase()}
                 >
                   <span className={`status-dot ${isConnected ? 'online' : 'muted'}`} style={{ width: 5, height: 5 }} />
-                  {p.toUpperCase()}: {isConnected ? 'LIVE' : 'DEMO'}
+                  {p.toUpperCase()}: {providerLabel}
                 </span>
               )
             })}
@@ -254,82 +268,76 @@ export default function DashboardPage() {
       <div className="grid-4 mb-4">
         <MetricCard
           label="CPU Load"
-          value={metrics?.cpu ?? 45.0}
-          unit="%"
+          value={metricsAvailable ? metrics!.cpu : 'N/A'}
+          unit={metricsAvailable ? '%' : ''}
           icon={Cpu}
           color="emerald"
-          delta={2.4}
-          source={metrics?.source || 'DEMO'}
+          source={metrics?.source || 'UNAVAILABLE'}
         />
         <MetricCard
           label="Memory Used"
-          value={metrics?.memory != null ? metrics.memory : 'N/A'}
-          unit={metrics?.memory != null ? '%' : ''}
+          value={metricsAvailable && metrics?.memory != null ? metrics.memory : 'N/A'}
+          unit={metricsAvailable && metrics?.memory != null ? '%' : ''}
           icon={MemoryStick}
-          color={metrics?.memory != null ? 'blue' : 'amber'}
-          delta={metrics?.memory != null ? -1.2 : undefined}
-          subtext={metrics?.memory == null ? 'Requires CloudWatch/OS Agent' : undefined}
-          source={metrics?.memory != null ? (metrics.memory_source || metrics.source) : 'UNAVAILABLE'}
+          color={metricsAvailable && metrics?.memory != null ? 'blue' : 'amber'}
+          subtext={metricsAvailable && metrics?.memory == null ? 'Requires CloudWatch/OS Agent' : undefined}
+          source={!metricsAvailable ? (metrics?.source === 'ERROR' ? 'ERROR' : 'UNAVAILABLE') : metrics?.memory != null ? (metrics.memory_source || metrics.source) : 'UNAVAILABLE'}
           sourceNote={metrics?.memory_note || undefined}
         />
         <MetricCard
           label="Storage In-Use"
-          value={metrics?.storage != null ? metrics.storage : 'N/A'}
-          unit={metrics?.storage != null ? '%' : ''}
+          value={metricsAvailable && metrics?.storage != null ? metrics.storage : 'N/A'}
+          unit={metricsAvailable && metrics?.storage != null ? '%' : ''}
           icon={HardDrive}
           color="indigo"
-          delta={0.5}
-          source={metrics?.storage != null ? metrics.source : 'UNAVAILABLE'}
+          source={metricsAvailable && metrics?.storage != null ? metrics.source : metrics?.source === 'ERROR' ? 'ERROR' : 'UNAVAILABLE'}
         />
         <MetricCard
           label="Network I/O"
-          value={metrics?.network != null ? metrics.network : 'N/A'}
-          unit={metrics?.network != null ? 'Mbps' : ''}
+          value={metricsAvailable && metrics?.network != null ? metrics.network : 'N/A'}
+          unit={metricsAvailable && metrics?.network != null ? 'Mbps' : ''}
           icon={Network}
           color="purple"
-          delta={4.8}
-          source={metrics?.network != null ? (metrics.network_source || metrics.source) : 'UNAVAILABLE'}
+          source={metricsAvailable && metrics?.network != null ? (metrics.network_source || metrics.source) : metrics?.source === 'ERROR' ? 'ERROR' : 'UNAVAILABLE'}
         />
       </div>
 
       <div className="grid-4 mb-4">
         <MetricCard
           label="Hourly Cost"
-          value={metrics?.cost_usd_per_hour ?? 0.192}
-          unit="$/hr"
+          value={metricsAvailable && metrics?.cost_usd_per_hour != null ? metrics.cost_usd_per_hour : 'N/A'}
+          unit={metricsAvailable && metrics?.cost_usd_per_hour != null ? '$/hr' : ''}
           icon={DollarSign}
           color="amber"
-          delta={-3.1}
-          subtext={`Est. $${((metrics?.cost_usd_per_hour ?? 0.192) * 24 * 30).toFixed(0)}/month`}
-          source={metrics?.cost_source || (isLive ? 'ESTIMATED' : 'DEMO')}
+          subtext={metricsAvailable && metrics?.cost_usd_per_hour != null ? `Estimated $${(metrics.cost_usd_per_hour * 24 * 30).toFixed(0)}/month` : undefined}
+          source={!metricsAvailable ? (metrics?.source === 'ERROR' ? 'ERROR' : 'UNAVAILABLE') : metrics?.cost_usd_per_hour != null ? (metrics.cost_source || (isLive ? 'ESTIMATED' : 'DEMO')) : 'UNAVAILABLE'}
         />
         <MetricCard
           label="Emissions Rate"
-          value={metrics?.carbon_gco2_per_hour ?? 78.4}
-          unit="gCO₂/hr"
+          value={metricsAvailable && metrics?.carbon_gco2_per_hour != null ? metrics.carbon_gco2_per_hour : 'N/A'}
+          unit={metricsAvailable && metrics?.carbon_gco2_per_hour != null ? 'gCO₂/hr' : ''}
           icon={Leaf}
           color="emerald"
-          delta={-6.4}
-          subtext="GHG Scope 2/3 power model"
-          source="ESTIMATED"
+          subtext={metricsAvailable && metrics?.carbon_gco2_per_hour != null ? 'GHG Scope 2/3 power model' : undefined}
+          source={!metricsAvailable ? (metrics?.source === 'ERROR' ? 'ERROR' : 'UNAVAILABLE') : 'ESTIMATED'}
         />
         <MetricCard
-          label="Cloud Health"
-          value={scores ? (scores.overall >= 70 ? 'HEALTHY' : 'WARN') : 'HEALTHY'}
+          label="Optimization Status"
+          value={scores ? (scores.overall >= 70 ? 'HEALTHY' : 'REVIEW') : 'UNAVAILABLE'}
           unit=""
           icon={Activity}
           color="emerald"
-          subtext="0 active alarm disruptions"
-          source={isLive ? 'LIVE' : 'DEMO'}
+          subtext={scores ? 'Based on composite optimization score' : undefined}
+          source={scores?.source || 'UNAVAILABLE'}
         />
         <MetricCard
           label="Opt. Score"
-          value={scores?.overall ?? 82}
+          value={scores?.overall ?? 'N/A'}
           unit="/100"
           icon={ShieldCheck}
           color="blue"
           subtext="Composite efficiency"
-          source={scores?.source || (isLive ? 'ESTIMATED' : 'DEMO')}
+          source={scores?.source || 'UNAVAILABLE'}
         />
       </div>
 
@@ -343,11 +351,11 @@ export default function DashboardPage() {
               <Cpu size={16} color="var(--emerald-400)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>CPU History (Last 24 Readings)</h3>
             </div>
-            <span className="text-xs text-muted">Current: {metrics?.cpu ?? 45}%</span>
+            <span className="text-xs text-muted">Current: {metricsAvailable && metrics?.cpu != null ? `${metrics.cpu}%` : 'Unavailable'}</span>
           </div>
           <div style={{ height: 160 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData.length ? chartData : [{ time: '0m', CPU: 45 }]}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="cpuArea" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
@@ -371,11 +379,11 @@ export default function DashboardPage() {
               <MemoryStick size={16} color="var(--blue-400)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>Memory History</h3>
             </div>
-            <span className="text-xs text-muted">Current: {metrics?.memory ?? 55}%</span>
+            <span className="text-xs text-muted">Current: {metricsAvailable && metrics?.memory != null ? `${metrics.memory}%` : 'Unavailable'}</span>
           </div>
           <div style={{ height: 160 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData.length ? chartData : [{ time: '0m', Memory: 55 }]}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="memArea" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.35} />
@@ -402,11 +410,11 @@ export default function DashboardPage() {
               <DollarSign size={16} color="var(--amber-400)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>Cost Trend ($/hr)</h3>
             </div>
-            <span className="text-xs text-muted">${metrics?.cost_usd_per_hour ?? 0.192}/hr</span>
+            <span className="text-xs text-muted">{metricsAvailable && metrics?.cost_usd_per_hour != null ? `$${metrics.cost_usd_per_hour}/hr` : 'Unavailable'}</span>
           </div>
           <div style={{ height: 160 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData.length ? chartData : [{ time: '0m', Cost: 0.19 }]}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="costArea" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.35} />
@@ -430,11 +438,11 @@ export default function DashboardPage() {
               <Leaf size={16} color="var(--emerald-400)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>Carbon Emissions Trend (gCO₂/hr)</h3>
             </div>
-            <span className="text-xs text-muted">{metrics?.carbon_gco2_per_hour ?? 78.4} gCO₂/hr</span>
+            <span className="text-xs text-muted">{metricsAvailable && metrics?.carbon_gco2_per_hour != null ? `${metrics.carbon_gco2_per_hour} gCO₂/hr` : 'Unavailable'}</span>
           </div>
           <div style={{ height: 160 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData.length ? chartData : [{ time: '0m', Carbon: 75 }]}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="carbArea" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
@@ -461,11 +469,11 @@ export default function DashboardPage() {
               <Network size={16} color="var(--purple-400)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>Network Usage (Mbps)</h3>
             </div>
-            <span className="text-xs text-muted">{metrics?.network ?? 420} Mbps</span>
+            <span className="text-xs text-muted">{metricsAvailable && metrics?.network != null ? `${metrics.network} Mbps` : 'Unavailable'}</span>
           </div>
           <div style={{ height: 160 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData.length ? chartData : [{ time: '0m', Network: 400 }]}>
+              <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                 <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
@@ -484,8 +492,8 @@ export default function DashboardPage() {
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>Predicted CPU Load (60-Min ML Forecast)</h3>
             </div>
             <div className="flex items-center gap-1">
-              <span className={`badge ${forecast?.risk === 'HIGH' ? 'badge-red' : forecast?.risk === 'MEDIUM' ? 'badge-amber' : 'badge-emerald'}`}>
-                Risk: {forecast?.risk || 'LOW'}
+              <span className={`badge ${!forecast ? 'badge-muted' : forecast.risk === 'HIGH' ? 'badge-red' : forecast.risk === 'MEDIUM' ? 'badge-amber' : 'badge-emerald'}`}>
+                {forecast?.risk ? `Risk: ${forecast.risk}` : 'Forecast unavailable'}
               </span>
             </div>
           </div>
@@ -502,9 +510,9 @@ export default function DashboardPage() {
             </ResponsiveContainer>
           </div>
           <div className="flex items-center justify-between text-xs text-muted mt-2 flex-wrap gap-2">
-            <span>Current: <strong>{metrics?.cpu ?? 45}%</strong></span>
-            <span>Forecast +60m: <strong className="text-emerald-400">{forecast?.cpu?.predicted ?? 48}%</strong></span>
-            <span>Confidence: <strong>{((forecast?.cpu?.confidence ?? 0.88) * 100).toFixed(0)}%</strong></span>
+            <span>Current: <strong>{metricsAvailable && metrics?.cpu != null ? `${metrics.cpu}%` : 'Unavailable'}</strong></span>
+            <span>Forecast +60m: <strong className="text-emerald-400">{forecast?.cpu?.predicted != null ? `${forecast.cpu.predicted}%` : 'Unavailable'}</strong></span>
+            <span>Confidence: <strong>{forecast?.cpu?.confidence != null ? `${(forecast.cpu.confidence * 100).toFixed(0)}%` : 'Unavailable'}</strong></span>
           </div>
         </div>
       </div>
@@ -525,7 +533,7 @@ export default function DashboardPage() {
               disabled={applyingId === topRec.id || topRec.status === 'applied'}
               className="btn btn-primary text-xs"
             >
-              {topRec.status === 'applied' ? 'Applied' : applyingId === topRec.id ? 'Applying...' : 'Apply Recommendation'}
+              {topRec.status === 'applied' ? 'Applied' : applyingId === topRec.id ? 'Preparing preview...' : 'Preview Recommendation'}
             </button>
           </div>
           <p className="text-sm text-secondary mb-2">{topRec.description}</p>

@@ -33,7 +33,7 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 
 Keep this key stable and private. Changing it makes already stored provider credentials unreadable. Back it up separately from the database.
 
-AWS, Azure, and GCP credentials entered in Settings are scoped to the signed-in Supabase user and stored encrypted in PostgreSQL. The backend must have the encryption key configured before users can save credentials. Authenticated API requests do not use another user's credentials. Server environment credentials are for backend-managed system operations.
+AWS, Azure, and GCP credentials entered in Settings are scoped to the signed-in Supabase user and stored encrypted in PostgreSQL. The backend must have the encryption key configured before users can save credentials. Authenticated API requests do not use another user's credentials. Backend environment cloud credentials are never used as a fallback for signed-in users; configure each user's credentials in Settings.
 
 The backend's `/health` endpoint is the Render health check. The `/ready` endpoint requires authentication and reports not-ready when ML models are unavailable.
 
@@ -78,7 +78,21 @@ Users add AWS, Azure, or GCP credentials in the authenticated Settings page. Cre
 
 GreenMind AI currently reads cloud telemetry and generates dry-run previews. Live recommendation apply and rollback are not implemented; those API requests return HTTP 501 and do not modify provider resources.
 
-## 6. Local development
+## 6. Publish container images to GHCR
+
+The **Container Image Publishing** GitHub Actions workflow builds and publishes images when you push a version tag or run it manually. It does not deploy those images to Render; Render's Blueprint continues to deploy from `main`.
+
+Before publishing the frontend image, add these public values under **Settings → Secrets and variables → Actions → Variables** in the GitHub repository:
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_SUPABASE_URL` | Supabase project URL embedded in the frontend bundle |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Supabase publishable key (or legacy anon key) embedded in the frontend bundle |
+| `VITE_API_BASE_URL` | Optional trusted backend URL; leave unset when the frontend uses the Compose Nginx proxy |
+
+The workflow stops before publishing if either Supabase variable is missing, because a frontend image without them cannot sign users in. These values are public client configuration. Never set a service-role key, JWT signing secret, or cloud credential here. Use GitHub repository variables rather than Actions secrets for these public values.
+
+## 7. Local development
 
 From the repository root:
 
