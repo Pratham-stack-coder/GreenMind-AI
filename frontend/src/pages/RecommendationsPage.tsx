@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   DollarSign, Zap, Leaf, Shield, Activity, Filter,
   ChevronDown, ChevronUp, RefreshCw, CheckCircle2, RotateCcw,
-  Sparkles, Play, Check, AlertTriangle, X, Terminal, ArrowRight,
+  Sparkles, Play, Check, AlertTriangle, X, Terminal,
   Info, Loader2
 } from 'lucide-react'
 import { useAppStore } from '../store'
@@ -36,7 +36,6 @@ interface ExplainModalProps {
 }
 
 function ExplainModal({ rec, onClose }: ExplainModalProps) {
-  const { addNotification } = useAppStore()
   const dryRun = true
   const [applying, setApplying] = useState(false)
   const [applyResult, setApplyResult] = useState<{ message: string; steps: string[]; status: string } | null>(null)
@@ -225,7 +224,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
               <div className="card" style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.02)' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Terminal size={13} color="var(--emerald-400)" />
-                  Automated Implementation Steps
+                  Suggested Implementation Steps
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {explainData.steps_to_implement.map((step, idx) => (
@@ -267,7 +266,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                 <div className="flex items-center gap-2 mb-2">
                   <Terminal size={14} color={applyResult.status === 'applied' ? 'var(--emerald-400)' : 'var(--blue-400)'} />
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {applyResult.status === 'applied' ? 'Remediation Workflow Executed' : 'Dry-Run Simulation Complete'}
+                    {applyResult.status === 'applied' ? 'Dry-Run Preview Complete' : 'Dry-Run Simulation Complete'}
                   </span>
                   <span className={`badge ${applyResult.status === 'applied' ? 'badge-emerald' : 'badge-blue'}`} style={{ marginLeft: 'auto' }}>
                     {applyResult.status}
@@ -556,7 +555,7 @@ function RecCard({
                     disabled={isApplying}
                   >
                     {isApplying ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                    Apply Now
+                    Preview
                   </button>
                 )}
               </div>
@@ -638,7 +637,7 @@ export default function RecommendationsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
-          <h1>AI Recommendations & Remediation</h1>
+          <h1>AI Recommendations & Dry-Run Previews</h1>
           <p className="text-secondary text-sm mt-1">
             {openRecs.length} actionable optimizations available ·
             {openSavings > 0 && <span className="text-emerald"> ${openSavings.toFixed(0)}/month potential savings</span>}
@@ -685,10 +684,10 @@ export default function RecommendationsPage() {
               </div>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>
-                  Automate Infrastructure Optimization ({openRecs.length} Open)
+                  Preview Optimization Recommendations ({openRecs.length} Open)
                 </div>
                 <div className="text-secondary text-xs mt-0.5">
-                  Execute AI-verified remediation workflows to capture ${openSavings.toFixed(0)}/mo FinOps savings & reduce carbon intensity.
+                  Review estimated savings of ${openSavings.toFixed(0)}/mo and carbon impact. Dry runs do not modify cloud resources.
                 </div>
               </div>
             </div>
