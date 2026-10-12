@@ -248,8 +248,11 @@ npm run dev     # Starts Vite dev server on http://localhost:5173
 
 ### Docker Deployment
 
-To launch the full stack including PostgreSQL, Redis, backend, and frontend:
+To launch the full stack including PostgreSQL, Redis, backend, and frontend, first copy the root environment template and set the Supabase project URL, frontend publishable values, and a stable Fernet encryption key:
 ```bash
+cp .env.example .env
+# Set SUPABASE_URL, VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY,
+# and CREDENTIAL_ENCRYPTION_KEY. The VITE values are public; never use a service-role key.
 docker compose up -d --build
 ```
 
