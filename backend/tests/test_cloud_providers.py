@@ -10,6 +10,7 @@ Covers:
 - Settings router endpoints for account-info, regions, and connection testing
 """
 
+import pytest
 import os
 from unittest.mock import MagicMock, patch
 from botocore.exceptions import ClientError
@@ -21,7 +22,9 @@ from app.cloud.azure_provider import AzureCloudProvider
 from app.cloud.gcp_provider import GCPCloudProvider
 from app.main import app
 
-client = TestClient(app)
+@pytest.fixture
+def client(authenticated_client):
+    return authenticated_client
 
 
 def setup_function():
