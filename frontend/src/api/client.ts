@@ -50,7 +50,10 @@ export const DEFAULT_PRODUCTION_BACKEND = 'https://greenmind-backend-zqn5.onrend
 export function getActiveBackendUrl(): string {
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem(BACKEND_STORAGE_KEY)
-    if (saved && saved.trim()) return saved.trim()
+    if (saved && saved.trim()) {
+      if (isTrustedBackendUrl(saved.trim())) return saved.trim()
+      localStorage.removeItem(BACKEND_STORAGE_KEY)
+    }
   }
 
   const envUrl = ((import.meta.env.VITE_API_BASE_URL as string | undefined) || '').trim()
