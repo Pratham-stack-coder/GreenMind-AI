@@ -3,8 +3,6 @@ from fastapi.testclient import TestClient
 from app.auth import require_authenticated_user
 from app.main import app, settings
 from app.config import Settings
-from app.auth import verify_supabase_access_token
-from fastapi import HTTPException
 
 
 def test_protected_route_rejects_missing_token_without_dependency_override():
@@ -103,8 +101,9 @@ def test_demo_apply_path_does_not_mark_recommendation_applied(monkeypatch):
     )
     monkeypatch.setattr(rec_router, "settings", Settings(demo_mode=True))
     monkeypatch.setattr(rec_router, "_last_recommendations", [recommendation])
+    from app.integrations.cloud_actions import CloudActionDispatcher
     monkeypatch.setattr(
-        rec_router.CloudActionDispatcher,
+        CloudActionDispatcher,
         "execute_recommendation",
         lambda **kwargs: ApplyResponse(
             recommendation_id="demo-rec",
