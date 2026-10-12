@@ -164,3 +164,18 @@ def test_demo_mode_remains_synthetic_after_successful_aws_verification(monkeypat
     assert result["telemetry_status"] == "DEMO"
     assert provider.is_live is False
     assert result["account_info"]["mode"] == "DEMO"
+
+def test_protected_api_requires_a_bearer_token():
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    override = app.dependency_overrides.pop(auth.require_authenticated_user, None)
+    try:
+        response = TestClient(app).get("/api/v1/settings/status")
+    finally:
+        if override is not None:
+            app.dependency_overrides[auth.require_authenticated_user] = override
+
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+
