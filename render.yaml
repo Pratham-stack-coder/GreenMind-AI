@@ -6,7 +6,7 @@ services:
     plan: free
     branch: main
     rootDir: .
-    buildCommand: "pip install -r backend/requirements.txt && cd backend/app/ml && python train.py || echo 'ML training failed'"
+    buildCommand: "pip install -r backend/requirements.txt && cd backend/app/ml && python train.py"
     startCommand: "python -m uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /health
     autoDeploy: true
