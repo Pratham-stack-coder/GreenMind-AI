@@ -161,7 +161,7 @@ class ApplyRequest(BaseModel):
 
 
 class ApplyResponse(BaseModel):
-    """Result of applying a recommendation (demo: simulated; live: real API call)."""
+    """Result of a recommendation preview or a verified cloud action."""
     recommendation_id: str
     title: str
     status: Literal["applied", "failed", "pending", "rolled_back", "simulated"]
