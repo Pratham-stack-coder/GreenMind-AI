@@ -217,7 +217,7 @@ def batch_apply_recommendations(req: BatchApplyRequest):
         total_carbon += res.estimated_carbon_reduction_pct
 
     return BatchApplyResponse(
-        applied_count=len(results),
+        applied_count=sum(result.status == "applied" for result in results),
         total_monthly_savings_usd=round(total_savings, 2),
         total_carbon_reduction_pct=round(total_carbon, 2),
         results=results,
