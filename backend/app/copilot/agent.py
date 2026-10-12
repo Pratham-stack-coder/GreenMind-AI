@@ -44,15 +44,22 @@ class CopilotAgent:
         recs = None
         health = None
         sim_result = None
+        history = None
+
+        if any(w in msg for w in ["history", "trend", "over time", "recent telemetry"]):
+            sources.append("telemetry_history")
+            history = tools.get_history(limit=50, provider=req.provider, region=req.region)
+            snapshot["history"] = history
 
         if any(w in msg for w in ["cost", "bill", "expensive", "spend", "saving", "underutilized"]):
             sources.append("cost_analysis")
             sources.append("cloud_metrics")
-            cost_data = tools.get_cost_analysis(days=7)
+            cost_data = tools.get_cost_analysis(days=7, provider=req.provider, region=req.region)
             metrics = tools.get_cloud_metrics(req.provider, req.region)
             recs = tools.get_recommendations(req.provider, req.region)
             snapshot["metrics"] = metrics
             snapshot["cost_analysis"] = cost_data
+            snapshot["recommendations"] = [rec.model_dump() for rec in recs]
 
         if any(w in msg for w in ["carbon", "green", "emission", "co2", "renewable", "clean"]):
             sources.append("carbon_analysis")
@@ -63,7 +70,7 @@ class CopilotAgent:
             sources.append("predictions")
             sources.append("cloud_metrics")
             metrics = metrics or tools.get_cloud_metrics(req.provider, req.region)
-            predictions = tools.get_predictions(cpu=metrics.get("cpu", 50.0))
+            predictions = tools.get_predictions(metrics=metrics, provider=req.provider, region=req.region)
             snapshot["predictions"] = predictions
 
         if any(w in msg for w in ["health", "status", "risk", "alarm", "score"]):
@@ -74,7 +81,7 @@ class CopilotAgent:
         if any(w in msg for w in ["what if", "simulate", "simulation", "digital twin", "right-size this", "right size"]):
             sources.append("digital_twin_simulation")
             metrics = metrics or tools.get_cloud_metrics(req.provider, req.region)
-            sim_result = tools.run_digital_twin_simulation("RIGHT_SIZE", cpu=metrics.get("cpu", 75.0))
+            sim_result = tools.run_digital_twin_simulation("RIGHT_SIZE", metrics=metrics)
             snapshot["simulation"] = sim_result
 
         if not sources:
@@ -150,118 +157,147 @@ class CopilotAgent:
         )
 
     def _generate_deterministic(self, msg: str, data: dict[str, Any], kb: list[dict[str, Any]]) -> str:
-        """Ground answer deterministically in real metrics without hallucination."""
-        metrics = data.get("metrics")
+        """Build answers from returned values and state clearly when an analysis is unavailable."""
+        metrics = data.get("metrics") or {}
         cost = data.get("cost_analysis")
         carbon = data.get("carbon_analysis")
         pred = data.get("predictions")
         health = data.get("health")
         sim = data.get("simulation")
+        source = metrics.get("source", "UNKNOWN")
+        provider = str(metrics.get("provider", "cloud provider")).upper()
+        region = metrics.get("region", "unknown region")
+        parts: list[str] = []
 
-        parts = []
-
-        if "why is my cloud cost high" in msg or ("cost" in msg and "high" in msg):
-            if cost and metrics:
-                cpu = metrics.get("cpu", 0)
-                hourly = metrics.get("cost_usd_per_hour", 0.192)
-                parts.append(
-                    f"Based on real-time telemetry from **{metrics.get('provider', 'AWS').upper()} ({metrics.get('region', 'us-east')})**, "
-                    f"your current compute run-rate is **${hourly:.4f}/hour** (projected **${cost.get('total_usd', 0):.2f}** over 7 days).\n\n"
-                    f"- **Utilization vs Spend**: Current CPU load is **{cpu}%**. Because your instance is running below 30% utilization, "
-                    f"you are paying for unutilized idle headroom.\n"
-                    f"- **Top Drivers**: Compute ({', '.join(cost.get('top_cost_drivers', ['EC2 Compute']))}) accounts for the majority of charges.\n"
-                    f"- **Remediation**: Right-sizing this instance to a modern generation (e.g. t3.large or c6g) can reduce monthly costs by ~30–45%."
-                )
+        if any(word in msg for word in ("cost", "bill", "spend", "expensive", "saving")):
+            if not cost:
+                parts.append("Cost analytics are unavailable for the selected provider and region.")
             else:
-                parts.append("Telemetry shows that compute resources are provisioned with headroom exceeding average p95 demand.")
-
-        elif "should i scale" in msg:
-            if pred and metrics:
-                cpu_pred = pred.get("cpu", {}).get("predicted", 0)
-                cpu_curr = metrics.get("cpu", 0)
-                risk = "HIGH" if cpu_pred > 75 else ("MEDIUM" if cpu_pred > 60 else "LOW")
+                days = cost.get("period_days", "selected")
+                cost_source = cost.get("source", "UNKNOWN")
                 parts.append(
-                    f"**Scaling Assessment**:\n"
-                    f"- Current CPU: **{cpu_curr}%**\n"
-                    f"- Predicted 60-min CPU: **{cpu_pred:.1f}%** (Risk: **{risk}**)\n\n"
+                    f"Cost analytics for {provider} ({region}) cover {days} days and report "
+                    f"total {self._format_value(cost.get('total_usd'), ' USD')} from source {cost_source}. "
+                    "The hourly chart is an estimated allocation of that period total, not an observed hourly bill."
                 )
-                if cpu_pred > 75:
-                    parts.append("⚠️ **Recommendation: SCALE UP**. Utilization is forecast to approach saturation threshold in the next hour.")
-                else:
-                    parts.append("✅ **Recommendation: DO NOT SCALE UP**. The 60-minute forecast indicates comfortable headroom within your current tier.")
-            else:
-                parts.append("Telemetry metrics currently show steady workload; scaling is not required at this time.")
+                if metrics:
+                    hourly = metrics.get("cost_usd_per_hour")
+                    cpu = metrics.get("cpu")
+                    parts.append(
+                        f"Current telemetry source: {source}. "
+                        f"Hourly cost metric: {self._format_value(hourly, ' USD/hr')}; "
+                        f"CPU: {self._format_value(cpu, '%')}."
+                    )
+                drivers = cost.get("top_cost_drivers") or []
+                if drivers:
+                    parts.append("Top reported cost drivers: " + ", ".join(str(item) for item in drivers) + ".")
+                recommendations = data.get("recommendations") or []
+                if recommendations:
+                    titles = [str(item.get("title")) for item in recommendations if isinstance(item, dict) and item.get("title")]
+                    if titles:
+                        parts.append("Available recommendations: " + "; ".join(titles[:3]) + ". Review their evidence and estimates before acting.")
 
-        elif "reduce carbon" in msg or "carbon" in msg:
-            if carbon:
-                green_pct = carbon.get("green_hours_pct", 40)
-                parts.append(
-                    f"**Carbon Intelligence Summary**:\n"
-                    f"- Regional Green Hours: **{green_pct}%** of the week operated in low-carbon grid windows.\n"
-                    f"- **Recommendation**: Schedule batch and non-urgent data processing jobs between 1:00 AM and 5:00 AM when regional grid carbon intensity drops by up to 35%.\n"
-                    f"- Consider hosting carbon-heavy workloads in cleaner hydroelectric regions like **ca-central**."
-                )
+        elif any(word in msg for word in ("carbon", "green", "emission", "co2", "renewable", "clean")):
+            if not carbon:
+                parts.append("Carbon analysis is unavailable for the selected region.")
             else:
-                parts.append("To reduce emissions, shift non-urgent batch tasks to off-peak green hours or select lower-carbon regions.")
+                parts.append(
+                    f"Estimated carbon analysis for {region} reports {self._format_value(carbon.get('green_hours_pct'), '%')} green hours "
+                    f"over {carbon.get('period_days', 'the selected')} days, with source {carbon.get('source', 'UNKNOWN')} "
+                    f"and methodology {carbon.get('methodology', 'not reported')}. "
+                    "This is a regional model, not a direct measurement of workload emissions unless the source says otherwise."
+                )
 
-        elif "health" in msg:
-            if health:
-                score = health.get("health_score", 90)
-                status = health.get("status", "HEALTHY")
-                parts.append(
-                    f"**Infrastructure Health Status**: **{status}** (Health Score: **{score}/100**).\n"
-                    f"All critical cloud telemetry services report nominal operations with 0 active alerts."
-                )
+        elif any(word in msg for word in ("history", "trend", "over time", "recent telemetry")):
+            entries = data.get("history") or []
+            if not entries:
+                parts.append("No recent telemetry for this provider and region is available in the process-local history buffer.")
             else:
-                parts.append("Infrastructure health is nominal; no critical outages or degradation reported.")
+                cpu_values = [entry.get("cpu") for entry in entries if isinstance(entry.get("cpu"), (int, float))]
+                sources = sorted({str(entry.get("source", "UNKNOWN")) for entry in entries})
+                time_range = f"from {entries[-1].get('timestamp', 'unknown')} through {entries[0].get('timestamp', 'unknown')}"
+                summary = f"Found {len(entries)} in-process telemetry samples {time_range}; sources: {', '.join(sources)}."
+                if cpu_values:
+                    summary += f" CPU ranged from {min(cpu_values):.1f}% to {max(cpu_values):.1f}% across those samples."
+                summary += " This history may not include readings collected before the service restarted."
+                parts.append(summary)
+        elif any(word in msg for word in ("scale", "cpu", "memory", "predict", "workload", "forecast", "instance")):
+            if not pred or pred.get("status") == "unavailable":
+                missing = (pred or {}).get("missing_inputs", [])
+                suffix = f" Missing inputs: {', '.join(missing)}." if missing else ""
+                parts.append("A forecast is unavailable from the current telemetry." + suffix)
+            else:
+                cpu_forecast = pred.get("cpu", {})
+                parts.append(
+                    f"Current CPU is {self._format_value(metrics.get('cpu'), '%')} from source {source}; "
+                    f"the model forecasts {self._format_value(cpu_forecast.get('predicted'), '%')} for its 60-minute horizon. "
+                    f"Forecast inputs use telemetry source {pred.get('input_source', 'UNKNOWN')} and regional carbon intensity source {pred.get('carbon_input_source', 'UNKNOWN')}. "
+                    "Treat this as an estimate and check service-level metrics before changing capacity."
+                )
+
+        elif "health" in msg or "status" in msg or "alarm" in msg or "risk" in msg:
+            if not health:
+                parts.append("Cloud health data is unavailable for the selected provider and region.")
+            else:
+                details = []
+                if health.get("status") is not None:
+                    details.append(f"reported status {health['status']}")
+                if health.get("health_score") is not None:
+                    details.append(f"heuristic health score {health['health_score']}/100")
+                if health.get("active_alarms") is not None and health.get("active_alarms_source"):
+                    details.append(f"{health['active_alarms']} active alarms (source {health['active_alarms_source']})")
+                parts.append("Cloud health response: " + (", ".join(details) if details else "no status fields were returned") + ".")
+                if health.get("source"):
+                    parts.append(f"Health data source: {health['source']}.")
+                if health.get("note"):
+                    parts.append(str(health["note"]))
 
         elif "underutilized" in msg:
-            if metrics:
-                cpu = metrics.get("cpu", 0)
-                mem = metrics.get("memory")
-                mem_str = f"{mem}%" if mem is not None else "UNAVAILABLE (Guest OS agent not installed)"
-                parts.append(
-                    f"**Underutilization Detection**:\n"
-                    f"- CPU Utilization: **{cpu}%**\n"
-                    f"- Memory Utilization: **{mem_str}**\n\n"
-                    f"Resources averaging below 25% CPU for sustained intervals are flagged as underutilized candidates for right-sizing or consolidation."
-                )
+            if not metrics:
+                parts.append("Utilization telemetry is unavailable.")
             else:
-                parts.append("Active compute metrics indicate resources running with excess headroom.")
+                parts.append(
+                    f"Current CPU: {self._format_value(metrics.get('cpu'), '%')}; "
+                    f"memory: {self._format_value(metrics.get('memory'), '%')}; source: {source}. "
+                    "A single reading does not establish sustained underutilization; review history before resizing."
+                )
 
-        elif "right-size" in msg or sim:
-            if sim:
-                saving = sim.get("estimated_saving", 250)
-                before = sim.get("before", {})
-                after = sim.get("after", {})
-                parts.append(
-                    f"**Digital Twin Right-Sizing Simulation**:\n"
-                    f"- **Before**: CPU = {before.get('cpu', 80)}%, Cost = ${before.get('cost', 1000):.0f}/mo\n"
-                    f"- **After**: CPU = {after.get('cpu', 72)}%, Cost = ${after.get('cost', 750):.0f}/mo\n"
-                    f"- **Impact**: Estimated savings of **${saving:.0f}/month** with **LOW** performance risk."
-                )
+        elif any(word in msg for word in ("what if", "simulate", "simulation", "digital twin", "right-size", "right size")) or sim:
+            if not sim or sim.get("status") == "unavailable":
+                missing = (sim or {}).get("missing_inputs", [])
+                suffix = f" Missing inputs: {', '.join(missing)}." if missing else ""
+                parts.append("The simulation is unavailable because a complete baseline is missing." + suffix)
             else:
-                parts.append("Right-sizing simulation estimates up to 25% monthly savings with preserved performance headroom.")
+                parts.append(
+                    f"The digital-twin simulation used {sim.get('input_source', 'UNKNOWN')} inputs. "
+                    "Review its modeled before and after values as estimates; no cloud resources were changed."
+                )
 
         else:
             if metrics:
-                mem = metrics.get("memory")
-                mem_str = f"{mem}%" if mem is not None else "UNAVAILABLE"
-                net = metrics.get("network")
-                net_str = f"{net} Mbps" if net is not None else "UNAVAILABLE"
-                src = metrics.get("source", "DEMO")
                 parts.append(
-                    f"GreenMind AI is monitoring **{metrics.get('provider', 'aws').upper()} ({metrics.get('region', 'us-east')})** [Source: `{src}`].\n"
-                    f"Current status: CPU **{metrics.get('cpu')}%**, Memory **{mem_str}**, Network **{net_str}**, "
-                    f"Cost **${metrics.get('cost_usd_per_hour')}/hr**, Carbon **{metrics.get('carbon_gco2_per_hour')} gCO₂/hr**."
+                    f"GreenMind returned telemetry for {provider} ({region}) from source {source}: "
+                    f"CPU {self._format_value(metrics.get('cpu'), '%')}, "
+                    f"memory {self._format_value(metrics.get('memory'), '%')}, "
+                    f"network {self._format_value(metrics.get('network'), ' Mbps')}, "
+                    f"hourly cost {self._format_value(metrics.get('cost_usd_per_hour'), ' USD/hr')}, "
+                    f"carbon {self._format_value(metrics.get('carbon_gco2_per_hour'), ' gCO₂/hr')}."
                 )
             else:
-                parts.append("GreenMind AI cloud telemetry is actively monitoring infrastructure performance and sustainability.")
+                parts.append("No telemetry values were returned for the selected scope.")
 
         if kb:
-            parts.append(f"\n\n*Reference ({kb[0].get('title')}):* {kb[0].get('content')[:180]}...")
+            parts.append(f"\n\nReference ({kb[0].get('title', 'knowledge base')}): {kb[0].get('content', '')[:180]}")
 
         return "\n".join(parts)
+
+    @staticmethod
+    def _format_value(value: Any, suffix: str = "") -> str:
+        if value is None or isinstance(value, bool):
+            return "unavailable"
+        if isinstance(value, (int, float)):
+            return f"{value:.2f}{suffix}"
+        return f"{value}{suffix}"
 
     def _generate_with_llm(
         self,
@@ -284,14 +320,15 @@ class CopilotAgent:
             f"Current Provider: {prov_name.upper()} (Connection Status: {status_mode})\n"
             f"Current Region: {metrics.get('region', 'us-east')}\n"
             f"Current Time: {now_utc}\n"
-            f"Active Telemetry Summary: CPU={metrics.get('cpu')}%, Cost=${metrics.get('cost_usd_per_hour')}/hr, "
+            f"Telemetry Summary (source={metrics.get('source', 'UNKNOWN')}): CPU={metrics.get('cpu')}%, Cost=${metrics.get('cost_usd_per_hour')}/hr, "
             f"Carbon={metrics.get('carbon_gco2_per_hour')} gCO2/hr, Memory={metrics.get('memory')}\n"
             f"DATA TRUTH RULES:\n"
             f"1. Never state an estimated or demo value is a live measurement.\n"
-            f"2. When memory or other metrics are unavailable/None, explicitly state that the guest OS agent is not installed.\n"
-            f"3. Ground all answers strictly in the provided data. Do not hallucinate."
+            f"2. When a value is unavailable, say that it is unavailable; do not assume why.\n"
+            f"3. Mark DEMO and ESTIMATED values clearly and never fill missing fields with defaults.\n"
+            f"4. Ground all answers strictly in the provided data. Do not hallucinate."
         )
-        context_str = f"Live Cloud Telemetry & Data:\n{data}\n\nRelevant Rules & Knowledge:\n{kb}"
+        context_str = f"Cloud Telemetry & Analysis Data:\n{data}\n\nRelevant Rules & Knowledge:\n{kb}"
 
         gemini_key = self.gemini_key if llm_credentials is None else llm_credentials.get("gemini_api_key", "")
         openai_key = self.openai_key if llm_credentials is None else llm_credentials.get("openai_api_key", "")

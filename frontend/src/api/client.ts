@@ -308,34 +308,38 @@ export const fetchRecommendations = (params?: {
     .then(r => r.data)
 
 
-export const fetchExplain = (id: string): Promise<ExplainResponse> =>
-  api.get(`/recommendations/${id}/explain`)
+export const fetchExplain = (id: string, provider = 'aws', region = 'us-east'): Promise<ExplainResponse> =>
+  api.get(`/recommendations/${id}/explain`, { params: { provider, region } })
     .then(r => r.data)
 
 
 export const applyRecommendation = (
   id: string,
-  options?: { dry_run?: boolean; operator_notes?: string }
+  options?: { dry_run?: boolean; operator_notes?: string },
+  provider = 'aws',
+  region = 'us-east'
 ): Promise<ApplyResponse> =>
-  api.post(`/recommendations/${id}/apply`, options || {})
+  api.post(`/recommendations/${id}/apply`, options || {}, { params: { provider, region } })
     .then(r => r.data)
 
-export const rollbackRecommendation = (id: string): Promise<ApplyResponse> =>
-  api.post(`/recommendations/${id}/rollback`)
+export const rollbackRecommendation = (id: string, provider = 'aws', region = 'us-east'): Promise<ApplyResponse> =>
+  api.post(`/recommendations/${id}/rollback`, {}, { params: { provider, region } })
     .then(r => r.data)
 
-export const dismissRecommendation = (id: string): Promise<{ status: string; recommendation_id: string }> =>
-  api.post(`/recommendations/${id}/dismiss`)
+export const dismissRecommendation = (id: string, provider = 'aws', region = 'us-east'): Promise<{ status: string; recommendation_id: string }> =>
+  api.post(`/recommendations/${id}/dismiss`, {}, { params: { provider, region } })
     .then(r => r.data)
 
-export const batchApplyRecommendations = (payload?: {
-  category?: string; priority?: string; recommendation_ids?: string[]; dry_run?: boolean
-}): Promise<BatchApplyResponse> =>
-  api.post('/recommendations/apply-batch', payload || {})
+export const batchApplyRecommendations = (
+  payload?: { category?: string; priority?: string; recommendation_ids?: string[]; dry_run?: boolean },
+  provider = 'aws',
+  region = 'us-east'
+): Promise<BatchApplyResponse> =>
+  api.post('/recommendations/apply-batch', payload || {}, { params: { provider, region } })
     .then(r => r.data)
 
-export const fetchAppliedRecommendations = (): Promise<ApplyResponse[]> =>
-  api.get('/recommendations/applied')
+export const fetchAppliedRecommendations = (provider = 'aws', region = 'us-east'): Promise<ApplyResponse[]> =>
+  api.get('/recommendations/applied', { params: { provider, region } })
     .then(r => r.data)
 
 
@@ -357,8 +361,17 @@ export const simulateChange = (payload: unknown): Promise<SimulationResult> =>
 
 
 // ── Analytics ──────────────────────────────────────────────────────────────
-export const fetchCostAnalytics = (days = 7): Promise<{ period_days: number; total_usd: number; data_points: CostDataPoint[]; breakdown_by_provider: Record<string, number>; top_cost_drivers: string[] }> =>
-  api.get('/analytics/cost', { params: { days } })
+export const fetchCostAnalytics = (days = 7, provider = 'aws', region = 'us-east'): Promise<{
+  period_days: number
+  total_usd: number
+  data_points: CostDataPoint[]
+  breakdown_by_provider: Record<string, number>
+  top_cost_drivers: string[]
+  source: string
+  estimation_method?: string | null
+  confidence: number
+}> =>
+  api.get('/analytics/cost', { params: { days, provider, region } })
     .then(r => r.data)
 
 

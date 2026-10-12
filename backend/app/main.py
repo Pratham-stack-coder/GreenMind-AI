@@ -253,9 +253,9 @@ def metrics(request: Request, provider: str = "aws", region: str = "us-east", fo
 
 
 @app.get("/history", tags=["Telemetry"], dependencies=protected)
-def history(limit: int = Query(50, le=500)):
+async def history(limit: int = Query(50, ge=1, le=500)):
     """Recent telemetry history."""
-    return telemetry.telemetry_history(limit=limit)
+    return await telemetry.telemetry_history(limit=limit)
 
 
 @app.get("/cloud-metrics", response_model=CloudMetrics, tags=["Telemetry"], dependencies=protected)
@@ -423,11 +423,12 @@ def cloud_providers():
 def cloud_resources(provider: str = Query("aws"), region: str = Query("us-east")):
     """List inventory of cloud resources (VMs, DBs, Storage)."""
     p = get_provider(provider)
+    resources = p.get_resources(region)
     return {
         "provider": provider,
         "region": region,
-        "resources": p.get_resources(region),
-        "count": len(p.get_resources(region)),
+        "resources": resources,
+        "count": len(resources),
     }
 
 

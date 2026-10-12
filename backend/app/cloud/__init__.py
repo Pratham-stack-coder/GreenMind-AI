@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from fastapi import HTTPException
+
 from .base_provider import BaseCloudProvider, NormalizedCloudMetric
 from .aws_provider import AWSCloudProvider
 from .azure_provider import AzureCloudProvider
@@ -68,6 +70,8 @@ def get_provider(name: Any = "aws") -> BaseCloudProvider:
     if not isinstance(name, str):
         name = str(name) if name is not None else "aws"
     name_clean = name.lower().strip()
+    if name_clean not in {"aws", "azure", "gcp"}:
+        raise HTTPException(status_code=400, detail=f"Unsupported cloud provider: {name_clean or '(empty)'}")
     user_id = get_current_user_id()
     key = (user_id, name_clean)
     if key not in _PROVIDERS:

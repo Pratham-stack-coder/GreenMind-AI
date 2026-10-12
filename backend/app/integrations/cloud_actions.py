@@ -18,7 +18,7 @@ class CloudActionDispatcher:
     """Dispatches remediation actions to cloud providers with safety guardrails."""
 
     @classmethod
-    def execute_recommendation(
+    async def execute_recommendation(
         cls,
         rec: RecommendationItem,
         dry_run: bool = False,
@@ -38,25 +38,18 @@ class CloudActionDispatcher:
             "No cloud provider mutation was requested or performed.",
             "Estimated savings and carbon impact remain projections.",
         ]
-        try:
-            import asyncio
-            loop = asyncio.get_running_loop()
-            loop.create_task(
-                persist_audit_log(
-                    rec_id=rec.id,
-                    title=rec.title,
-                    action=rec.action,
-                    status="simulated",
-                    monthly_savings=rec.estimated_monthly_savings_usd,
-                    carbon_reduction=rec.estimated_carbon_reduction_pct,
-                    new_score=new_score,
-                    steps_taken=steps,
-                    dry_run=True,
-                    operator_notes=operator_notes,
-                )
-            )
-        except RuntimeError:
-            pass
+        await persist_audit_log(
+            rec_id=rec.id,
+            title=rec.title,
+            action=rec.action,
+            status="simulated",
+            monthly_savings=rec.estimated_monthly_savings_usd,
+            carbon_reduction=rec.estimated_carbon_reduction_pct,
+            new_score=new_score,
+            steps_taken=steps,
+            dry_run=True,
+            operator_notes=operator_notes,
+        )
 
         return ApplyResponse(
             recommendation_id=rec.id,

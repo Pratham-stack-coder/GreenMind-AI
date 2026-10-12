@@ -100,7 +100,7 @@ export default function DashboardPage() {
   const handleApplyRec = async (id: string, title: string) => {
     try {
       setApplyingId(id)
-      await applyRecommendation(id, { dry_run: true })
+      await applyRecommendation(id, { dry_run: true }, provider, region)
       addNotification({
         title: 'Dry-run preview ready',
         body: `${title}: preview completed. No cloud resources were changed.`,
