@@ -2,10 +2,14 @@
 Root conftest.py — adds the backend directory to sys.path so that
 `import app.*` works regardless of how pytest is invoked (pytest / python -m pytest).
 """
+import os
 import sys
 from pathlib import Path
 
 import pytest
+
+# Test credentials are encrypted with an ephemeral, non-production key.
+os.environ.setdefault("CREDENTIAL_ENCRYPTION_KEY", "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=")
 
 # Ensure the backend/ directory is on sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
