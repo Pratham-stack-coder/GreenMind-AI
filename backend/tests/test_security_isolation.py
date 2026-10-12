@@ -3,6 +3,8 @@ from fastapi.testclient import TestClient
 from app.auth import require_authenticated_user
 from app.main import app, settings
 from app.config import Settings
+from app.auth import verify_supabase_access_token
+from fastapi import HTTPException
 
 
 def test_protected_route_rejects_missing_token_without_dependency_override():
@@ -62,3 +64,19 @@ def test_cross_user_recommendation_identifier_does_not_expose_private_user_state
         recommendations_router._last_recommendations = previous_recs
         recommendations_router._applied_recommendations = previous_applied
         recommendations_router._dismissed_ids = previous_dismissed
+
+
+def test_invalid_bearer_token_is_rejected_when_auth_is_configured(monkeypatch):
+    from app import auth
+    from app.config import Settings
+
+    monkeypatch.setattr(
+        auth,
+        "get_settings",
+        lambda: Settings(supabase_url="https://project-ref.supabase.co"),
+    )
+    response = TestClient(app).get(
+        "/api/v1/auth/session",
+        headers={"Authorization": "Bearer not-a-jwt"},
+    )
+    assert response.status_code == 401
