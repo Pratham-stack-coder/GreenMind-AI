@@ -12,6 +12,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 
 from ..auth import get_current_user_id
 from ..cloud import clear_provider_credentials, get_all_providers_status, get_provider, get_user_credentials, update_provider_credentials
@@ -61,7 +62,7 @@ async def get_settings_status() -> dict[str, Any]:
 
     try:
         async with _engine.connect() as connection:
-            await connection.execute(__import__("sqlalchemy").text("SELECT 1"))
+            await connection.execute(text("SELECT 1"))
         database_status = "connected"
     except Exception:
         database_status = "unavailable"
