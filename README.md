@@ -17,8 +17,8 @@
 ## 📋 Status Breakdown
 
 ### 🟢 IMPLEMENTED
-- **CI/CD Automation Pipeline**: GitHub Actions workflows ([.github/workflows/ci.yml](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/.github/workflows/ci.yml) & [deploy.yml](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/.github/workflows/deploy.yml)) validating Python 3.11/3.12 backend unit/ML tests, Node 20 frontend TypeScript typecheck and Vite build, Docker compose validation, and container image publishing.
-- **Automated Test Suite (69 Tests Passing)**:
+- **Continuous Integration & Image Publishing**: GitHub Actions checks Python 3.11/3.12 backend tests, Node 22 frontend lint/typecheck/build, and Docker/Compose configuration. The image workflow publishes GHCR images for tags or manual runs; Render independently auto-deploys from `main`. Publishing an image does not deploy it.
+- **Automated Test Suite**:
   - `test_ml.py`: Validates all 5 trained Gradient Boosting models (`cpu_model.pkl`, `memory_model.pkl`, `network_model.pkl`, `cost_model.pkl`, `carbon_model.pkl`), temporal persistence baselines ($\hat{y}_t = y_{t-1}$), feature importances, and chronological validation criteria.
   - `test_agents.py`: Validates individual execution of all 5 domain agents (Cost, Performance, Sustainability, Security, Reliability), nullable guest OS memory handling, and transparent conflict resolution.
   - `test_digital_twin.py`: Validates mathematical calculations for `RIGHT_SIZE`, `SCALE_UP`, `SCALE_DOWN`, `CONSOLIDATE`, and `REGION_MIGRATION` scenarios with simulation persistence.
@@ -29,29 +29,29 @@
   - `test_telemetry_persistence.py`: Validates async DB persistence, ring buffer ingestion loop, and multi-granularity history queries (`5m`, `15m`, `1h`, `1d`).
   - `test_api.py`: Full API router integration coverage across all endpoints.
 - **Multi-Cloud Telemetry Connectors & Live Verification**:
-  - **AWS**: CloudWatch EC2 metrics via `boto3` ([aws_collector.py](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/backend/app/services/aws_collector.py)). Real connection test using `sts:GetCallerIdentity` and `cloudwatch:ListMetrics`. Minimum IAM: `ec2:DescribeInstances`, `cloudwatch:GetMetricData`, `cloudwatch:ListMetrics`.
-  - **Azure**: Direct Azure Monitor REST API client with OAuth2 client-credential token acquisition and subscription status validation ([azure_provider.py](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/backend/app/cloud/azure_provider.py)). Minimum Role: `Monitoring Reader`.
-  - **GCP**: Google Cloud Monitoring v3 client with official `google.oauth2.service_account` JWT authentication and metric descriptor validation ([gcp_provider.py](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/backend/app/cloud/gcp_provider.py)). Minimum Roles: `roles/monitoring.viewer`, `roles/compute.viewer`.
+  - **AWS**: CloudWatch EC2 metrics via `boto3` ([aws_collector.py](backend/app/services/aws_collector.py)). Real connection test using `sts:GetCallerIdentity` and `cloudwatch:ListMetrics`. Minimum IAM: `ec2:DescribeInstances`, `cloudwatch:GetMetricData`, `cloudwatch:ListMetrics`.
+  - **Azure**: Direct Azure Monitor REST API client with OAuth2 client-credential token acquisition and subscription status validation ([azure_provider.py](backend/app/cloud/azure_provider.py)). Minimum Role: `Monitoring Reader`.
+  - **GCP**: Google Cloud Monitoring v3 client with official `google.oauth2.service_account` JWT authentication and metric descriptor validation ([gcp_provider.py](backend/app/cloud/gcp_provider.py)). Minimum Roles: `roles/monitoring.viewer`, `roles/compute.viewer`.
   - **Zero-Config Demo Mode**: Automatic, high-fidelity fallback when credentials are absent without fabricating live status.
-- **Interactive Multi-Cloud Settings & Security Cockpit** ([SettingsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/SettingsPage.tsx)):
+- **Interactive Multi-Cloud Settings & Security Cockpit** ([SettingsPage.tsx](frontend/src/pages/SettingsPage.tsx)):
   - Real runtime connection testing with detailed caller feedback (e.g. IAM ARN, Subscription Name).
   - Runtime credential configuration and one-click Disconnect to Demo mode.
-  - Zero-secret-leakage guarantee: Secrets are kept strictly in-memory or environment variables, never written to plaintext database tables, and never exposed in client API responses.
+  - Per-user cloud credentials are encrypted in the backend database with `CREDENTIAL_ENCRYPTION_KEY`; plaintext secrets are not returned by API responses.
 - **Enterprise Dark React Cockpit (All 11 Dedicated Pages)**:
-  1. `Overview Dashboard` ([DashboardPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/DashboardPage.tsx)): 8 metric cards, 6 live trend charts, dynamic multi-cloud provider badges (AWS/Azure/GCP Live vs Demo), and truthful telemetry source labeling.
-  2. `Cloud Resources` ([CloudResourcesPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/CloudResourcesPage.tsx)): Searchable multi-cloud resource inventory with right-sizing candidate flags.
-  3. `Predictions` ([PredictionsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/PredictionsPage.tsx)): 60-minute multi-metric forecasting and model evaluation telemetry.
-  4. `Cost Optimization` ([CostOptimizationPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/CostOptimizationPage.tsx)): Spend curve, underutilization detection, and instant scenario simulator.
-  5. `Carbon Intelligence` ([CarbonIntelligencePage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/CarbonIntelligencePage.tsx)): 24-hour grid carbon intensity curve, regional clean energy ranking, and time-shift scheduler.
-  6. `AI Recommendations` ([RecommendationsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/RecommendationsPage.tsx)): Recommendation ledger with Dry-Run, Apply, Rollback, and Explain AI modal.
-  7. `Multi-Agent AI` ([AgentsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/AgentsPage.tsx)): Visual orchestration flow, domain scores, and transparent conflict resolution matrix.
-  8. `Digital Twin` ([DigitalTwinPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/DigitalTwinPage.tsx)): Interactive simulation workbench for all 5 scenarios (including Region Migration).
-  9. `AI Copilot` ([CopilotPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/CopilotPage.tsx)): Natural language interface citing real backend metrics and providing quick actions.
-  10. `Analytics` ([AnalyticsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/AnalyticsPage.tsx)): Historical spend and carbon analytics with provider breakdowns.
-  11. `Settings` ([SettingsPage.tsx](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/frontend/src/pages/SettingsPage.tsx)): Fully functional credentials tester, provider connector, and architecture inspector.
+  1. `Overview Dashboard` ([DashboardPage.tsx](frontend/src/pages/DashboardPage.tsx)): 8 metric cards, 6 live trend charts, dynamic multi-cloud provider badges (AWS/Azure/GCP Live vs Demo), and truthful telemetry source labeling.
+  2. `Cloud Resources` ([CloudResourcesPage.tsx](frontend/src/pages/CloudResourcesPage.tsx)): Searchable multi-cloud resource inventory with right-sizing candidate flags.
+  3. `Predictions` ([PredictionsPage.tsx](frontend/src/pages/PredictionsPage.tsx)): 60-minute multi-metric forecasting and model evaluation telemetry.
+  4. `Cost Optimization` ([CostOptimizationPage.tsx](frontend/src/pages/CostOptimizationPage.tsx)): Spend curve, underutilization detection, and instant scenario simulator.
+  5. `Carbon Intelligence` ([CarbonIntelligencePage.tsx](frontend/src/pages/CarbonIntelligencePage.tsx)): 24-hour grid carbon intensity curve, regional clean energy ranking, and time-shift scheduler.
+  6. `AI Recommendations` ([RecommendationsPage.tsx](frontend/src/pages/RecommendationsPage.tsx)): Recommendation ledger with Explain and dry-run preview. Live apply and rollback are not implemented.
+  7. `Multi-Agent AI` ([AgentsPage.tsx](frontend/src/pages/AgentsPage.tsx)): Visual orchestration flow, domain scores, and transparent conflict resolution matrix.
+  8. `Digital Twin` ([DigitalTwinPage.tsx](frontend/src/pages/DigitalTwinPage.tsx)): Interactive simulation workbench for all 5 scenarios (including Region Migration).
+  9. `AI Copilot` ([CopilotPage.tsx](frontend/src/pages/CopilotPage.tsx)): Natural language interface citing real backend metrics and providing quick actions.
+  10. `Analytics` ([AnalyticsPage.tsx](frontend/src/pages/AnalyticsPage.tsx)): Historical spend and carbon analytics with provider breakdowns.
+  11. `Settings` ([SettingsPage.tsx](frontend/src/pages/SettingsPage.tsx)): Fully functional credentials tester, provider connector, and architecture inspector.
 - **Production Deployment Blueprints & Guides**:
-  - **Render & Vercel Connection Guide** ([DEPLOYMENT.md](file:///c:/Users/Pratham/dummy/Downloads/GreenMind-AI/GreenMind-AI/DEPLOYMENT.md)): Complete step-by-step walkthrough to deploy and connect Render.com backend with Vercel.com frontend.
-  - **Render Backend Blueprint** (`render.yaml`): Automated deployment on Render binding to dynamic `$PORT` with healthcheck at `/health`.
+  - **Render & Vercel Connection Guide** ([DEPLOYMENT.md](DEPLOYMENT.md)): Complete step-by-step walkthrough to deploy and connect Render.com backend with Vercel.com frontend.
+  - **Render Backend Blueprint** (`render.yaml`): Render auto-deploys the backend from `main`, binds to dynamic `$PORT`, and checks `/health`.
   - **Vercel Frontend Configuration** (`vercel.json` and `frontend/vercel.json`): SPA routing with client-side history rewrites and dynamic `VITE_API_BASE_URL` support.
 - **5-Metric ML Forecasting Pipeline**: Separate Gradient Boosting models for CPU, Memory, Network, Cost, and Carbon. Chronological train/test split without data leakage. Real MAE, RMSE, and R² scores recorded and exported.
 - **Explainable AI (XAI)**: Every recommendation provides What Detected, Why It Matters, Evidence, Recommendation, Expected Impact, and real ML Feature Importance (`feature_importance.json`).
@@ -73,7 +73,7 @@
 ---
 
 ### 🔮 PLANNED
-- **Direct Cloud Remediations**: Automated direct destructive instance modifications via IAM (currently actions are non-destructively simulated, dry-run tested, and logged to the audit ledger).
+- **Direct Cloud Remediations**: Not implemented. Recommendation apply and rollback requests return HTTP 501; dry-run previews do not modify resources.
 - **Automated Spot Interruption Re-balancing**: Proactive migration of stateless workloads before Spot termination notices fire.
 
 ---
@@ -191,7 +191,7 @@ All outputs explicitly report **`SIMULATED / ESTIMATED`** alongside Before vs Af
 | `GET` | `/predictions` | 60-minute multi-metric forecasts across all 5 dimensions |
 | `GET` | `/recommendations` | Active AI recommendations with priority and category filters |
 | `GET` | `/api/v1/recommendations/{id}/explain` | Explainable AI attribution with real model feature importances |
-| `POST`| `/api/v1/recommendations/{id}/apply` | Execute remediation action (with dry-run support) |
+| `POST`| `/api/v1/recommendations/{id}/apply` | Dry-run preview; live cloud mutations return HTTP 501 |
 | `GET` | `/cost-analysis` | Longitudinal spend curve, total USD, and top cost drivers |
 | `GET` | `/carbon-analysis` | Carbon emissions curve, green hours %, and regional comparison |
 | `GET` | `/agents` | List registered intelligence agents and status |
@@ -209,8 +209,8 @@ All outputs explicitly report **`SIMULATED / ESTIMATED`** alongside Before vs Af
 ### Local Development (Zero Docker Required)
 
 #### Prerequisites
-- Python 3.10+
-- Node.js 18+
+- Python 3.11+
+- Node.js 22+
 
 #### 1. Backend Setup
 ```bash
@@ -233,8 +233,12 @@ uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
 #### 2. Frontend Setup
 ```bash
 cd frontend
-npm install
-npm run build   # Validate TypeScript & bundle
+cp .env.example .env
+# Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY for your Supabase project.
+# Keep VITE_API_BASE_URL blank to use the local Vite proxy.
+npm ci
+npm run lint
+npm run build
 npm run dev     # Starts Vite dev server on http://localhost:5173
 ```
 
@@ -266,11 +270,14 @@ Copy the template configuration:
 cp .env.example .env
 ```
 
-All credentials are loaded strictly from environment variables:
-- `DEMO_MODE=true` (Default: zero external credentials needed)
-- `DATABASE_URL` (Defaults to local SQLite `greenmind.db`)
-- `REDIS_URL` (Optional cache)
-- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` (Optional for Live AWS CloudWatch)
-- `OPENAI_API_KEY`, `GEMINI_API_KEY` (Optional for LLM Copilot)
+Backend configuration is loaded from environment variables:
+- `SUPABASE_URL` (required for authenticated API requests)
+- `CREDENTIAL_ENCRYPTION_KEY` (required before users can save cloud credentials in Settings; generate once with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` and keep it stable)
+- `DEMO_MODE=true` (the checked-in `.env.example` selects demo mode)
+- `DATABASE_URL` (blank uses local SQLite `greenmind.db`; production should use PostgreSQL)
+- `REDIS_URL` (optional cache)
+- `OPENAI_API_KEY`, `GEMINI_API_KEY` (optional server-configured Copilot keys)
+
+Cloud credentials entered in Settings are scoped to the authenticated Supabase user and stored encrypted in the database. Existing records without an owner remain inaccessible after the tenant migration. Server environment credentials are used only by background/system operations; authenticated user requests use that user's own credentials.
 
 *.env, *.pem, private keys, and database files are strictly excluded via .gitignore.*
