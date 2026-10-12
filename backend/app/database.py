@@ -33,6 +33,7 @@ from sqlalchemy.orm import DeclarativeBase
 
 from .config import get_settings
 from .auth import get_current_user_id
+from .credential_crypto import decrypt_credentials, encrypt_credentials
 
 settings = get_settings()
 
@@ -84,6 +85,15 @@ class CloudResourceRecord(Base):
     tags_json = Column(Text, default="{}")
     right_size_candidate = Column(Boolean, default=False)
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class UserProviderCredentialRecord(Base):
+    __tablename__ = "user_provider_credentials"
+
+    owner_id = Column(String(255), primary_key=True)
+    provider = Column(String(32), primary_key=True)
+    encrypted_credentials = Column(Text, nullable=False)
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 class TelemetryRecord(Base):
@@ -262,6 +272,46 @@ async def get_db():
     """FastAPI dependency yielding an async DB session."""
     async with _async_session_maker() as session:
         yield session
+
+
+async def get_user_provider_credentials(owner_id: str) -> dict[str, dict[str, str]]:
+    """Load and decrypt only this user's provider credentials."""
+    async with _async_session_maker() as session:
+        result = await session.execute(
+            select(UserProviderCredentialRecord).where(UserProviderCredentialRecord.owner_id == owner_id)
+        )
+        return {
+            row.provider: decrypt_credentials(row.encrypted_credentials)
+            for row in result.scalars().all()
+        }
+
+
+async def store_user_provider_credentials(owner_id: str, provider: str, credentials: dict[str, str]) -> dict[str, str]:
+    """Merge and persist credentials encrypted under the configured Fernet key."""
+    async with _async_session_maker() as session:
+        row = await session.get(UserProviderCredentialRecord, (owner_id, provider))
+        existing = decrypt_credentials(row.encrypted_credentials) if row else {}
+        merged = {**existing, **credentials}
+        if row:
+            row.encrypted_credentials = encrypt_credentials(merged)
+            row.updated_at = datetime.now(timezone.utc)
+        else:
+            session.add(UserProviderCredentialRecord(
+                owner_id=owner_id,
+                provider=provider,
+                encrypted_credentials=encrypt_credentials(merged),
+            ))
+        await session.commit()
+        return merged
+
+
+async def delete_user_provider_credentials(owner_id: str, provider: str) -> None:
+    """Delete only this user's encrypted provider credentials."""
+    async with _async_session_maker() as session:
+        row = await session.get(UserProviderCredentialRecord, (owner_id, provider))
+        if row:
+            await session.delete(row)
+            await session.commit()
 
 
 # ── Redis (optional) ──────────────────────────────────────────────────────────
