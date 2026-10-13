@@ -20,9 +20,10 @@ class StateSnapshot(BaseModel):
 
 
 class SimulationScenarioRequest(BaseModel):
-    scenario: Literal["RIGHT_SIZE", "SCALE_UP", "SCALE_DOWN", "CONSOLIDATE", "CUSTOM"] = "RIGHT_SIZE"
+    scenario: Literal["RIGHT_SIZE", "SCALE_UP", "SCALE_DOWN", "CONSOLIDATE", "REGION_MIGRATION", "CUSTOM"] = "RIGHT_SIZE"
     current_state: StateSnapshot | None = None
     target_instance_type: str | None = None
+    target_region: str | None = None
     scale_factor: float = 1.0
     region: str = "us-east"
     simulation_hours: float = 24.0
@@ -41,4 +42,8 @@ class ScenarioSimulationResult(BaseModel):
     risk: Literal["LOW", "MEDIUM", "HIGH"]
     recommendation: str
     confidence: float = 0.85
+    baseline_score: int | None = None
+    projected_score: int | None = None
+    score_delta: int | None = None
+    scoring_explanation: str | None = None
     warnings: list[str] = Field(default_factory=list)

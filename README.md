@@ -169,13 +169,31 @@ Opposing recommendations are never hidden:
 
 ## 🧪 Digital Twin Simulation Engine
 
-The Digital Twin (`/digital-twin/simulate` and `/digital-twin/scenario`) evaluates the before and after impacts of 4 standard scenarios:
-- `RIGHT_SIZE`: Instance family modernization (e.g., m5.xlarge -> m5.large).
+The Digital Twin (`/digital-twin/simulate` and `/digital-twin/scenario`) evaluates the before and after impacts of 5 standard scenarios:
+- `RIGHT_SIZE`: Instance family modernization and rightsizing (e.g., m5.xlarge -> m5.large).
 - `SCALE_UP`: Compute expansion for peak traffic protection.
-- `SCALE_DOWN`: Idle instance reclamation.
+- `SCALE_DOWN`: Idle instance reclamation and downsizing.
 - `CONSOLIDATE`: Node bin-packing and cluster compaction.
+- `REGION_MIGRATION`: Geographically shifting workloads to lower-carbon grids (e.g., to ca-central / eu-west).
 
-All outputs explicitly report **`SIMULATED / ESTIMATED`** alongside Before vs After comparisons for CPU, Memory, Cost, Carbon, and Performance Risk.
+All outputs evaluate Before vs After metrics, risk assessments, and compute baseline vs projected optimization scores using the unified scoring service. Values are explicitly marked **`SIMULATED / NON-DESTRUCTIVE`**.
+
+---
+
+## 📊 Unified Optimization Scoring Methodology
+
+GreenMind AI computes a holistic, bounded Optimization Score (0–100) across 5 core cloud architecture dimensions:
+- **Cost Optimization Score (0–100)**: Evaluates compute utilization efficiency. Optimal band: 30%–75%. Heavy penalty for idle instances (<10% CPU). Valid 0.0% CPU readings are scored as severe idle waste, not treated as missing.
+- **Performance & Headroom Score (0–100)**: Safeguards against saturation risks (>75% latency queueing penalty, >90% throttling risk, >90% memory OOM risk).
+- **Sustainability Score (0–100)**: Normalized against global regional grid boundaries (clean hydro/nuclear baseline ~79 gCO₂/kWh up to fossil-heavy ~720 gCO₂/kWh).
+- **Security Score (0–100)**: Assesses IAM configuration, encryption, and public surface area. Explicitly marked as `ESTIMATED` until live CSPM/Security Hub integration is connected.
+- **Reliability Score (0–100)**: Evaluates multi-AZ redundancy and SLA compliance. Explicitly marked as `ESTIMATED` until multi-AZ agent probes are configured.
+
+### Score Lifecycle
+1. **Baseline / Real State**: Derived from current telemetry (either verified live provider metrics or synthetic demo telemetry).
+2. **Dry-Run Preview**: Simulates the recommendation impact, returning baseline score, projected score, score delta, and assumptions without altering the current infrastructure state or claiming real remediation.
+3. **Digital Twin Simulation**: The user can simulate recommendations into a persistent twin session (`POST /recommendations/{id}/simulate`), projecting simulated metrics and updating the dashboard score until explicitly reset via `POST /recommendations/reset-simulation`.
+4. **Live Cloud Remediation**: Protected with strict HTTP 501 until full provider mutation and automated rollback capabilities are implemented.
 
 ---
 
@@ -193,11 +211,15 @@ All outputs explicitly report **`SIMULATED / ESTIMATED`** alongside Before vs Af
 | `GET` | `/predictions` | 60-minute multi-metric forecasts across all 5 dimensions |
 | `GET` | `/recommendations` | Active AI recommendations with priority and category filters |
 | `GET` | `/api/v1/recommendations/{id}/explain` | Explainable AI attribution with real model feature importances |
-| `POST`| `/api/v1/recommendations/{id}/apply` | Dry-run preview; live cloud mutations return HTTP 501 |
+| `POST`| `/api/v1/recommendations/{id}/apply` | Dry-run preview; returns baseline and projected scores. Live mutations return HTTP 501 |
+| `POST`| `/api/v1/recommendations/{id}/simulate` | Simulate recommendation in Digital Twin and project score update |
+| `POST`| `/api/v1/recommendations/reset-simulation` | Reset Digital Twin simulation and restore baseline score |
+| `GET` | `/api/v1/analytics/score` | 5-dimension optimization scores with baseline, projection, and assumptions |
 | `GET` | `/cost-analysis` | Longitudinal spend curve, total USD, and top cost drivers |
 | `GET` | `/carbon-analysis` | Carbon emissions curve, green hours %, and regional comparison |
 | `GET` | `/agents` | List registered intelligence agents and status |
 | `POST`| `/agents/run` | Execute LangGraph multi-agent analysis with conflict resolution |
+| `POST`| `/api/v1/digital-twin/scenario` | Run non-destructive scenario simulations with baseline and projected scores |
 | `POST`| `/digital-twin/simulate` | Custom infrastructure change simulation |
 | `POST`| `/digital-twin/scenario` | Standard scenario simulation (RIGHT_SIZE, SCALE_UP, etc.) |
 | `POST` | `/copilot/chat` | AI Cloud Copilot chat grounded in current provider telemetry and analysis tools |

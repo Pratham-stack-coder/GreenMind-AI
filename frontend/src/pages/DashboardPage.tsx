@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
@@ -8,16 +7,16 @@ import {
 } from 'recharts'
 import {
   Cpu, MemoryStick, HardDrive, Network, DollarSign, Leaf,
-  Activity, TrendingUp, AlertTriangle, CheckCircle2, ShieldCheck,
-  Zap, Sparkles, RefreshCw, Server
+  Activity, TrendingUp, AlertTriangle, ShieldCheck,
+  Sparkles, RotateCcw
 } from 'lucide-react'
 import { useAppStore } from '../store'
 import {
   fetchLiveMetrics, fetchScores, fetchTelemetryHistory,
-  fetchRecommendations, applyRecommendation, fetchForecast,
-  fetchSettingsStatus
+  fetchRecommendations, applyRecommendation, simulateRecommendation,
+  resetSimulation, fetchForecast, fetchSettingsStatus
 } from '../api/client'
-import type { CloudMetrics, OptimizationScores, PredictResponse } from '../types'
+import type { CloudMetrics, OptimizationScores } from '../types'
 import MetricCard from '../components/MetricCard/MetricCard'
 
 // ── Radar Chart for 5 Domains ────────────────────────────────────────────────
@@ -51,7 +50,10 @@ function ScoreRadar({ scores }: { scores: OptimizationScores }) {
 
 export default function DashboardPage() {
   const { provider, region, addNotification } = useAppStore()
+  const queryClient = useQueryClient()
   const [applyingId, setApplyingId] = useState<string | null>(null)
+  const [simulatingId, setSimulatingId] = useState<string | null>(null)
+  const [isResetting, setIsResetting] = useState(false)
 
   const { data: metrics } = useQuery({
     queryKey: ['liveMetrics', provider, region],
@@ -97,15 +99,21 @@ export default function DashboardPage() {
     refetchInterval: 30_000,
   })
 
-  const handleApplyRec = async (id: string, title: string) => {
+  const handlePreviewRec = async (id: string, title: string) => {
     try {
       setApplyingId(id)
-      await applyRecommendation(id, { dry_run: true })
+      const res = await applyRecommendation(id, { dry_run: true })
+      const delta = res.score_delta != null ? res.score_delta : 0
+      const deltaStr = delta > 0 ? `+${delta}` : `${delta}`
       addNotification({
         title: 'Dry-run preview ready',
-        body: `${title}: preview completed. No cloud resources were changed.`,
+        body: `${title}: baseline ${res.baseline_score ?? scores?.overall ?? 'N/A'}/100 → projected ${res.projected_score ?? res.new_score ?? 'N/A'}/100 (${deltaStr} pts). No cloud resources changed.`,
         priority: 'high',
       })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['scores', provider, region] }),
+        queryClient.invalidateQueries({ queryKey: ['recommendations', provider, region] }),
+      ])
     } catch (err) {
       addNotification({
         title: 'Preview failed',
@@ -114,6 +122,56 @@ export default function DashboardPage() {
       })
     } finally {
       setApplyingId(null)
+    }
+  }
+
+  const handleSimulateRec = async (id: string, title: string) => {
+    try {
+      setSimulatingId(id)
+      const res = await simulateRecommendation(id)
+      const delta = res.score_delta != null ? res.score_delta : 0
+      const deltaStr = delta > 0 ? `+${delta}` : `${delta}`
+      addNotification({
+        title: 'Simulated optimization active',
+        body: `${title} applied to Digital Twin model. Projected score: ${res.projected_score ?? res.new_score}/100 (${deltaStr} pts). No live cloud resources were modified.`,
+        priority: 'high',
+      })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['scores', provider, region] }),
+        queryClient.invalidateQueries({ queryKey: ['recommendations', provider, region] }),
+      ])
+    } catch (err) {
+      addNotification({
+        title: 'Simulation failed',
+        body: err instanceof Error ? err.message : 'The simulation could not be applied.',
+        priority: 'high',
+      })
+    } finally {
+      setSimulatingId(null)
+    }
+  }
+
+  const handleResetSimulation = async () => {
+    try {
+      setIsResetting(true)
+      await resetSimulation()
+      addNotification({
+        title: 'Simulation reset',
+        body: 'All simulated optimizations have been cleared and returned to baseline telemetry.',
+        priority: 'low',
+      })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['scores', provider, region] }),
+        queryClient.invalidateQueries({ queryKey: ['recommendations', provider, region] }),
+      ])
+    } catch (err) {
+      addNotification({
+        title: 'Reset failed',
+        body: err instanceof Error ? err.message : 'Failed to reset simulation.',
+        priority: 'high',
+      })
+    } finally {
+      setIsResetting(false)
     }
   }
 
@@ -214,11 +272,18 @@ export default function DashboardPage() {
 
       {/* Domain Score & Radar Banner */}
       {scores && typeof scores.overall === 'number' && (
-        <div className="card card-accent-emerald mb-4">
+        <div className={`card ${scores.is_simulated ? 'card-accent-amber' : 'card-accent-emerald'} mb-4`}>
           <div className="score-banner-content">
             <div className="score-banner-text">
-              <div className="text-xs text-muted mb-1 font-bold uppercase tracking-wider">
-                Overall Optimization Score
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs text-muted font-bold uppercase tracking-wider">
+                  Overall Optimization Score
+                </span>
+                {scores.is_simulated && (
+                  <span className="badge badge-amber text-xs font-mono" style={{ fontSize: 10, padding: '2px 6px' }}>
+                    SIMULATED TWIN
+                  </span>
+                )}
               </div>
               <div
                 style={{
@@ -237,23 +302,44 @@ export default function DashboardPage() {
                 {scores.overall}
                 <span style={{ fontSize: 20, fontWeight: 500, color: 'var(--text-muted)' }}>/100</span>
               </div>
-              <div
-                className={`badge mt-2 ${
-                  scores.trend === 'improving'
-                    ? 'badge-emerald'
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <div
+                  className={`badge ${
+                    scores.trend === 'improving'
+                      ? 'badge-emerald'
+                      : scores.trend === 'declining'
+                      ? 'badge-red'
+                      : 'badge-muted'
+                  }`}
+                >
+                  {scores.trend === 'improving'
+                    ? '↑ Improving'
                     : scores.trend === 'declining'
-                    ? 'badge-red'
-                    : 'badge-muted'
-                }`}
-              >
-                {scores.trend === 'improving'
-                  ? '↑ Improving'
-                  : scores.trend === 'declining'
-                  ? '↓ Declining'
-                  : '→ Stable'}
+                    ? '↓ Declining'
+                    : '→ Stable'}
+                </div>
+                {scores.is_simulated && scores.baseline_overall != null && (
+                  <span className="badge badge-muted text-xs">
+                    Baseline: {scores.baseline_overall}/100 ({scores.score_delta != null && scores.score_delta > 0 ? `+${scores.score_delta}` : scores.score_delta ?? 0} pts)
+                  </span>
+                )}
+                {scores.is_simulated && (
+                  <button
+                    onClick={handleResetSimulation}
+                    disabled={isResetting}
+                    className="btn btn-secondary text-xs"
+                    style={{ padding: '3px 8px' }}
+                    title="Reset all simulated optimizations to baseline telemetry"
+                  >
+                    <RotateCcw size={11} className={isResetting ? 'animate-spin' : ''} />
+                    {isResetting ? 'Resetting...' : 'Reset Simulation'}
+                  </button>
+                )}
               </div>
               <div className="text-xs text-secondary mt-2">
-                Evaluated continuously across Cost, Performance, Carbon, Security, and Reliability
+                {scores.is_simulated
+                  ? 'Projected score calculated from simulated after-state metrics under identical scoring methodology.'
+                  : 'Evaluated continuously across Cost, Performance, Carbon, Security, and Reliability.'}
               </div>
             </div>
 
@@ -527,14 +613,26 @@ export default function DashboardPage() {
               <span className={`badge ${topRec.priority === 'critical' ? 'badge-red' : 'badge-amber'}`}>
                 {topRec.priority.toUpperCase()}
               </span>
+              {topRec.status === 'simulated' && (
+                <span className="badge badge-amber text-xs font-mono">SIMULATED</span>
+              )}
             </div>
-            <button
-              onClick={() => handleApplyRec(topRec.id, topRec.title)}
-              disabled={applyingId === topRec.id || topRec.status === 'applied'}
-              className="btn btn-primary text-xs"
-            >
-              {topRec.status === 'applied' ? 'Applied' : applyingId === topRec.id ? 'Preparing preview...' : 'Preview Recommendation'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePreviewRec(topRec.id, topRec.title)}
+                disabled={applyingId === topRec.id || topRec.status === 'applied'}
+                className="btn btn-secondary text-xs"
+              >
+                {applyingId === topRec.id ? 'Calculating preview...' : 'Preview Impact (Dry-Run)'}
+              </button>
+              <button
+                onClick={() => handleSimulateRec(topRec.id, topRec.title)}
+                disabled={simulatingId === topRec.id || topRec.status === 'simulated' || topRec.status === 'applied'}
+                className="btn btn-primary text-xs"
+              >
+                {topRec.status === 'simulated' ? 'Simulated in Twin' : simulatingId === topRec.id ? 'Simulating...' : 'Simulate in Twin'}
+              </button>
+            </div>
           </div>
           <p className="text-sm text-secondary mb-2">{topRec.description}</p>
           <div className="flex items-center gap-4 text-xs font-semibold flex-wrap">

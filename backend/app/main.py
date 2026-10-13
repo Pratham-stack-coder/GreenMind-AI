@@ -126,9 +126,11 @@ protected = [Depends(require_authenticated_user)]
 app.include_router(telemetry.router, prefix=PREFIX, dependencies=protected)
 app.include_router(predictions.router, prefix=PREFIX, dependencies=protected)
 app.include_router(recommendations.router, prefix=PREFIX, dependencies=protected)
+app.include_router(recommendations.router, prefix="", dependencies=protected)
 app.include_router(agents.router, prefix=PREFIX, dependencies=protected)
 app.include_router(digital_twin.router, prefix=PREFIX, dependencies=protected)
 app.include_router(analytics.router, prefix=PREFIX, dependencies=protected)
+app.include_router(analytics.router, prefix="", dependencies=protected)
 app.include_router(copilot.router, prefix=PREFIX, dependencies=protected)
 app.include_router(settings_router.router, prefix=PREFIX, dependencies=protected)
 app.include_router(settings_router.router, prefix="", dependencies=protected)
@@ -323,19 +325,6 @@ def cost_analysis(days: int = Query(7, ge=1, le=90)):
 def carbon_analysis(days: int = Query(7, ge=1, le=90), region: str = "us-east"):
     """Carbon emissions breakdown and green window analysis."""
     return analytics.carbon_analytics(days=days, region=region)
-
-
-@app.get("/recommendations", tags=["Recommendations"], dependencies=protected)
-def get_recommendations(
-    provider: str = Query("aws"),
-    region: str = Query("us-east"),
-    category: str | None = None,
-    priority: str | None = None,
-):
-    """Retrieve optimization recommendations."""
-    return recommendations.list_recommendations(
-        provider=provider, region=region, category=category, priority=priority
-    )
 
 
 # ── Multi-Agent AI ────────────────────────────────────────────────────────────

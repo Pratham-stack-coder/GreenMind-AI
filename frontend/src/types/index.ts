@@ -77,7 +77,7 @@ export interface RecommendationItem {
   action: string
   evidence: string[]
   confidence: number
-  status?: 'open' | 'applied' | 'dismissed'
+  status?: 'open' | 'applied' | 'dismissed' | 'simulated'
   applied_at?: string
   steps_taken?: string[]
 }
@@ -86,6 +86,9 @@ export interface RecommendationsResponse {
   recommendations: RecommendationItem[]
   generated_at: string
   optimization_score: number
+  is_simulated?: boolean
+  baseline_score?: number
+  score_delta?: number
 }
 
 export interface ApplyResponse {
@@ -99,6 +102,10 @@ export interface ApplyResponse {
   steps_taken: string[]
   dry_run?: boolean
   new_score?: number
+  baseline_score?: number
+  projected_score?: number
+  score_delta?: number
+  assumptions?: string[]
 }
 
 export interface BatchApplyResponse {
@@ -186,6 +193,12 @@ export interface OptimizationScores {
   reliability: number
   trend: 'improving' | 'stable' | 'declining'
   source?: DataSourceType
+  is_simulated?: boolean
+  baseline_overall?: number
+  projected_overall?: number
+  score_delta?: number
+  simulated_recommendations_count?: number
+  assumptions?: string[]
 }
 
 export interface SimulationResult {

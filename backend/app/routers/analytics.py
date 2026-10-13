@@ -158,6 +158,11 @@ def optimization_scores(
         region = region.default
     region = str(region or "us-east-1")
 
+    from ..services.scoring import compute_optimization_scores
+    from .recommendations import get_user_simulation_state
+
+    sim_state = get_user_simulation_state()
+
     p = get_provider(provider)
     if p.is_live:
         raw = p.get_metrics(region)
@@ -165,32 +170,34 @@ def optimization_scores(
         m = CloudMetrics(**raw)
         score_source = "ESTIMATED"
     else:
-        from ..routers.telemetry import _generate_live_metrics
-        m = _generate_live_metrics(provider, region)
+        if sim_state and sim_state.get("baseline_metrics"):
+            m = sim_state["baseline_metrics"]
+        else:
+            from ..routers.telemetry import _generate_live_metrics
+            m = _generate_live_metrics(provider, region)
         score_source = "DEMO"
 
-    # Guard against None values (UNAVAILABLE metrics from live providers)
-    cpu = m.cpu or 50.0
-    memory = m.memory or 55.0  # fallback for scoring only — memory may be UNAVAILABLE
-
-    ci = carbon.get_carbon_intensity(region, datetime.now(timezone.utc).hour)["carbon_intensity_gco2_per_kwh"]
-
-    cost_score = max(0, 100 - int((cpu < 30) * 25 + (cpu < 15) * 25))
-    perf_score = max(0, 100 - int((cpu > 75) * 20 + (cpu > 90) * 30 + (memory > 85) * 25))
-    sus_score = max(0, round(100 - (ci - 79) / (720 - 79) * 100))
-    sec_score = 75  # ESTIMATED — requires live IAM / Security Hub / Defender scan
-    rel_score = 70  # ESTIMATED — requires multi-AZ and health check data
-
-    overall = round((cost_score + perf_score + sus_score + sec_score + rel_score) / 5)
-    trend = "improving" if overall >= 70 else ("stable" if overall >= 50 else "declining")
-
-    return OptimizationScores(
-        overall=overall,
-        cost=cost_score,
-        performance=perf_score,
-        sustainability=sus_score,
-        security=sec_score,
-        reliability=rel_score,
-        trend=trend,
-        source=score_source,  # type: ignore[arg-type]
+    # Calculate baseline scores using single documented scoring service
+    baseline_scores = compute_optimization_scores(
+        m,
+        region=region,
+        source=score_source,
     )
+
+    # If the user has active simulated optimizations, return projected simulated score
+    sim_state = get_user_simulation_state()
+    if sim_state and sim_state.get("simulated_recommendations"):
+        sim_metrics = sim_state.get("simulated_metrics")
+        sim_baseline = sim_state.get("baseline_score")
+        if sim_baseline is None:
+            sim_baseline = baseline_scores.overall
+        if sim_metrics is not None:
+            return compute_optimization_scores(
+                sim_metrics,
+                region=region,
+                source="SIMULATED",
+                is_simulated=True,
+                baseline_overall=sim_baseline,
+            )
+
+    return baseline_scores

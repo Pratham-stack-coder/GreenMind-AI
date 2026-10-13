@@ -12,9 +12,11 @@ import {
   fetchRecommendations,
   fetchExplain,
   applyRecommendation,
-  batchApplyRecommendations
+  batchApplyRecommendations,
+  simulateRecommendation,
+  resetSimulation,
 } from '../api/client'
-import type { RecommendationItem, ExplainResponse } from '../types'
+import type { RecommendationItem } from '../types'
 
 const categoryIcons: Record<string, React.ReactNode> = {
   cost: <DollarSign size={14} />,
@@ -36,16 +38,34 @@ interface ExplainModalProps {
 }
 
 function ExplainModal({ rec, onClose }: ExplainModalProps) {
+  const { provider, region, addNotification } = useAppStore()
+  const queryClient = useQueryClient()
   const dryRun = true
   const [applying, setApplying] = useState(false)
-  const [applyResult, setApplyResult] = useState<{ message: string; steps: string[]; status: string } | null>(null)
+  const [simulating, setSimulating] = useState(false)
+  const [applyResult, setApplyResult] = useState<{
+    message: string
+    steps: string[]
+    status: string
+    baseline_score?: number
+    projected_score?: number
+    score_delta?: number
+    assumptions?: string[]
+  } | null>(null)
 
   const { data: explainData, isLoading: explainLoading } = useQuery({
     queryKey: ['explain', rec.id],
     queryFn: () => fetchExplain(rec.id),
   })
 
-  const handleApply = async () => {
+  const invalidateData = () => {
+    queryClient.invalidateQueries({ queryKey: ['scores', provider, region] })
+    queryClient.invalidateQueries({ queryKey: ['recommendations', provider, region] })
+    queryClient.invalidateQueries({ queryKey: ['scores'] })
+    queryClient.invalidateQueries({ queryKey: ['recommendations'] })
+  }
+
+  const handlePreview = async () => {
     try {
       setApplying(true)
       const res = await applyRecommendation(rec.id, { dry_run: dryRun })
@@ -53,14 +73,46 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
         message: res.message,
         steps: res.steps_taken,
         status: res.status,
+        baseline_score: res.baseline_score,
+        projected_score: res.projected_score,
+        score_delta: res.score_delta,
+        assumptions: res.assumptions,
       })
-
+      invalidateData()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'The dry-run request failed.'
       console.error('Failed to prepare recommendation preview', err)
       setApplyResult({ message: `Dry-run preview failed: ${message}`, steps: [], status: 'error' })
     } finally {
       setApplying(false)
+    }
+  }
+
+  const handleSimulate = async () => {
+    try {
+      setSimulating(true)
+      const res = await simulateRecommendation(rec.id)
+      setApplyResult({
+        message: res.message,
+        steps: res.steps_taken,
+        status: res.status,
+        baseline_score: res.baseline_score,
+        projected_score: res.projected_score,
+        score_delta: res.score_delta,
+        assumptions: res.assumptions,
+      })
+      invalidateData()
+      addNotification({
+        title: 'Recommendation Simulated',
+        body: res.message,
+        priority: 'high',
+      })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'The simulation request failed.'
+      console.error('Failed to simulate recommendation', err)
+      setApplyResult({ message: `Simulation failed: ${message}`, steps: [], status: 'error' })
+    } finally {
+      setSimulating(false)
     }
   }
 
@@ -253,7 +305,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
             )}
 
 
-            {/* Execution / Dry Run Result Console */}
+            {/* Execution / Dry Run / Simulation Result Console */}
             {applyResult && (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
@@ -261,20 +313,61 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                 className="card"
                 style={{
                   background: 'rgba(0, 0, 0, 0.5)',
-                  borderColor: applyResult.status === 'error' ? 'var(--red-500)' : 'var(--blue-400)',
+                  borderColor: applyResult.status === 'error' ? 'var(--red-500)' : applyResult.status === 'simulated' ? 'var(--emerald-400)' : 'var(--blue-400)',
                   padding: 14,
                 }}
               >
                 <div className="flex items-center gap-2 mb-2">
-                  <Terminal size={14} color={applyResult.status === 'error' ? 'var(--red-400)' : 'var(--blue-400)'} />
+                  <Terminal size={14} color={applyResult.status === 'error' ? 'var(--red-400)' : applyResult.status === 'simulated' ? 'var(--emerald-400)' : 'var(--blue-400)'} />
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {applyResult.status === 'error' ? 'Dry-Run Preview Failed' : 'Dry-Run Preview Complete'}
+                    {applyResult.status === 'error'
+                      ? 'Action Failed'
+                      : applyResult.status === 'simulated'
+                      ? 'Digital Twin Simulation Applied'
+                      : 'Dry-Run Preview Complete'}
                   </span>
-                  <span className={`badge ${applyResult.status === 'error' ? 'badge-red' : 'badge-blue'}`} style={{ marginLeft: 'auto' }}>
+                  <span
+                    className={`badge ${applyResult.status === 'error' ? 'badge-red' : applyResult.status === 'simulated' ? 'badge-emerald' : 'badge-blue'}`}
+                    style={{ marginLeft: 'auto' }}
+                  >
                     {applyResult.status}
                   </span>
                 </div>
                 <div className="text-xs text-secondary mb-2">{applyResult.message}</div>
+
+                {/* Score Projection Details */}
+                {applyResult.baseline_score !== undefined && applyResult.projected_score !== undefined && (
+                  <div
+                    className="p-2.5 rounded mb-3 flex items-center justify-between flex-wrap gap-2"
+                    style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)' }}
+                  >
+                    <div>
+                      <div className="text-xs font-semibold text-emerald-400">Projected Score Impact</div>
+                      <div className="text-xs text-secondary">
+                        Baseline: {applyResult.baseline_score}/100 → Projected: {applyResult.projected_score}/100
+                      </div>
+                    </div>
+                    <span
+                      className={`badge ${(applyResult.score_delta ?? 0) > 0 ? 'badge-emerald' : (applyResult.score_delta ?? 0) < 0 ? 'badge-red' : 'badge-muted'}`}
+                      style={{ fontSize: 11 }}
+                    >
+                      {(applyResult.score_delta ?? 0) > 0 ? `+${applyResult.score_delta}` : applyResult.score_delta} pts
+                    </span>
+                  </div>
+                )}
+
+                {/* Assumptions */}
+                {applyResult.assumptions && applyResult.assumptions.length > 0 && (
+                  <div className="mb-2 p-2 rounded" style={{ background: 'rgba(255,255,255,0.02)', fontSize: 11 }}>
+                    <div className="text-muted font-semibold mb-1">Assumptions & Score Dimensions:</div>
+                    <ul style={{ paddingLeft: 16, margin: 0 }}>
+                      {applyResult.assumptions.map((asm, idx) => (
+                        <li key={idx} className="text-secondary">{asm}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
                 <div className="flex-col gap-1">
                   {applyResult.steps.map((st, i) => (
                     <div key={i} className="flex items-center gap-2 text-xs font-mono" style={{ color: 'var(--emerald-400)' }}>
@@ -297,7 +390,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
               readOnly
               style={{ accentColor: 'var(--emerald-500)', cursor: 'not-allowed' }}
             />
-            <span className="text-xs text-secondary">Dry-Run only (no cloud resources are changed)</span>
+            <span className="text-xs text-secondary">Non-destructive simulation mode</span>
           </label>
 
           <div className="flex gap-2">
@@ -305,29 +398,36 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
               Close
             </button>
             <button
-              className="btn btn-primary btn-sm"
-              onClick={handleApply}
-              disabled={applying || (rec.status === 'applied' && !dryRun)}
+              className="btn btn-secondary btn-sm"
+              onClick={handlePreview}
+              disabled={applying || simulating || rec.status === 'applied'}
             >
               {applying ? (
                 <>
-                  <Loader2 size={14} className="animate-spin" />
-                  Preparing preview...
-                </>
-              ) : rec.status === 'applied' && !dryRun ? (
-                <>
-                  <CheckCircle2 size={14} color="#fff" />
-                  Already Applied
-                </>
-              ) : dryRun ? (
-                <>
-                  <Play size={14} />
-                  Run Dry-Run
+                  <Loader2 size={13} className="animate-spin" />
+                  Previewing...
                 </>
               ) : (
                 <>
-                  <Sparkles size={14} />
-                  Apply Optimization
+                  <Play size={13} />
+                  Preview (Dry-Run)
+                </>
+              )}
+            </button>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleSimulate}
+              disabled={applying || simulating || rec.status === 'applied'}
+            >
+              {simulating ? (
+                <>
+                  <Loader2 size={13} className="animate-spin" />
+                  Simulating...
+                </>
+              ) : (
+                <>
+                  <Sparkles size={13} />
+                  Simulate in Twin
                 </>
               )}
             </button>
@@ -346,20 +446,31 @@ function RecCard({
   rec: RecommendationItem
   onExplain: (rec: RecommendationItem) => void
 }) {
-  const { addNotification } = useAppStore()
+  const { provider, region, addNotification } = useAppStore()
+  const queryClient = useQueryClient()
   const [expanded, setExpanded] = useState(false)
   const [isApplying, setIsApplying] = useState(false)
+  const [isSimulating, setIsSimulating] = useState(false)
 
   const isApplied = rec.status === 'applied'
+  const isSimulated = rec.status === 'simulated'
   const color = categoryColors[rec.category] || 'muted'
   const prioColor =
     rec.priority === 'critical' ? 'red' : rec.priority === 'high' ? 'amber' : rec.priority === 'medium' ? 'blue' : 'muted'
+
+  const invalidateData = () => {
+    queryClient.invalidateQueries({ queryKey: ['scores', provider, region] })
+    queryClient.invalidateQueries({ queryKey: ['recommendations', provider, region] })
+    queryClient.invalidateQueries({ queryKey: ['scores'] })
+    queryClient.invalidateQueries({ queryKey: ['recommendations'] })
+  }
 
   const handleApplyNow = async (e: React.MouseEvent) => {
     e.stopPropagation()
     try {
       setIsApplying(true)
       const res = await applyRecommendation(rec.id, { dry_run: true })
+      invalidateData()
       addNotification({
         title: 'Dry-Run Preview Ready',
         body: res.message,
@@ -377,6 +488,29 @@ function RecCard({
     }
   }
 
+  const handleSimulateNow = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      setIsSimulating(true)
+      const res = await simulateRecommendation(rec.id)
+      invalidateData()
+      addNotification({
+        title: 'Simulated in Digital Twin',
+        body: res.message,
+        priority: 'medium',
+      })
+    } catch (err: unknown) {
+      console.error('Failed to simulate recommendation', err)
+      addNotification({
+        title: 'Simulation Failed',
+        body: err instanceof Error ? err.message : 'The simulation request failed.',
+        priority: 'high',
+      })
+    } finally {
+      setIsSimulating(false)
+    }
+  }
+
   return (
     <motion.div
       className={`card priority-${rec.priority}`}
@@ -384,8 +518,12 @@ function RecCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       style={{
-        borderColor: isApplied ? 'rgba(16, 185, 129, 0.4)' : undefined,
-        background: isApplied ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.06), rgba(15, 23, 42, 0.8))' : undefined,
+        borderColor: isApplied ? 'rgba(16, 185, 129, 0.4)' : isSimulated ? 'rgba(99, 102, 241, 0.4)' : undefined,
+        background: isApplied
+          ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.06), rgba(15, 23, 42, 0.8))'
+          : isSimulated
+          ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(15, 23, 42, 0.8))'
+          : undefined,
       }}
     >
       <div
@@ -401,6 +539,11 @@ function RecCard({
           {isApplied && (
             <span className="badge badge-emerald" style={{ fontSize: 10, padding: '1px 6px' }}>
               <CheckCircle2 size={11} /> Applied
+            </span>
+          )}
+          {isSimulated && (
+            <span className="badge badge-blue" style={{ fontSize: 10, padding: '1px 6px' }}>
+              <Sparkles size={11} /> Simulated
             </span>
           )}
           <div className="rec-card-mobile-toggle">
@@ -425,7 +568,7 @@ function RecCard({
             )}
           </div>
 
-          {/* Quick Apply / Rollback Buttons right in row */}
+          {/* Quick Actions */}
           {!isApplied ? (
             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
               <button
@@ -436,18 +579,25 @@ function RecCard({
                 Explain
               </button>
               <button
-                className="btn btn-primary btn-sm"
-                style={{ padding: '4px 12px', fontSize: 12 }}
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '4px 10px', fontSize: 12 }}
                 onClick={handleApplyNow}
-                disabled={isApplying}
+                disabled={isApplying || isSimulating}
               >
-                {isApplying ? (
-                  <Loader2 size={13} className="animate-spin" />
-                ) : (
-                  <Play size={12} />
-                )}
-                Dry-Run
+                {isApplying ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                Preview
               </button>
+              {!isSimulated && (
+                <button
+                  className="btn btn-primary btn-sm"
+                  style={{ padding: '4px 12px', fontSize: 12 }}
+                  onClick={handleSimulateNow}
+                  disabled={isApplying || isSimulating}
+                >
+                  {isSimulating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                  Simulate
+                </button>
+              )}
             </div>
           ) : (
             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -554,15 +704,15 @@ function RecCard({
                 >
                   Deep Explain & Dry-Run
                 </button>
-                {!isApplied && (
+                {!isApplied && !isSimulated && (
                   <button
                     className="btn btn-primary btn-sm"
                     style={{ fontSize: 12 }}
-                    onClick={handleApplyNow}
-                    disabled={isApplying}
+                    onClick={handleSimulateNow}
+                    disabled={isSimulating}
                   >
-                    {isApplying ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                    Preview
+                    {isSimulating ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                    Simulate in Twin
                   </button>
                 )}
               </div>
@@ -584,6 +734,7 @@ export default function RecommendationsPage() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [selectedExplainRec, setSelectedExplainRec] = useState<RecommendationItem | null>(null)
   const [isBatchApplying, setIsBatchApplying] = useState(false)
+  const [isResettingSim, setIsResettingSim] = useState(false)
 
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['recommendations', provider, region],
@@ -597,8 +748,9 @@ export default function RecommendationsPage() {
   }
 
   const allRecs = data?.recommendations || []
-  const openRecs = allRecs.filter((r) => r.status !== 'applied')
   const appliedRecs = allRecs.filter((r) => r.status === 'applied')
+  const simulatedRecs = allRecs.filter((r) => r.status === 'simulated')
+  const openRecs = allRecs.filter((r) => r.status !== 'applied' && r.status !== 'simulated')
 
   const filtered = allRecs.filter((r) => {
     const matchCat = categoryFilter === 'all' || r.category === categoryFilter
@@ -606,13 +758,31 @@ export default function RecommendationsPage() {
     const matchStatus =
       statusFilter === 'all' ||
       (statusFilter === 'applied' && r.status === 'applied') ||
-      (statusFilter === 'open' && r.status !== 'applied')
+      (statusFilter === 'simulated' && r.status === 'simulated') ||
+      (statusFilter === 'open' && r.status !== 'applied' && r.status !== 'simulated')
     return matchCat && matchPrio && matchStatus
   })
 
   const openSavings = openRecs.reduce((s, r) => s + r.estimated_monthly_savings_usd, 0)
   const openCarbon = openRecs.reduce((s, r) => s + r.estimated_carbon_reduction_pct, 0)
   const criticalOpenCount = openRecs.filter((r) => r.priority === 'critical').length
+
+  const handleResetSim = async () => {
+    try {
+      setIsResettingSim(true)
+      await resetSimulation()
+      refreshAll()
+      addNotification({
+        title: 'Simulation Reset',
+        body: 'Digital Twin simulation state cleared; restored to baseline.',
+        priority: 'medium',
+      })
+    } catch (err: unknown) {
+      console.error('Failed to reset simulation', err)
+    } finally {
+      setIsResettingSim(false)
+    }
+  }
 
   const handleBatchApply = async (priority?: string) => {
     try {
@@ -641,6 +811,7 @@ export default function RecommendationsPage() {
   const statuses = [
     { id: 'all', label: `All (${allRecs.length})` },
     { id: 'open', label: `Open (${openRecs.length})` },
+    { id: 'simulated', label: `Simulated (${simulatedRecs.length})` },
     { id: 'applied', label: `Applied (${appliedRecs.length})` },
   ]
 
@@ -649,22 +820,37 @@ export default function RecommendationsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
-          <h1>AI Recommendations & Dry-Run Previews</h1>
+          <h1>AI Recommendations & Twin Simulation</h1>
           <p className="text-secondary text-sm mt-1">
             {openRecs.length} actionable optimizations available ·
             {openSavings > 0 && <span className="text-emerald"> ${openSavings.toFixed(0)}/month potential savings</span>}
+            {simulatedRecs.length > 0 && (
+              <span className="text-blue-400"> · {simulatedRecs.length} simulated in twin</span>
+            )}
             {appliedRecs.length > 0 && (
-              <span className="text-muted"> · {appliedRecs.length} already applied</span>
+              <span className="text-muted"> · {appliedRecs.length} recorded applied</span>
             )}
           </p>
         </div>
         <div className="flex gap-2">
+          {simulatedRecs.length > 0 && (
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handleResetSim}
+              disabled={isResettingSim}
+              title="Reset Twin Simulation"
+            >
+              <RotateCcw size={14} className={isResettingSim ? 'animate-spin' : ''} />
+              Reset Simulation
+            </button>
+          )}
           <button className="btn btn-secondary btn-sm" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw size={14} className={isFetching ? 'animate-spin' : ''} />
             Refresh
           </button>
         </div>
       </div>
+
 
       {/* Batch Apply Quick Action Banner */}
       {openRecs.length > 0 && (

@@ -315,9 +315,20 @@ export const fetchExplain = (id: string): Promise<ExplainResponse> =>
 
 export const applyRecommendation = (
   id: string,
-  options?: { dry_run?: boolean; operator_notes?: string }
+  options?: { dry_run?: boolean; simulate?: boolean; operator_notes?: string }
 ): Promise<ApplyResponse> =>
   api.post(`/recommendations/${id}/apply`, options || {})
+    .then(r => r.data)
+
+export const simulateRecommendation = (
+  id: string,
+  options?: { operator_notes?: string }
+): Promise<ApplyResponse> =>
+  api.post(`/recommendations/${id}/simulate`, options || {})
+    .then(r => r.data)
+
+export const resetSimulation = (): Promise<{ status: string; message: string; baseline_score: number; current_score: number }> =>
+  api.post('/recommendations/reset-simulation')
     .then(r => r.data)
 
 export const rollbackRecommendation = (id: string): Promise<ApplyResponse> =>

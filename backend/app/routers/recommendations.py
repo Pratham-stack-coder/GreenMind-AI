@@ -1,4 +1,4 @@
-"""Recommendations router — AI-generated optimization recommendations."""
+"""Recommendations router — AI-generated optimization recommendations and lifecycle management."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from ..auth import get_current_user_id
-
 from .. import carbon
 from ..agents import orchestrator
 from ..cloud import get_provider
@@ -20,10 +19,12 @@ from ..schemas import (
     ApplyResponse,
     BatchApplyRequest,
     BatchApplyResponse,
+    CloudMetrics,
     ExplainResponse,
     RecommendationItem,
     RecommendationsResponse,
 )
+from ..services.scoring import compute_optimization_scores
 
 router = APIRouter(prefix="/recommendations", tags=["Recommendations"])
 
@@ -38,10 +39,98 @@ def _user_state() -> dict[str, Any]:
     return _user_states.setdefault(user_id, {
         "recommendations": [],
         "score": 80,
+        "baseline_score": 80,
         "generated": "",
         "applied": {},
+        "simulated": {},
         "dismissed": set(),
+        "baseline_metrics": None,
+        "simulated_metrics": None,
     })
+
+
+def get_user_simulation_state(user_id: str | None = None) -> dict[str, Any] | None:
+    """Read simulated state for the authenticated user, accessible by analytics router."""
+    if not user_id:
+        user_id = get_current_user_id()
+    if not user_id or user_id not in _user_states:
+        return None
+    st = _user_states[user_id]
+    if not st.get("simulated"):
+        return None
+    return {
+        "simulated_recommendations": st["simulated"],
+        "simulated_metrics": st.get("simulated_metrics"),
+        "baseline_metrics": st.get("baseline_metrics"),
+        "baseline_score": st.get("baseline_score", st.get("score")),
+        "score": st.get("score"),
+    }
+
+
+def _simulate_metrics_for_recommendations(
+    baseline: CloudMetrics,
+    recs: list[RecommendationItem],
+) -> CloudMetrics:
+    """
+    Project after-state infrastructure metrics resulting from a set of recommendations.
+    Uses Digital Twin scenario principles:
+    - Right-sizing moves underutilized CPU into optimal utilization band (35-70%) and cuts cost/carbon.
+    - Scale up relieves CPU saturation but increases cost.
+    - Terminating idle nodes reduces cost and removes dead utilization penalties.
+    - Time-shifting or regional shifts cut Scope 2 carbon intensity.
+    - Non-telemetry recommendations leave telemetry metrics untouched.
+    """
+    data = baseline.model_dump()
+    cpu = data.get("cpu", 50.0)
+    memory = data.get("memory")
+    cost = data.get("cost_usd_per_hour", 0.192)
+    carbon_val = data.get("carbon_gco2_per_hour", 35.0)
+    count = data.get("instance_count", 1)
+
+    for rec in recs:
+        action = (rec.action or "").lower().strip()
+        category = (rec.category or "").lower().strip()
+
+        if action in ("terminate_idle", "terminate") or "terminate" in action:
+            # Terminate idle node
+            count = max(1, count - 1)
+            cost = max(0.01, round(cost - (rec.estimated_monthly_savings_usd / 720.0), 4))
+            if cpu < 20.0:
+                cpu = 45.0  # Removing idle instance elevates remaining cluster utilization
+        elif action in ("right_size", "right_size_green") or "right_size" in action:
+            # Right size to optimal family
+            if cpu < 25.0:
+                cpu = round(min(70.0, max(38.0, cpu * 1.8)), 1)
+            elif cpu > 75.0:
+                cpu = round(cpu * 0.88, 1)
+            cost = max(0.01, round(cost - (rec.estimated_monthly_savings_usd / 720.0), 4))
+            if rec.estimated_carbon_reduction_pct > 0:
+                carbon_val = round(max(0.01, carbon_val * (1.0 - rec.estimated_carbon_reduction_pct / 100.0)), 2)
+        elif action in ("scale_out", "scale_up") or "scale_up" in action:
+            # Scale out adds capacity
+            count += 1
+            cpu = round(max(15.0, cpu * 0.55), 1)
+            if memory is not None:
+                memory = round(max(20.0, memory * 0.60), 1)
+            cost = round(cost * 1.55, 4)
+        elif action in ("scale_in", "scale_down") or "scale_down" in action:
+            # Scale in removes capacity
+            if count > 1:
+                count -= 1
+                cpu = round(min(95.0, cpu * 1.6), 1)
+                cost = max(0.01, round(cost * 0.60, 4))
+        elif action in ("time_shift_batch", "region_migration", "region_migrate") or category == "sustainability":
+            # Carbon abatement
+            if rec.estimated_carbon_reduction_pct > 0:
+                carbon_val = round(max(0.01, carbon_val * (1.0 - rec.estimated_carbon_reduction_pct / 100.0)), 2)
+
+    data["cpu"] = cpu
+    data["memory"] = memory
+    data["cost_usd_per_hour"] = cost
+    data["carbon_gco2_per_hour"] = carbon_val
+    data["instance_count"] = count
+    data["source"] = "SIMULATED"
+    return CloudMetrics(**data)
 
 
 def _build_recommendations(provider: str, region: str) -> tuple[list[RecommendationItem], int]:
@@ -56,7 +145,6 @@ def _build_recommendations(provider: str, region: str) -> tuple[list[Recommendat
     p = get_provider(provider)
     if p.is_live:
         raw = p.get_metrics(region)
-        from ..schemas import CloudMetrics
         metrics = CloudMetrics(**raw)
     else:
         from ..routers.telemetry import _generate_live_metrics
@@ -65,46 +153,113 @@ def _build_recommendations(provider: str, region: str) -> tuple[list[Recommendat
     result = orchestrator.run(metrics)
     state = _user_state()
     state["recommendations"] = result.unified_recommendations
-    state["score"] = result.overall_score
-    state["generated"] = datetime.now(timezone.utc).isoformat()
+    state["baseline_metrics"] = metrics
 
-    # Re-apply tracked state
+    # Baseline scores calculated with shared scoring function
+    base_scores = compute_optimization_scores(metrics, region=region, source=metrics.source)
+    state["baseline_score"] = base_scores.overall
+
+    # Re-apply tracked state (applied, simulated, dismissed)
     for rec in state["recommendations"]:
         if rec.id in state["applied"]:
             rec.status = "applied"
             rec.applied_at = state["applied"][rec.id].applied_at
             rec.steps_taken = state["applied"][rec.id].steps_taken
+        elif rec.id in state["simulated"]:
+            rec.status = "simulated"
+            rec.applied_at = state["simulated"][rec.id].applied_at
+            rec.steps_taken = state["simulated"][rec.id].steps_taken
         elif rec.id in state["dismissed"]:
             rec.status = "dismissed"
 
+    # If there are active simulated optimizations, recalculate projected score
+    sim_recs = [r for r in state["recommendations"] if r.status == "simulated"]
+    if sim_recs:
+        after_metrics = _simulate_metrics_for_recommendations(metrics, sim_recs)
+        state["simulated_metrics"] = after_metrics
+        proj_scores = compute_optimization_scores(
+            after_metrics,
+            region=region,
+            source="SIMULATED",
+            is_simulated=True,
+            baseline_overall=base_scores.overall,
+        )
+        state["score"] = proj_scores.overall
+    else:
+        state["simulated_metrics"] = None
+        state["score"] = base_scores.overall
+
+    state["generated"] = datetime.now(timezone.utc).isoformat()
     return state["recommendations"], state["score"]
 
 
-def _execute_apply(rec: RecommendationItem, dry_run: bool = False, operator_notes: str | None = None) -> ApplyResponse:
+def _execute_apply(
+    rec: RecommendationItem,
+    dry_run: bool = False,
+    simulate: bool = False,
+    operator_notes: str | None = None,
+) -> ApplyResponse:
     state = _user_state()
     from ..integrations.cloud_actions import CloudActionDispatcher
 
-    boost = 4 if rec.priority in ("critical", "high") else 2
-    target_score = state["score"] if dry_run else min(98, state["score"] + boost)
+    base_metrics = state.get("baseline_metrics")
+    if base_metrics is None:
+        from ..routers.telemetry import _generate_live_metrics
+        base_metrics = _generate_live_metrics("aws", "us-east")
+        state["baseline_metrics"] = base_metrics
 
+    # Calculate baseline scores
+    base_scores = compute_optimization_scores(
+        base_metrics,
+        region=base_metrics.region,
+        source=base_metrics.source,
+    )
+    baseline_score = base_scores.overall
+
+    # Calculate simulated after-state metrics for this recommendation
+    after_metrics = _simulate_metrics_for_recommendations(base_metrics, [rec])
+    proj_scores = compute_optimization_scores(
+        after_metrics,
+        region=after_metrics.region,
+        source="SIMULATED",
+        is_simulated=True,
+        baseline_overall=baseline_score,
+    )
+    projected_score = proj_scores.overall
+    score_delta = projected_score - baseline_score
+
+    # Live cloud mutations remain rejected via 501
+    if not dry_run and not simulate:
+        return CloudActionDispatcher.execute_recommendation(
+            rec=rec,
+            dry_run=False,
+            operator_notes=operator_notes,
+        )
+
+    # In dry_run preview or simulation mode:
     resp = CloudActionDispatcher.execute_recommendation(
         rec=rec,
-        dry_run=dry_run,
+        dry_run=True,
         operator_notes=operator_notes,
-        new_score=target_score,
+        new_score=projected_score,
+        baseline_score=baseline_score,
+        projected_score=projected_score,
+        score_delta=score_delta,
+        assumptions=proj_scores.assumptions,
     )
 
-    if not dry_run:
-        rec.status = "applied"
+    if simulate:
+        # User explicitly requested applying to simulated digital twin environment
+        rec.status = "simulated"
         rec.applied_at = resp.applied_at
         rec.steps_taken = resp.steps_taken
         if rec.id in state["dismissed"]:
             state["dismissed"].remove(rec.id)
-        state["score"] = target_score
-        state["applied"][rec.id] = resp
+        state["simulated"][rec.id] = resp
+        state["score"] = projected_score
+        state["simulated_metrics"] = after_metrics
 
     return resp
-
 
 
 @router.get("", response_model=RecommendationsResponse)
@@ -130,10 +285,17 @@ def list_recommendations(
     if status and status != "all":
         recs = [r for r in recs if r.status == status]
 
+    is_simulated = bool(state["simulated"])
+    base_score = state.get("baseline_score", state["score"])
+    delta = (state["score"] - base_score) if is_simulated else 0
+
     return RecommendationsResponse(
         recommendations=recs,
         generated_at=state["generated"] or datetime.now(timezone.utc).isoformat(),
         optimization_score=state["score"],
+        is_simulated=is_simulated,
+        baseline_score=base_score,
+        score_delta=delta,
     )
 
 
@@ -143,15 +305,40 @@ def list_applied_recommendations():
     return list(_user_state()["applied"].values())
 
 
+@router.get("/simulated", response_model=list[ApplyResponse])
+def list_simulated_recommendations():
+    """Get all recommendations currently applied in the simulated digital twin environment."""
+    return list(_user_state()["simulated"].values())
+
+
+@router.post("/reset-simulation")
+def reset_simulation():
+    """Reset simulated recommendations and restore baseline scores."""
+    state = _user_state()
+    state["simulated"].clear()
+    state["simulated_metrics"] = None
+    for rec in state["recommendations"]:
+        if rec.status == "simulated":
+            rec.status = "open"
+    base = state.get("baseline_score", 80)
+    state["score"] = base
+    return {
+        "status": "reset",
+        "message": "Simulated optimizations reset to baseline telemetry.",
+        "baseline_score": base,
+        "current_score": base,
+    }
+
+
 @router.post("/apply-batch", response_model=BatchApplyResponse)
 def batch_apply_recommendations(req: BatchApplyRequest):
-    """Batch apply multiple recommendations simultaneously."""
+    """Batch apply or preview multiple recommendations simultaneously."""
     state = _user_state()
 
     if not state["recommendations"]:
         _build_recommendations("aws", "us-east")
 
-    targets = [r for r in state["recommendations"] if r.status != "applied"]
+    targets = [r for r in state["recommendations"] if r.status not in ("applied", "simulated")]
 
     if req.category and req.category != "all":
         targets = [r for r in targets if r.category == req.category]
@@ -171,18 +358,32 @@ def batch_apply_recommendations(req: BatchApplyRequest):
         total_savings += res.estimated_monthly_savings_usd
         total_carbon += res.estimated_carbon_reduction_pct
 
+    # If dry_run, compute aggregate projected score for all targets
+    if req.dry_run and targets and state.get("baseline_metrics"):
+        after_all = _simulate_metrics_for_recommendations(state["baseline_metrics"], targets)
+        proj = compute_optimization_scores(
+            after_all,
+            region=state["baseline_metrics"].region,
+            source="SIMULATED",
+            is_simulated=True,
+            baseline_overall=state.get("baseline_score", 80),
+        )
+        batch_new_score = proj.overall
+    else:
+        batch_new_score = state["score"]
+
     return BatchApplyResponse(
         applied_count=sum(result.status == "applied" for result in results),
         total_monthly_savings_usd=round(total_savings, 2),
         total_carbon_reduction_pct=round(total_carbon, 2),
         results=results,
-        new_score=state["score"],
+        new_score=batch_new_score,
     )
 
 
 @router.post("/{rec_id}/apply", response_model=ApplyResponse)
 def apply_recommendation(rec_id: str, req: ApplyRequest | None = None):
-    """Execute remediation action for a specific recommendation."""
+    """Execute remediation action or dry-run preview for a specific recommendation."""
     state = _user_state()
 
     if not state["recommendations"]:
@@ -196,8 +397,28 @@ def apply_recommendation(rec_id: str, req: ApplyRequest | None = None):
         )
 
     dry_run = req.dry_run if req else False
+    simulate = req.simulate if req else False
     operator_notes = req.operator_notes if req else None
-    return _execute_apply(rec, dry_run=dry_run, operator_notes=operator_notes)
+    return _execute_apply(rec, dry_run=dry_run, simulate=simulate, operator_notes=operator_notes)
+
+
+@router.post("/{rec_id}/simulate", response_model=ApplyResponse)
+def simulate_recommendation(rec_id: str, req: ApplyRequest | None = None):
+    """Simulate applying a recommendation to the digital twin infrastructure model."""
+    state = _user_state()
+
+    if not state["recommendations"]:
+        _build_recommendations("aws", "us-east")
+
+    rec = next((r for r in state["recommendations"] if r.id == rec_id), None)
+    if not rec:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Recommendation '{rec_id}' not found.",
+        )
+
+    operator_notes = req.operator_notes if req else None
+    return _execute_apply(rec, dry_run=True, simulate=True, operator_notes=operator_notes)
 
 
 @router.post("/{rec_id}/rollback", response_model=ApplyResponse)
@@ -224,6 +445,7 @@ def dismiss_recommendation(rec_id: str):
     rec.status = "dismissed"
     state["dismissed"].add(rec_id)
     state["applied"].pop(rec_id, None)
+    state["simulated"].pop(rec_id, None)
     return {"status": "dismissed", "recommendation_id": rec_id}
 
 
@@ -298,34 +520,37 @@ def explain_recommendation(rec_id: str):
     elif rec.category == "security":
         quantitative_evidence = [
             {"metric": "Ingress Network Rule", "observed": "0.0.0.0/0:22 (SSH)", "policy": "Private RFC1918 CIDR Only", "status": "CRITICAL_EXPOSURE"},
-            {"metric": "Security Group Risk Score", "observed": "88/100", "threshold": "< 20/100", "status": "FAILING_AUDIT"},
+            {"metric": "EBS Volume Encryption", "observed": "UNENCRYPTED", "policy": "AES-256 KMS Key Mandatory", "status": "COMPLIANCE_BREACH"},
         ]
-        counterfactual = "Open management ports exposed to the public internet are subject to automated credential brute-force attacks within minutes of detection."
-    else:
+        counterfactual = "Unrestricted administrative ingress ports allow continuous automated brute-force attacks and credential stuffing."
+    elif rec.category == "reliability":
         quantitative_evidence = [
-            {"metric": "Availability Zone Redundancy", "observed": "1 AZ", "target": ">= 2 AZs", "status": "SPOF_DETECTED"},
-            {"metric": "Backup Snapshot Age", "observed": "34 hours", "rpo_sla": "< 24 hours", "status": "RPO_BREACH"},
+            {"metric": "Availability Zone Redundancy", "observed": "Single-AZ (us-east-1a)", "threshold": ">= 2 Independent AZs", "status": "SINGLE_POINT_OF_FAILURE"},
+            {"metric": "Recovery Time Objective (RTO)", "observed": "4.5 hours (manual EBS snapshot restore)", "sla_target": "< 15 minutes", "status": "SLA_BREACH_RISK"},
         ]
-        counterfactual = "An isolated failure in the hosting Availability Zone will result in total workload outage with zero automatic failover."
+        counterfactual = "A localized availability zone impairment will result in complete service outage with no automatic failover path."
+
+    steps_to_implement = [
+        f"Review recommendation details and parameters for action: {rec.action}",
+        "Execute digital twin non-destructive simulation to verify impact",
+        "Obtain infrastructure owner authorization",
+        "Apply remediation via infrastructure-as-code or provider console",
+        "Observe post-change telemetry to confirm optimization score improvement",
+    ]
 
     return ExplainResponse(
         recommendation_id=rec.id,
         title=rec.title,
-        what_detected=rec.title,
-        why_it_matters=cat_explain["why_flagged"],
+        what_detected=cat_explain["why_flagged"],
+        why_it_matters=cat_explain["counterfactual"],
         evidence=rec.evidence,
-        recommendation=rec.action,
+        recommendation=f"Execute action '{rec.action}' ({rec.impact_summary})",
         expected_impact=expected_impact,
         why_flagged=cat_explain["why_flagged"],
         data_evidence=quantitative_evidence,
         counterfactual=counterfactual,
-        steps_to_implement=[
-            f"Review current telemetry and configuration for {rec.category}",
-            f"Trigger platform action: {rec.action}",
-            "Verify health probes and latency SLO stability",
-            "Record change in compliance audit trail",
-        ],
-        expected_outcome=rec.impact_summary,
+        steps_to_implement=steps_to_implement,
+        expected_outcome=f"Expected outcome: {expected_impact}. Action effort is {rec.effort}.",
         feature_importance=target_feat_imp,
     )
 
@@ -335,13 +560,15 @@ def get_recommendations_summary() -> dict[str, Any]:
     state = _user_state()
     if not _user_state()["recommendations"]:
         _build_recommendations("aws", "us-east")
-    open_recs = [r for r in _user_state()["recommendations"] if r.status == "open"]
+    open_recs = [r for r in _user_state()["recommendations"] if r.status in ("open", "simulated")]
     total_savings = sum(r.estimated_monthly_savings_usd for r in open_recs)
     return {
         "total_count": len(_user_state()["recommendations"]),
         "open_count": len(open_recs),
         "applied_count": len(state["applied"]),
+        "simulated_count": len(state["simulated"]),
         "score": state["score"],
+        "baseline_score": state.get("baseline_score", state["score"]),
         "total_savings_usd": round(total_savings, 2),
         "top_recommendations": open_recs[:3],
     }

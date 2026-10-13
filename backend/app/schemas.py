@@ -140,7 +140,7 @@ class RecommendationItem(BaseModel):
     action: str
     evidence: list[str] = []
     confidence: float = 0.85
-    status: Literal["open", "applied", "dismissed"] = "open"
+    status: Literal["open", "applied", "dismissed", "simulated"] = "open"
     applied_at: str | None = None
     steps_taken: list[str] = []
     what_detected: str | None = None
@@ -153,10 +153,14 @@ class RecommendationsResponse(BaseModel):
     recommendations: list[RecommendationItem]
     generated_at: str
     optimization_score: int  # 0-100
+    is_simulated: bool = False
+    baseline_score: int | None = None
+    score_delta: int | None = None
 
 
 class ApplyRequest(BaseModel):
     dry_run: bool = False
+    simulate: bool = False
     operator_notes: str | None = None
 
 
@@ -172,6 +176,10 @@ class ApplyResponse(BaseModel):
     steps_taken: list[str] = []
     dry_run: bool = False
     new_score: int | None = None
+    baseline_score: int | None = None
+    projected_score: int | None = None
+    score_delta: int | None = None
+    assumptions: list[str] = Field(default_factory=list)
 
 
 class BatchApplyRequest(BaseModel):
@@ -375,6 +383,12 @@ class OptimizationScores(BaseModel):
     reliability: int
     trend: Literal["improving", "stable", "declining"] = "stable"
     source: DataSourceType = "DEMO"
+    is_simulated: bool = False
+    baseline_overall: int | None = None
+    projected_overall: int | None = None
+    score_delta: int | None = None
+    simulated_recommendations_count: int = 0
+    assumptions: list[str] = Field(default_factory=list)
 
 
 class CostAnalyticsResponse(BaseModel):
