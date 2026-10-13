@@ -1,17 +1,19 @@
 /* ============================================================
    GreenMind AI — Global Design System
-   Dark glassmorphism theme with emerald + indigo accent palette
+   Dark glassmorphism + Light mode with emerald accent
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
-/* ── CSS Custom Properties ─────────────────────────────────── */
-:root {
+/* ── CSS Custom Properties — Shared / Dark (default) ─────── */
+:root,
+[data-theme="dark"] {
   /* Base */
   --bg-base: #050a0f;
   --bg-deep: #020508;
   --bg-panel: rgba(10, 18, 30, 0.85);
   --bg-panel-solid: #0a121e;
+  --card-bg: #0a121e;
   --bg-surface: rgba(16, 28, 48, 0.6);
   --bg-hover: rgba(255,255,255,0.04);
   --bg-active: rgba(255,255,255,0.08);
@@ -26,6 +28,129 @@
   --text-secondary: #94a3b8;
   --text-muted: #4b5e78;
 
+  /* Chart / recharts semantic */
+  --chart-grid: rgba(255,255,255,0.05);
+  --chart-axis: #4b5e78;
+  --chart-tooltip-bg: rgba(10,18,30,0.96);
+
+  /* Sidebar/Topbar surface */
+  --surface-nav: rgba(5,10,20,0.95);
+  --surface-topbar: rgba(5,10,20,0.95);
+  --surface-subbar: rgba(3,7,14,0.95);
+  --surface-subbar-border: rgba(255,255,255,0.06);
+
+  /* Input */
+  --input-bg: rgba(255,255,255,0.04);
+  --input-border: rgba(255,255,255,0.08);
+  --input-range-track: rgba(255,255,255,0.1);
+
+  /* Skeleton */
+  --skeleton-from: rgba(255,255,255,0.04);
+  --skeleton-mid:  rgba(255,255,255,0.08);
+  --skeleton-to:   rgba(255,255,255,0.04);
+
+  /* Scrollbar */
+  --scrollbar-thumb: rgba(255,255,255,0.1);
+  --scrollbar-thumb-hover: rgba(255,255,255,0.2);
+
+  /* Chat bubble */
+  --chat-assistant-bg: rgba(10,18,30,0.9);
+
+  /* Gradients */
+  --gradient-card: linear-gradient(135deg, rgba(16,28,48,0.8) 0%, rgba(8,15,28,0.6) 100%);
+  --gradient-dark: linear-gradient(135deg, #0a121e 0%, #050a0f 100%);
+
+  /* Backdrop blur */
+  --body-bg-radial-1: rgba(16,185,129,0.06);
+  --body-bg-radial-2: rgba(99,102,241,0.06);
+  --body-bg-radial-3: rgba(59,130,246,0.04);
+
+  /* Sidebar mobile backdrop */
+  --sidebar-backdrop-bg: rgba(2, 6, 12, 0.7);
+
+  /* Mobile border */
+  --rec-border-mobile: rgba(255,255,255,0.05);
+  --agent-border-mobile: rgba(255,255,255,0.05);
+  --prediction-border-mobile: rgba(255,255,255,0.06);
+}
+
+/* ── Light Theme ─────────────────────────────────────────── */
+[data-theme="light"] {
+  /* Base */
+  --bg-base: #f0f4f8;
+  --bg-deep: #e4eaf0;
+  --bg-panel: rgba(255, 255, 255, 0.90);
+  --bg-panel-solid: #ffffff;
+  --card-bg: #ffffff;
+  --bg-surface: rgba(240, 244, 248, 0.85);
+  --bg-hover: rgba(0,0,0,0.04);
+  --bg-active: rgba(0,0,0,0.08);
+
+  /* Borders */
+  --border: rgba(0,0,0,0.10);
+  --border-accent: rgba(5,150,105,0.30);
+  --border-strong: rgba(0,0,0,0.18);
+
+  /* Text */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  /* Chart / recharts semantic */
+  --chart-grid: rgba(0,0,0,0.06);
+  --chart-axis: #94a3b8;
+  --chart-tooltip-bg: rgba(255,255,255,0.98);
+
+  /* Sidebar/Topbar surface */
+  --surface-nav: rgba(255, 255, 255, 0.96);
+  --surface-topbar: rgba(255, 255, 255, 0.95);
+  --surface-subbar: rgba(248,250,252,0.98);
+  --surface-subbar-border: rgba(0,0,0,0.08);
+
+  /* Input */
+  --input-bg: rgba(0,0,0,0.03);
+  --input-border: rgba(0,0,0,0.12);
+  --input-range-track: rgba(0,0,0,0.1);
+
+  /* Skeleton */
+  --skeleton-from: rgba(0,0,0,0.04);
+  --skeleton-mid:  rgba(0,0,0,0.08);
+  --skeleton-to:   rgba(0,0,0,0.04);
+
+  /* Scrollbar */
+  --scrollbar-thumb: rgba(0,0,0,0.15);
+  --scrollbar-thumb-hover: rgba(0,0,0,0.25);
+
+  /* Chat bubble */
+  --chat-assistant-bg: rgba(248,250,252,0.95);
+
+  /* Gradients */
+  --gradient-card: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(240,244,248,0.85) 100%);
+  --gradient-dark: linear-gradient(135deg, #ffffff 0%, #f0f4f8 100%);
+
+  /* Backdrop blur */
+  --body-bg-radial-1: rgba(16,185,129,0.04);
+  --body-bg-radial-2: rgba(99,102,241,0.04);
+  --body-bg-radial-3: rgba(59,130,246,0.03);
+
+  /* Sidebar mobile backdrop */
+  --sidebar-backdrop-bg: rgba(15, 23, 42, 0.5);
+
+  /* Mobile border */
+  --rec-border-mobile: rgba(0,0,0,0.07);
+  --agent-border-mobile: rgba(0,0,0,0.07);
+  --prediction-border-mobile: rgba(0,0,0,0.07);
+
+  /* Override shadows for light theme */
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+  --shadow-md: 0 4px 24px rgba(0,0,0,0.10);
+  --shadow-lg: 0 8px 48px rgba(0,0,0,0.12);
+  --shadow-emerald: 0 0 24px rgba(16,185,129,0.15);
+  --shadow-indigo:  0 0 24px rgba(99,102,241,0.15);
+}
+
+/* ── CSS Custom Properties — Always shared ───────────────── */
+:root {
   /* Accent — Emerald */
   --emerald-50:  #ecfdf5;
   --emerald-400: #34d399;
@@ -48,13 +173,11 @@
   --blue-500: #3b82f6;
   --sky-400: #38bdf8;
 
-  /* Gradients */
+  /* Gradients — accent (same in both themes) */
   --gradient-emerald: linear-gradient(135deg, #059669 0%, #0891b2 100%);
   --gradient-indigo: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  --gradient-dark: linear-gradient(135deg, #0a121e 0%, #050a0f 100%);
-  --gradient-card: linear-gradient(135deg, rgba(16,28,48,0.8) 0%, rgba(8,15,28,0.6) 100%);
 
-  /* Shadows */
+  /* Shadows — dark defaults (overridden in light above) */
   --shadow-sm: 0 2px 8px rgba(0,0,0,0.4);
   --shadow-md: 0 4px 24px rgba(0,0,0,0.5);
   --shadow-lg: 0 8px 48px rgba(0,0,0,0.6);
@@ -82,6 +205,16 @@
   --transition-slow: 400ms cubic-bezier(0.4,0,0.2,1);
 }
 
+/* ── Reduced-motion: disable decorative transitions ─────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+
 /* ── Reset & Base ───────────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -103,9 +236,9 @@ body {
   overflow-x: hidden;
   /* Animated mesh background */
   background-image:
-    radial-gradient(ellipse at 20% 50%, rgba(16,185,129,0.06) 0%, transparent 60%),
-    radial-gradient(ellipse at 80% 20%, rgba(99,102,241,0.06) 0%, transparent 60%),
-    radial-gradient(ellipse at 60% 80%, rgba(59,130,246,0.04) 0%, transparent 50%);
+    radial-gradient(ellipse at 20% 50%, var(--body-bg-radial-1) 0%, transparent 60%),
+    radial-gradient(ellipse at 80% 20%, var(--body-bg-radial-2) 0%, transparent 60%),
+    radial-gradient(ellipse at 60% 80%, var(--body-bg-radial-3) 0%, transparent 50%);
 }
 
 #root {
@@ -133,8 +266,8 @@ code, pre, .mono {
 /* ── Scrollbar ──────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 
 /* ── Authentication & backend connection screens ─────────────────────── */
 .auth-shell {
@@ -594,7 +727,7 @@ code, pre, .mono {
 
 .mobile-menu-btn {
   display: none;
-  background: rgba(255,255,255,0.06);
+  background: var(--bg-hover);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 7px;
@@ -642,7 +775,7 @@ code, pre, .mono {
   width: auto;
   padding: 5px 10px;
   font-size: 13px;
-  background: rgba(255,255,255,0.06);
+  background: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
@@ -731,7 +864,7 @@ code, pre, .mono {
 .sidebar-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 12, 0.7);
+  background: var(--sidebar-backdrop-bg);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   z-index: 240;
@@ -800,8 +933,8 @@ code, pre, .mono {
     align-items: center;
     gap: 8px;
     padding: 6px 12px 10px;
-    border-top: 1px solid rgba(255,255,255,0.06);
-    background: rgba(3,7,14,0.95);
+    border-top: 1px solid var(--surface-subbar-border);
+    background: var(--surface-subbar);
     width: 100%;
   }
 
@@ -979,14 +1112,14 @@ code, pre, .mono {
 /* Recharts overrides */
 .recharts-cartesian-grid-horizontal line,
 .recharts-cartesian-grid-vertical line {
-  stroke: rgba(255,255,255,0.05) !important;
+  stroke: var(--chart-grid) !important;
 }
-.recharts-text { fill: var(--text-muted) !important; font-size: 11px !important; }
+.recharts-text { fill: var(--chart-axis) !important; font-size: 11px !important; }
 .recharts-tooltip-wrapper { z-index: 999; }
 
 /* ── Custom Tooltip ─────────────────────────────────────────── */
 .chart-tooltip {
-  background: rgba(10,18,30,0.95);
+  background: var(--chart-tooltip-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 12px 16px;
@@ -1018,8 +1151,8 @@ code, pre, .mono {
 
 /* ── Inputs ─────────────────────────────────────────────────── */
 input, select, textarea {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid var(--border);
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
   border-radius: var(--radius-md);
   color: var(--text-primary);
   font-family: inherit;
@@ -1042,7 +1175,7 @@ input[type="range"] {
   appearance: none;
   -webkit-appearance: none;
   height: 4px;
-  background: rgba(255,255,255,0.1);
+  background: var(--input-range-track);
   border-radius: 2px;
   padding: 0;
   cursor: pointer;
@@ -1146,7 +1279,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .chat-bubble.assistant {
-  background: rgba(10,18,30,0.9);
+  background: var(--chat-assistant-bg);
   border: 1px solid var(--border);
   color: var(--text-primary);
   align-self: flex-start;
@@ -1162,9 +1295,9 @@ input[type="range"]::-webkit-slider-thumb {
 .skeleton {
   background: linear-gradient(
     90deg,
-    rgba(255,255,255,0.04) 0%,
-    rgba(255,255,255,0.08) 50%,
-    rgba(255,255,255,0.04) 100%
+    var(--skeleton-from) 0%,
+    var(--skeleton-mid) 50%,
+    var(--skeleton-to) 100%
   );
   background-size: 200% 100%;
   animation: shimmer 1.5s infinite;
@@ -1419,5 +1552,174 @@ img, svg, canvas {
   .copilot-page-layout {
     height: calc(100dvh - 150px);
   }
+}
+
+/* ── Theme Toggle ────────────────────────────────────────────── */
+.theme-toggle-btn {
+  padding: 7px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  min-height: 36px;
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.theme-toggle-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.theme-toggle-btn:focus-visible {
+  outline: 2px solid var(--emerald-500);
+  outline-offset: 2px;
+}
+
+.theme-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 130px;
+  background: var(--bg-panel-solid);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  z-index: 300;
+  animation: fade-in 0.15s ease forwards;
+}
+
+.theme-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.theme-option:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.theme-option-active {
+  color: var(--emerald-400);
+  background: var(--emerald-glow);
+}
+
+.theme-option-active:hover {
+  background: var(--emerald-glow);
+  color: var(--emerald-400);
+}
+
+.theme-option-check {
+  width: 12px;
+  height: 12px;
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--emerald-400);
+}
+
+/* ── Settings Page — Theme Selector Card ─────────────────────── */
+.theme-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.theme-selector-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 10px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border);
+  background: var(--bg-hover);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.theme-selector-option:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-active);
+  color: var(--text-primary);
+}
+
+.theme-selector-option.selected {
+  border-color: var(--emerald-500);
+  background: var(--emerald-glow);
+  color: var(--emerald-400);
+}
+
+.theme-selector-option:focus-visible {
+  outline: 2px solid var(--emerald-500);
+  outline-offset: 2px;
+}
+
+@media (max-width: 480px) {
+  .theme-selector-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Global focus-visible ring (keyboard accessibility) ─────── */
+button:focus-visible,
+a:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--emerald-500);
+  outline-offset: 2px;
+}
+
+/* Light-theme auth panel override — keep brand dark always */
+[data-theme="light"] .auth-brand-panel {
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(16,185,129,0.2), transparent 45%),
+    linear-gradient(145deg, #071512 0%, #07101a 55%, #090b16 100%);
+}
+
+[data-theme="light"] .auth-loading,
+[data-theme="light"] .connection-shell {
+  background: var(--bg-deep);
+}
+
+/* Light theme — progress track */
+[data-theme="light"] .progress-track {
+  background: rgba(0,0,0,0.08);
+}
+
+/* Light theme — btn-secondary readable */
+[data-theme="light"] .btn-secondary {
+  background: rgba(0,0,0,0.05);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+[data-theme="light"] .btn-secondary:hover:not(:disabled) {
+  background: rgba(0,0,0,0.09);
+}
+
+/* Light theme — glass panels need stronger border */
+[data-theme="light"] .glass {
+  border-color: var(--border-strong);
+  background: var(--bg-panel);
 }
 

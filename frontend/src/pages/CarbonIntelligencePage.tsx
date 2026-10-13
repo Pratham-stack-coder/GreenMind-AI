@@ -125,11 +125,11 @@ export default function CarbonIntelligencePage() {
                   <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
               <XAxis dataKey="hour" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} />
               <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} domain={[0, 'auto']} />
               <Tooltip
-                contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 8 }}
+                contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }}
                 formatter={(val: any) => [`${val} gCO₂/kWh`, 'Grid Carbon Intensity']}
               />
               <Area type="monotone" dataKey="intensity" stroke="#10b981" fill="url(#carbonGrad)" strokeWidth={2} />
@@ -156,7 +156,7 @@ export default function CarbonIntelligencePage() {
               <div
                 key={r.name}
                 className="p-2 rounded flex items-center justify-between flex-wrap gap-2"
-                style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}
+                style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)' }}
               >
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</div>

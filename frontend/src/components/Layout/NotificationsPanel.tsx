@@ -123,7 +123,7 @@ export default function NotificationsPanel() {
                       layout
                       onClick={() => markNotifRead(n.id)}
                       style={{
-                        background: n.read ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)',
+                        background: n.read ? 'var(--bg-hover)' : 'var(--bg-active)',
                         border: `1px solid ${n.read ? 'var(--border)' : priorityColor[n.priority] + '40'}`,
                         borderLeft: `3px solid ${priorityColor[n.priority]}`,
                         borderRadius: 10,

@@ -32,7 +32,7 @@ function ScoreRadar({ scores }: { scores: OptimizationScores }) {
   return (
     <ResponsiveContainer width="100%" height={230}>
       <RadarChart data={data} margin={{ top: 12, right: 38, bottom: 12, left: 38 }}>
-        <PolarGrid stroke="rgba(255,255,255,0.08)" />
+        <PolarGrid stroke="var(--chart-grid)" />
         <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: 'var(--text-secondary)' }} />
         <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
         <Radar
@@ -448,10 +448,10 @@ export default function DashboardPage() {
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                <Tooltip contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--border)' }} />
+                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
                 <Area type="monotone" dataKey="CPU" stroke="#10b981" fill="url(#cpuArea)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
@@ -476,10 +476,10 @@ export default function DashboardPage() {
                     <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                <Tooltip contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--border)' }} />
+                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
                 <Area type="monotone" dataKey="Memory" stroke="#3b82f6" fill="url(#memArea)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
@@ -507,10 +507,10 @@ export default function DashboardPage() {
                     <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                 <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                <Tooltip contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--border)' }} />
+                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
                 <Area type="monotone" dataKey="Cost" stroke="#f59e0b" fill="url(#costArea)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
@@ -535,10 +535,10 @@ export default function DashboardPage() {
                     <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                 <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                <Tooltip contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--border)' }} />
+                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
                 <Area type="monotone" dataKey="Carbon" stroke="#10b981" fill="url(#carbArea)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
@@ -560,10 +560,10 @@ export default function DashboardPage() {
           <div style={{ height: 160 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                 <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                <Tooltip contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--border)' }} />
+                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
                 <Bar dataKey="Network" fill="#a855f7" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -586,10 +586,10 @@ export default function DashboardPage() {
           <div style={{ height: 160 }}>
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={predictedChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                <Tooltip contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--border)' }} />
+                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
                 <Line type="monotone" dataKey="Actual" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
                 <Line type="monotone" dataKey="Projected" stroke="#10b981" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 4 }} />
               </LineChart>

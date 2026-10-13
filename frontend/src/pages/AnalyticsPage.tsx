@@ -216,9 +216,9 @@ export default function AnalyticsPage() {
                   <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
-              <YAxis tick={{ fontSize: 10 }} tickFormatter={v => `$${v.toFixed(3)}`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="time" tick={{ fontSize: 9, fill: 'var(--text-muted)' }} interval="preserveStartEnd" />
+              <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickFormatter={v => `$${v.toFixed(3)}`} />
               <Tooltip content={<ChartTooltip />} />
               {costAvgLine != null && (
                 <ReferenceLine y={costAvgLine} stroke="rgba(251,191,36,0.5)" strokeDasharray="6 3" label={{ value: 'avg', fill: 'var(--amber-400)', fontSize: 10, position: 'insideTopRight' }} />
@@ -245,10 +245,10 @@ export default function AnalyticsPage() {
         <div className="chart-container" style={{ height: 220 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={carbonPoints}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" tick={{ fontSize: 9 }} interval="preserveStartEnd" />
-              <YAxis yAxisId="left" tick={{ fontSize: 10 }} />
-              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="time" tick={{ fontSize: 9, fill: 'var(--text-muted)' }} interval="preserveStartEnd" />
+              <YAxis yAxisId="left" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
+              <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
               <Tooltip content={<ChartTooltip />} />
               <Legend />
               {avgCarbon != null && (

@@ -4,8 +4,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Settings, Cloud, Brain, Shield, RefreshCw, CheckCircle2,
   AlertCircle, Info, Lock, Eye, EyeOff, Trash2, Zap, Server, Database,
-  Globe, ExternalLink, Activity, ArrowRight
+  Globe, ExternalLink, Activity, ArrowRight, Monitor
 } from 'lucide-react'
+import ThemeSelector from '../components/ThemeSelector'
 import {
   fetchSettingsStatus,
   testProviderConnection,
@@ -510,6 +511,19 @@ export default function SettingsPage() {
             </p>
           </div>
         </div>
+      </div>
+
+      {/* ── Appearance — Theme Selector ───────────────────────────────────────── */}
+      <div className="card mb-6" style={{ borderColor: 'rgba(99,102,241,0.25)' }}>
+        <div className="flex items-center gap-2 mb-3">
+          <Monitor size={18} color="var(--indigo-400)" />
+          <h3 style={{ fontSize: 15, fontWeight: 700 }}>Appearance</h3>
+          <span className="badge badge-indigo" style={{ fontSize: 10, marginLeft: 4 }}>UI</span>
+        </div>
+        <p className="text-sm text-secondary mb-1">
+          Choose between Dark, Light, or System theme. Your preference is saved locally.
+        </p>
+        <ThemeSelector />
       </div>
 
       <div className="flex-col gap-6" style={{ maxWidth: 880 }}>

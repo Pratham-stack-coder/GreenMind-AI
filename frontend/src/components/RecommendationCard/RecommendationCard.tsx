@@ -46,7 +46,7 @@ export default function RecommendationCard({
             style={{
               padding: 8,
               borderRadius: 8,
-              background: 'rgba(255,255,255,0.05)',
+              background: 'var(--bg-hover)',
               border: '1px solid var(--border)',
             }}
           >

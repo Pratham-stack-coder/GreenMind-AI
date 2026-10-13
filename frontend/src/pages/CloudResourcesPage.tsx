@@ -163,7 +163,7 @@ export default function CloudResourcesPage() {
         <div style={{ overflowX: 'auto' }}>
           <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
+              <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-hover)' }}>
                 <th style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)' }}>RESOURCE</th>
                 <th style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)' }}>TYPE</th>
                 <th style={{ padding: '12px 16px', fontSize: 12, color: 'var(--text-muted)' }}>STATUS</th>
@@ -221,7 +221,7 @@ export default function CloudResourcesPage() {
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       <div className="flex items-center gap-2">
-                        <div style={{ width: 50, height: 6, background: 'rgba(255,255,255,0.1)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ width: 50, height: 6, background: 'var(--border-strong)', borderRadius: 3, overflow: 'hidden' }}>
                           <div
                             style={{
                               width: `${Math.min(100, r.cpu_utilization)}%`,

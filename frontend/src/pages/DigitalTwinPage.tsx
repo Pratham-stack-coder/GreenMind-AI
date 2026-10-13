@@ -107,7 +107,7 @@ export default function DigitalTwinPage() {
 
             {/* Baseline metrics */}
             {metrics && (
-              <div className="card" style={{ padding: '12px 14px', background: 'rgba(255,255,255,0.03)' }}>
+              <div className="card" style={{ padding: '12px 14px', background: 'var(--bg-hover)' }}>
                 <div className="text-xs text-muted mb-2" style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Current Baseline</div>
                 <div className="grid-2 gap-2">
                   {[

@@ -118,7 +118,7 @@ function AgentTimeline({ isPending, doneAgents }: { isPending: boolean, doneAgen
                       ? 'var(--emerald-500)'
                       : isRunning
                         ? 'rgba(99,102,241,0.3)'
-                        : 'rgba(255,255,255,0.06)',
+                        : 'var(--bg-active)',
                     border: `2px solid ${isDone ? 'var(--emerald-500)' : isRunning ? 'var(--indigo-400)' : 'var(--border)'}`,
                     transition: 'all 0.4s ease',
                   }}
@@ -163,7 +163,7 @@ function AgentTimeline({ isPending, doneAgents }: { isPending: boolean, doneAgen
             <div style={{
               width: 20, height: 20, borderRadius: 6, flexShrink: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: doneAgents.length === AGENT_ORDER.length ? 'var(--gradient-emerald)' : 'rgba(255,255,255,0.06)',
+              background: doneAgents.length === AGENT_ORDER.length ? 'var(--gradient-emerald)' : 'var(--bg-active)',
               border: `2px solid ${doneAgents.length === AGENT_ORDER.length ? 'var(--emerald-500)' : 'var(--border)'}`,
             }}>
               <Bot size={10} color={doneAgents.length === AGENT_ORDER.length ? '#fff' : 'var(--text-muted)'} />
@@ -203,8 +203,8 @@ function ExecutionTraceSection({ trace }: { trace: AgentExecutionStep[] }) {
               className="card"
               style={{
                 padding: '12px 16px',
-                background: 'rgba(255,255,255,0.02)',
-                borderColor: 'rgba(255,255,255,0.06)',
+                background: 'var(--bg-hover)',
+                borderColor: 'var(--border)',
                 cursor: 'pointer',
               }}
               onClick={() => setOpenStep(isOpen ? null : step.step_number)}
@@ -230,7 +230,7 @@ function ExecutionTraceSection({ trace }: { trace: AgentExecutionStep[] }) {
               </div>
 
               {isOpen && (
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
                   <div className="text-xs text-muted mb-2" style={{ fontWeight: 700 }}>Node Thought Log & Inputs:</div>
                   {step.thoughts.map((th, i) => (
                     <div key={i} className="text-xs text-secondary mb-1 flex items-center gap-2">

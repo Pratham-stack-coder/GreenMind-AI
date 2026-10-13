@@ -179,7 +179,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
         ) : (
           <div className="flex-col gap-4 mb-5">
             {/* Why flagged */}
-            <div className="card" style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.02)' }}>
+            <div className="card" style={{ padding: '12px 16px', background: 'var(--bg-hover)' }}>
               <div className="flex items-center gap-2 mb-1" style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
                 <Info size={14} color="var(--blue-400)" />
                 Why was this flagged?
@@ -202,7 +202,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
 
             {/* Evidence & Expected Outcome */}
             <div className="grid-2 gap-3">
-              <div className="card" style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.02)' }}>
+              <div className="card" style={{ padding: '12px 16px', background: 'var(--bg-hover)' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>
                   Evidence
                 </div>
@@ -233,7 +233,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
 
             {/* Quantitative Telemetry Comparison Table */}
             {explainData?.data_evidence && explainData.data_evidence.length > 0 && (
-              <div className="card" style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.02)' }}>
+              <div className="card" style={{ padding: '12px 16px', background: 'var(--bg-hover)' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Activity size={13} color="var(--blue-400)" />
                   Quantitative Telemetry Evidence (Observed vs Threshold)
@@ -241,7 +241,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                     <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.08)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                      <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', textAlign: 'left' }}>
                         <th style={{ padding: '6px 8px', fontWeight: 600 }}>Metric</th>
                         <th style={{ padding: '6px 8px', fontWeight: 600 }}>Observed Value</th>
                         <th style={{ padding: '6px 8px', fontWeight: 600 }}>Threshold</th>
@@ -250,7 +250,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                     </thead>
                     <tbody>
                       {explainData.data_evidence.map((ev, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                           <td style={{ padding: '6px 8px', color: 'var(--text-primary)', fontWeight: 500 }}>
                             {ev.metric || ev.key || 'Metric'}
                           </td>
@@ -275,7 +275,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
 
             {/* Steps to Implement */}
             {explainData?.steps_to_implement && explainData.steps_to_implement.length > 0 && (
-              <div className="card" style={{ padding: '12px 16px', background: 'rgba(255,255,255,0.02)' }}>
+              <div className="card" style={{ padding: '12px 16px', background: 'var(--bg-hover)' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Terminal size={13} color="var(--emerald-400)" />
                   Suggested Implementation Steps
@@ -358,7 +358,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
 
                 {/* Assumptions */}
                 {applyResult.assumptions && applyResult.assumptions.length > 0 && (
-                  <div className="mb-2 p-2 rounded" style={{ background: 'rgba(255,255,255,0.02)', fontSize: 11 }}>
+                  <div className="mb-2 p-2 rounded" style={{ background: 'var(--bg-hover)', fontSize: 11 }}>
                     <div className="text-muted font-semibold mb-1">Assumptions & Score Dimensions:</div>
                     <ul style={{ paddingLeft: 16, margin: 0 }}>
                       {applyResult.assumptions.map((asm, idx) => (
@@ -973,7 +973,7 @@ export default function RecommendationsPage() {
       {/* Filter Tabs */}
       <div className="flex gap-3 mb-4 flex-wrap items-center">
         {/* Status Tab (All / Open / Applied) */}
-        <div className="flex items-center gap-1 p-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid var(--border)' }}>
+        <div className="flex items-center gap-1 p-1 rounded-lg" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)' }}>
           {statuses.map((st) => (
             <button
               key={st.id}

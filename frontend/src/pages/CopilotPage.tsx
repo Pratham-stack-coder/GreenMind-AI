@@ -10,7 +10,7 @@ import type { CopilotMessage } from '../types'
 function MarkdownText({ content }: { content: string }) {
   const html = content
     // Code blocks (```...```) — process first to avoid other transforms inside
-    .replace(/```([^`]*?)```/gs, '<pre style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);padding:10px 12px;border-radius:8px;font-family:JetBrains Mono,monospace;font-size:12px;overflow-x:auto;margin:6px 0;white-space:pre-wrap">$1</pre>')
+    .replace(/```([^`]*?)```/gs, '<pre style="background:var(--bg-hover);border:1px solid var(--border);padding:10px 12px;border-radius:8px;font-family:JetBrains Mono,monospace;font-size:12px;overflow-x:auto;margin:6px 0;white-space:pre-wrap;color:var(--text-primary)">$1</pre>')
     // Headings
     .replace(/^### (.*)/gm, '<div style="font-size:13px;font-weight:700;color:var(--text-primary);margin:10px 0 4px">$1</div>')
     .replace(/^## (.*)/gm, '<div style="font-size:15px;font-weight:700;color:var(--text-primary);margin:12px 0 4px">$1</div>')
@@ -20,7 +20,7 @@ function MarkdownText({ content }: { content: string }) {
     .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.*?)\*/g, '<em>$1</em>')
     // Inline code
-    .replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;font-family:JetBrains Mono,monospace;font-size:0.85em;color:var(--emerald-400)">$1</code>')
+    .replace(/`([^`]+)`/g, '<code style="background:var(--bg-hover);padding:1px 5px;border-radius:3px;font-family:JetBrains Mono,monospace;font-size:0.85em;color:var(--emerald-500);border:1px solid var(--border)">$1</code>')
     // Bullets
     .replace(/^- (.*)/gm, '<li style="margin-left:16px;list-style:disc;margin-bottom:2px">$1</li>')
     // Numbered list

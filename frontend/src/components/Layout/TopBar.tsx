@@ -5,6 +5,7 @@ import { useAppStore } from '../../store'
 import { fetchHealth, fetchRecommendations, fetchLiveMetrics, getActiveBackendUrl } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
 import { useEffect, useRef, useState } from 'react'
+import ThemeToggle from '../ThemeToggle'
 
 function LiveClock() {
   const [time, setTime] = useState(() => new Date())
@@ -202,6 +203,8 @@ export default function TopBar() {
             <LogOut size={15} />
             <span className="signout-label">Sign out</span>
           </button>
+
+          <ThemeToggle />
 
           <button
             id="notif-bell-btn"

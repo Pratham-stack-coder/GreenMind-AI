@@ -21,7 +21,7 @@ export default function AgentCard({ agent }: AgentCardProps) {
             style={{
               padding: 8,
               borderRadius: 8,
-              background: 'rgba(255,255,255,0.05)',
+              background: 'var(--bg-hover)',
               border: '1px solid var(--border)',
             }}
           >
@@ -71,7 +71,7 @@ export default function AgentCard({ agent }: AgentCardProps) {
       {agent.recommendations.length > 0 && (
         <div
           className="p-2 rounded"
-          style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}
+          style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)' }}
         >
           <div className="text-xs font-medium text-muted mb-1">Top Reconciled Action:</div>
           <div className="text-xs text-primary font-mono flex items-center justify-between">

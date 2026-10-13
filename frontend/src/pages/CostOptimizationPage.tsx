@@ -223,11 +223,11 @@ export default function CostOptimizationPage() {
                     <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="time" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} />
                 <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} domain={['auto', 'auto']} />
                 <Tooltip
-                  contentStyle={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 8 }}
+                  contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }}
                   formatter={(val: any) => [`$${Number(val).toFixed(4)}/hr`, 'Spend Rate']}
                 />
                 <Area type="monotone" dataKey="cost" stroke="#f59e0b" fill="url(#costGrad)" strokeWidth={2} />
@@ -278,7 +278,7 @@ export default function CostOptimizationPage() {
 
         {simResult && (
           <div className="flex-col gap-3">
-            <div className="grid-3 p-3 rounded" style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}>
+            <div className="grid-3 p-3 rounded" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)' }}>
               <div>
                 <div className="text-xs text-muted">Baseline Spend</div>
                 <div className="text-lg font-bold">${simResult.before?.cost?.toFixed(0) ?? '0'}/mo</div>
@@ -364,7 +364,7 @@ export default function CostOptimizationPage() {
               <div
                 key={rec.id}
                 className="p-3 rounded flex items-center justify-between flex-wrap gap-3"
-                style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border)' }}
+                style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)' }}
               >
                 <div style={{ flex: '1 1 240px' }}>
                   <div style={{ fontSize: 14, fontWeight: 600 }}>{rec.title}</div>

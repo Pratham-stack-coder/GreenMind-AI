@@ -222,13 +222,13 @@ export default function PredictionsPage() {
                         <stop offset="95%" stopColor="#6366f1" stopOpacity={0.05} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} tickFormatter={v => `${v}%`} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                    <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} tickFormatter={v => `${v}%`} />
                     <Tooltip content={<ChartTooltip />} />
                     {/* Confidence band */}
                     <Area type="monotone" dataKey="max" stroke="transparent" fill="url(#bandGrad)" legendType="none" name="Upper bound" />
-                    <Area type="monotone" dataKey="min" stroke="transparent" fill="var(--bg-deep)" legendType="none" name="Lower bound" />
+                    <Area type="monotone" dataKey="min" stroke="transparent" fill="var(--card-bg)" legendType="none" name="Lower bound" />
                     {/* Actual prediction line */}
                     <Area type="monotone" dataKey="cpu" stroke="#10b981" fill="rgba(16,185,129,0.1)" strokeWidth={2.5} dot={false} name="CPU Forecast" />
                     <ReferenceLine y={now} stroke="rgba(251,191,36,0.5)" strokeDasharray="4 3" label={{ value: 'current', fill: 'var(--amber-400)', fontSize: 9, position: 'insideTopRight' }} />
@@ -256,9 +256,9 @@ export default function PredictionsPage() {
         <div className="chart-container" style={{ height: 200 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={curveData} barSize={24}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="hour" tick={{ fontSize: 9 }} interval={2} />
-              <YAxis tick={{ fontSize: 10 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="hour" tick={{ fontSize: 9, fill: 'var(--text-muted)' }} interval={2} />
+              <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
               <Tooltip content={<ChartTooltip />} />
               <Bar dataKey="intensity" name="gCO₂/kWh" radius={[3,3,0,0]}>
                 {curveData.map((entry: any, i: number) => (
