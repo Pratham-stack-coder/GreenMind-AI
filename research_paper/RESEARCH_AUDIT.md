@@ -224,3 +224,56 @@ The following deliverables have been generated in `research_paper/`:
 1. **Author Affiliations & Venue Formatting:** The current draft specifies `Anonymous submission draft`. The user/authors must insert real author names, institutional affiliations, contact emails, and grant funding disclosures when submitting to a non-blind or camera-ready venue.
 2. **Page Limit & Layout Constraints:** The current paper is formatted as a 2-page short paper / work-in-progress report. If submitting to a 4-page, 6-page, or 8-page IEEE conference track, the methodological and experimental discussion sections can be expanded using the detailed findings in this audit report.
 3. **Canary Cloud Environment for Live Remediation:** Before claiming closed-loop autonomous optimization in future work, an isolated canary subscription must be established to measure actual pre- and post-intervention billing and telemetry metrics.
+
+
+---
+
+## 8. Follow-up manuscript correction pass (October 16, 2026)
+
+This addendum records changes made to the IEEE LaTeX source on branch
+`fix/ieee-paper-scientific-audit`. It does not replace the original audit
+or claim that a final PDF has been compiled.
+
+### Corrections made in the manuscript source
+
+1. **Recursive forecast qualification:** The manuscript now explicitly states
+   that `forecast_multi_step` uses 5-minute recursion despite models trained
+   for direct one-hour targets, and that carbon proxy values are fed back into
+   an input representing grid intensity. Recursive forecasts are described as
+   unvalidated and are excluded from the reported one-hour test metrics.
+2. **Metrics claim qualified:** Wording now distinguishes the saved held-out
+   metrics and the reproduction described in this audit from real-world
+   validation. Results remain explicitly limited to the synthetic seed-42
+   generator.
+3. **Carbon target clarified:** The manuscript distinguishes the synthetic
+   emissions proxy (gCO2 per 15-minute step) from grid intensity (gCO2/kWh).
+4. **Architecture diagram replaced:** The LaTeX source now draws a compact
+   vector pipeline using TikZ instead of embedding the raster architecture
+   image whose arrow labels were reported clipped. This is a source-level fix;
+   rendered legibility still requires PDF compilation and inspection.
+5. **Copilot claims qualified:** The manuscript clarifies that the copilot is
+   decision support and that provider access depends on configuration.
+
+### Still requiring validation
+
+- The revised LaTeX has **not been compiled or visually inspected in this
+  environment**. Page count, package availability, and final layout are not
+  yet verified.
+- The five-page target must be checked using the official IEEE conference
+  template and its normal body font size; page count must not be forced by
+  using nonstandard font sizes or unreadable spacing.
+- The 13-item list mentioned in a separate generated audit was not present at
+  the paths inspected in this repository. This pass addresses issues
+  explicitly supported by the checked-in audit and source, not an unseen list.
+- No source-code files or trained model artifacts were changed in this pass.
+  The recursive forecasting defect is documented in the paper, not silently
+  repaired in the application.
+- The reference metadata should be checked again before submission, and
+  author/affiliation placeholders must be resolved according to the venue's
+  anonymity policy.
+
+### Status
+
+**Manuscript source updated; final PDF not yet verified.** Do not describe the
+paper as submission-ready until it has been compiled, every page rendered and
+inspected, and the remaining venue-specific and reference checks completed.
