@@ -6,6 +6,8 @@
 \usepackage{cite}
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning}
 \usepackage{booktabs}
 \usepackage{url}
 \usepackage{microtype}
@@ -123,11 +125,27 @@ exclusively on synthetic telemetry rather than measured traces.
 
 \begin{figure}[t]
   \centering
-  \includegraphics[width=\columnwidth]{greenmind_architecture.png}
-  \caption{GreenMind AI pipeline: telemetry ingestion, ML forecasting,
-  multi-agent analysis, conflict resolution, Digital Twin simulation, and
-  operator decision support. Arrow labels in the source figure must remain
-  inside their boxes and legible at column width.}
+  \resizebox{\columnwidth}{!}{%
+  \begin{tikzpicture}[
+    node distance=5mm,
+    stage/.style={draw,rounded corners,align=center,text width=2.15cm,
+      minimum height=7mm,font=\scriptsize,inner sep=3pt},
+    flow/.style={-{Latex[length=1.5mm]},thick}
+  ]
+    \node[stage] (tele) {Telemetry\\ ingestion};
+    \node[stage,right=of tele] (ml) {Five-metric\\ forecasting};
+    \node[stage,right=of ml] (agents) {Five-agent\\ analysis};
+    \node[stage,below=of agents] (resolve) {Conflict\\ resolution};
+    \node[stage,left=of resolve] (twin) {Digital Twin\\ simulation};
+    \node[stage,left=of twin] (human) {Operator\\ decision support};
+    \draw[flow] (tele) -- (ml);
+    \draw[flow] (ml) -- (agents);
+    \draw[flow] (agents) -- (resolve);
+    \draw[flow] (resolve) -- (twin);
+    \draw[flow] (twin) -- (human);
+  \end{tikzpicture}%
+  }
+  \caption{GreenMind AI pipeline. Arrows indicate the decision-support flow from telemetry through forecasting and agent arbitration to simulation and operator review.}
   \label{fig:arch}
 \end{figure}
 
