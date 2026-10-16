@@ -124,10 +124,10 @@ exclusively on synthetic telemetry rather than measured traces.
 \begin{figure}[t]
   \centering
   \includegraphics[width=\columnwidth]{greenmind_architecture.png}
-  \caption{GreenMind AI end-to-end pipeline: telemetry ingestion
-  $\!\to\!$ ML forecasting $\!\to\!$ multi-agent analysis $\!\to\!$
-  conflict resolution $\!\to\!$ Digital Twin simulation $\!\to\!$
-  operator decision support.}
+  \caption{GreenMind AI pipeline: telemetry ingestion, ML forecasting,
+  multi-agent analysis, conflict resolution, Digital Twin simulation, and
+  operator decision support. Arrow labels in the source figure must remain
+  inside their boxes and legible at column width.}
   \label{fig:arch}
 \end{figure}
 
@@ -192,7 +192,7 @@ recomputes a composite Optimization Score (0--100). All outputs carry
 \texttt{"SIMULATED / ESTIMATED"} label.
 
 \subsection{AI Copilot and Safe Remediation Boundary}
-Eight grounded tools: \texttt{get\_cloud\_metrics},
+Eight application tools are described in the implementation; tool availability and live provider access depend on configuration. The paper treats the copilot as decision support, not an autonomous cloud controller. The tools are: \texttt{get\_cloud\_metrics},
 \texttt{get\_history}, \texttt{get\_predictions},
 \texttt{get\_cost\_analysis}, \texttt{get\_carbon\_analysis},
 \texttt{get\_recommendations}, \texttt{get\_cloud\_health},
@@ -219,7 +219,7 @@ $300+400\sin^2(\cdot)$~Mbps (peak at~09:00). Cost scales with CPU on an
 AWS \texttt{m5.xlarge} baseline (\$0.192/h).
 
 \subsection{Carbon Target Formulation}
-Regional grid intensity $I(h_t)$ is looked up from an hourly profile
+The training target is a synthetic emissions proxy, not grid intensity itself. Regional grid intensity $I(h_t)$ is looked up from an hourly profile
 (\texttt{us-east}: 320--470~gCO$_2$/kWh). Assuming server power draw
 $P=0.35$~kW and step size $\Delta t=0.25$~h, the target is:
 \begin{equation}
@@ -275,8 +275,11 @@ $\text{Gain}=100\!\times\!(1-\text{MAE}_\text{model}/\text{MAE}_\text{persist.})
   \end{tabular}
 \end{table*}
 
-Table~\ref{tab:results} reports fully verified held-out metrics reproduced
-identically by re-running \texttt{train.py} (seed~42, 6.4~s wall-clock).
+Table~\ref{tab:results} reports the saved held-out metrics. The accompanying
+repository audit records a reproduction of the rounded model metrics using
+\texttt{generate\_dataset.py} and \texttt{train.py}; the baseline alignment issue
+is reported separately below. These results are specific to the synthetic
+seed-42 generator and do not establish performance on real workloads.
 
 Gradient boosted regressors outperform the forecast-origin persistence
 baseline on all five targets. Relative MAE gains range from 25.4\%
@@ -320,11 +323,12 @@ absent from the synthetic series~\cite{r3}. Reported metrics establish
   \item \textbf{Data provenance}: all evaluations derive from a single
         generator configuration (seed~42, 60-day, \texttt{us-east}).
   \item \textbf{Recursive multi-step inconsistency}: \texttt{forecast\_multi\_step}
-        in \texttt{predictor.py} applies 5-min recursive steps using
-        models trained on 1-h direct shifts, and feeds back carbon output
-        ($\sim$30--40~gCO$_2$/15-min) into the \texttt{carbon\_intensity}
-        input that was trained on grid values ($\sim$350--450~gCO$_2$/kWh),
-        an $\approx$10$\times$ scale mismatch.
+        in \texttt{predictor.py} advances in 5-minute increments although
+        the models were trained for direct 1-hour targets from 15-minute data.
+        It also feeds a predicted emissions proxy (gCO$_2$/15-min) back into
+        the input expected to represent grid intensity (gCO$_2$/kWh). These
+        mismatched horizons and units mean recursive forecasts should be
+        treated as unvalidated and excluded from the reported one-hour test metrics.
   \item \textbf{Live connector validation}: AWS, Azure, and GCP connectors
         fall back to synthetic data in the test environment; end-to-end
         live polling was not validated against real accounts.
