@@ -15,12 +15,14 @@ from __future__ import annotations
 import logging
 import math
 import random
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from . import carbon
 from .auth import require_authenticated_user
@@ -119,6 +121,47 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+_cors_regex_compiled = re.compile(settings.cors_origin_regex.strip()) if settings.cors_origin_regex else None
+
+
+def _is_allowed_origin(origin: str | None) -> bool:
+    if not origin:
+        return False
+    if origin in cors_origins:
+        return True
+    if _cors_regex_compiled and _cors_regex_compiled.match(origin):
+        return True
+    return False
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    origin = request.headers.get("origin")
+    headers = dict(exc.headers or {})
+    if origin and _is_allowed_origin(origin):
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=headers,
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled server error processing %s: %s", request.url.path, exc)
+    origin = request.headers.get("origin")
+    headers: dict[str, str] = {}
+    if origin and _is_allowed_origin(origin):
+        headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Credentials"] = "true"
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error occurred while processing the request."},
+        headers=headers,
+    )
 
 # ── API v1 routers ─────────────────────────────────────────────────────────────
 PREFIX = "/api/v1"

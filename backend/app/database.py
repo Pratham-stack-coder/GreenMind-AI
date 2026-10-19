@@ -285,14 +285,21 @@ async def get_db():
 
 async def get_user_provider_credentials(owner_id: str) -> dict[str, dict[str, str]]:
     """Load and decrypt only this user's provider credentials."""
-    async with _async_session_maker() as session:
-        result = await session.execute(
-            select(UserProviderCredentialRecord).where(UserProviderCredentialRecord.owner_id == owner_id)
-        )
-        return {
-            row.provider: decrypt_credentials(row.encrypted_credentials)
-            for row in result.scalars().all()
-        }
+    try:
+        async with _async_session_maker() as session:
+            result = await session.execute(
+                select(UserProviderCredentialRecord).where(UserProviderCredentialRecord.owner_id == owner_id)
+            )
+            creds: dict[str, dict[str, str]] = {}
+            for row in result.scalars().all():
+                try:
+                    creds[row.provider] = decrypt_credentials(row.encrypted_credentials)
+                except Exception as exc:
+                    logger.warning("Could not decrypt stored credentials for user %s, provider %s: %s", owner_id, row.provider, exc)
+            return creds
+    except Exception as exc:
+        logger.warning("Database error loading user credentials for %s: %s", owner_id, exc)
+        return {}
 
 
 async def store_user_provider_credentials(owner_id: str, provider: str, credentials: dict[str, str]) -> dict[str, str]:

@@ -65,3 +65,59 @@ def test_asymmetric_supabase_token_checks_signature_issuer_audience_and_expiry(m
     )
     with pytest.raises(jwt.InvalidIssuerError):
         auth._verify_asymmetric_token(wrong_issuer, supabase_url)
+
+
+def test_normalize_supabase_issuer_handles_all_url_variants():
+    base1, iss1 = auth._normalize_supabase_issuer("https://test.supabase.co")
+    assert base1 == "https://test.supabase.co"
+    assert iss1 == "https://test.supabase.co/auth/v1"
+
+    base2, iss2 = auth._normalize_supabase_issuer("https://test.supabase.co/")
+    assert base2 == "https://test.supabase.co"
+    assert iss2 == "https://test.supabase.co/auth/v1"
+
+    base3, iss3 = auth._normalize_supabase_issuer("https://test.supabase.co/auth/v1")
+    assert base3 == "https://test.supabase.co"
+    assert iss3 == "https://test.supabase.co/auth/v1"
+
+    base4, iss4 = auth._normalize_supabase_issuer("https://test.supabase.co/auth/v1/")
+    assert base4 == "https://test.supabase.co"
+    assert iss4 == "https://test.supabase.co/auth/v1"
+
+
+def test_asymmetric_token_refreshes_jwks_on_key_rotation(monkeypatch):
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    public_key = private_key.public_key()
+    supabase_url = "https://project-ref.supabase.co"
+
+    from jwt.exceptions import PyJWKClientError
+
+    class StaleJwksClient:
+        def get_signing_key_from_jwt(self, _token):
+            raise PyJWKClientError("Key not in cached set")
+
+    class FreshJwksClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def get_signing_key_from_jwt(self, _token):
+            return SimpleNamespace(key=public_key)
+
+    monkeypatch.setattr(auth, "_jwks_client", lambda _url: StaleJwksClient())
+    monkeypatch.setattr(auth, "PyJWKClient", FreshJwksClient)
+
+    token = jwt.encode(
+        {
+            "sub": "user-rotated-key",
+            "iss": f"{supabase_url}/auth/v1",
+            "aud": "authenticated",
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        },
+        private_key,
+        algorithm="RS256",
+        headers={"kid": "newly-rotated-key"},
+    )
+
+    result = auth._verify_asymmetric_token(token, supabase_url)
+    assert result["sub"] == "user-rotated-key"
+

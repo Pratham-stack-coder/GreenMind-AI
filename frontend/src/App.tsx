@@ -66,10 +66,17 @@ function BackendConnectionGate() {
         return
       }
 
-      // Configuration problems need a deploy-time fix; retrying cannot repair them.
-      if (nextResult.auth_configured === false || nextResult.backend_url_trusted === false) break
+      // Configuration problems and auth rejections will not heal with waiting; retrying cannot repair them.
+      if (
+        nextResult.auth_configured === false ||
+        nextResult.backend_url_trusted === false ||
+        nextResult.is_auth_error === true
+      ) {
+        break
+      }
       if (currentAttempt < 3) {
-        await new Promise(resolve => window.setTimeout(resolve, 12_000))
+        const backoffMs = currentAttempt === 1 ? 4_000 : 7_000
+        await new Promise(resolve => window.setTimeout(resolve, backoffMs))
       }
     }
 
@@ -85,6 +92,13 @@ function BackendConnectionGate() {
 
   if (checking || !result?.connected) {
     const configurationIssue = result?.auth_configured === false || result?.backend_url_trusted === false
+    const isAuthIssue = result?.is_auth_error === true
+    const heading = checking
+      ? 'Connecting your workspace'
+      : isAuthIssue
+        ? 'Session Verification Failed'
+        : 'Could not connect to GreenMind'
+
     return (
       <main className="connection-shell">
         <section className="connection-card">
@@ -92,25 +106,34 @@ function BackendConnectionGate() {
             {checking ? <Activity size={24} /> : <AlertTriangle size={24} />}
           </div>
           <p className="auth-eyebrow">GREENMIND AI</p>
-          <h1>{checking ? 'Connecting your workspace' : 'Could not connect to GreenMind'}</h1>
+          <h1>{heading}</h1>
           <p className="connection-copy">
             {checking
-              ? 'Your sign in is ready. Waking the Render service and checking its secure API connection.'
+              ? 'Your sign in is ready. Checking secure connection to GreenMind backend…'
               : result?.error || 'The backend did not respond. Try again in a moment.'}
           </p>
-          {checking && <p className="connection-attempt">Connection check {attempt} of 3 · Render can take up to a minute to wake.</p>}
+          {checking && <p className="connection-attempt">Connection check {attempt} of 3 · Render free tier can take ~30-50s to wake from sleep.</p>}
           {!checking && configurationIssue && (
             <div className="auth-alert auth-alert-error" role="alert">
               Deploy the updated backend and set its Supabase Auth environment variables on Render. Your dashboard stays locked until the backend verifies sessions.
             </div>
           )}
+          {!checking && isAuthIssue && (
+            <div className="auth-alert auth-alert-error" role="alert">
+              Your authentication session could not be verified by the backend. Sign out and sign in again with your Google account to establish a fresh session.
+            </div>
+          )}
           <div className="connection-actions">
-            {!checking && (
+            {!checking && !isAuthIssue && (
               <button type="button" className="auth-submit-button" onClick={() => void connect()}>
                 <RefreshCw size={16} /> Retry connection
               </button>
             )}
-            <button type="button" className="auth-secondary-button" onClick={() => void signOut()}>
+            <button
+              type="button"
+              className={isAuthIssue ? 'auth-submit-button' : 'auth-secondary-button'}
+              onClick={() => void signOut()}
+            >
               <LogOut size={16} /> Sign out
             </button>
           </div>

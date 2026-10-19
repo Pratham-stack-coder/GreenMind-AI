@@ -180,6 +180,7 @@ export interface BackendHealthCheckResult {
   database?: string
   auth_configured?: boolean
   backend_url_trusted?: boolean
+  is_auth_error?: boolean
   error?: string
 }
 
@@ -227,40 +228,86 @@ export async function testBackendConnection(targetUrl?: string): Promise<Backend
 
     if (res.data?.status !== 'ok' || !authConfigured || !backendUrlTrusted) return healthResult
     if (!supabase) {
-      return { ...healthResult, error: 'Supabase browser authentication is not configured for this frontend.' }
+      return { ...healthResult, is_auth_error: true, error: 'Supabase browser authentication is not configured for this frontend.' }
     }
 
     const { data, error } = await supabase.auth.getSession()
-    if (error || !data.session?.access_token) {
-      return { ...healthResult, error: error?.message || 'Sign in again to validate your backend session.' }
+    let session = data?.session
+    if (error || !session?.access_token) {
+      return {
+        ...healthResult,
+        is_auth_error: true,
+        error: error?.message || 'Please sign in to access your GreenMind workspace.',
+      }
+    }
+
+    // Proactively refresh if the access token has expired or is expiring within 60s
+    if (session.expires_at && (session.expires_at * 1000 - Date.now() < 60_000)) {
+      try {
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+        if (!refreshError && refreshData.session?.access_token) {
+          session = refreshData.session
+        }
+      } catch {
+        // Fall back to current session
+      }
     }
 
     try {
       await axios.get(`${base}/auth/session`, {
-        timeout: 20000,
+        timeout: 25000,
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${data.session.access_token}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
       })
       return { ...healthResult, connected: true, error: undefined }
     } catch (authError: any) {
+      const status = authError?.response?.status
+      const detail = authError?.response?.data?.detail
+      let errorMessage = 'The backend could not verify this Supabase session.'
+      let isAuthError = false
+
+      if (status === 401) {
+        isAuthError = true
+        errorMessage = detail
+          ? `Authentication rejected (${detail}). Your session may have expired — please sign out and sign in again.`
+          : 'Authentication rejected: Invalid or expired access token. Please sign out and sign in again.'
+      } else if (status === 403) {
+        isAuthError = true
+        errorMessage = detail
+          ? `Access forbidden (${detail}). Your account is not authorized for this workspace.`
+          : 'Access forbidden: Your account does not have permission to access GreenMind.'
+      } else if (status && status >= 500) {
+        errorMessage = detail
+          ? `Backend server error (HTTP ${status}): ${detail}`
+          : `Backend server error (HTTP ${status}) while validating session. Please retry in a moment.`
+      } else if (authError?.code === 'ECONNABORTED' || authError?.message?.includes('timeout')) {
+        errorMessage = 'Session validation timed out. The backend instance may still be warming up.'
+      } else if (!authError?.response) {
+        errorMessage = 'Unable to complete session verification. The server connection dropped or was interrupted.'
+      } else {
+        errorMessage = detail || authError?.message || errorMessage
+      }
+
       return {
         ...healthResult,
-        error: authError?.response?.data?.detail || authError?.message || 'The backend could not verify this Supabase session.',
+        is_auth_error: isAuthError,
+        error: errorMessage,
       }
     }
   } catch (err: any) {
     const latencyMs = Date.now() - startTime
-    const message =
-      err?.code === 'ECONNABORTED' || err?.code === 'ETIMEDOUT'
-        ? 'Connection timed out. If your Render free instance is sleeping, it takes ~30-50 seconds to warm up. Please retry in a few moments.'
-        : err?.response?.data?.detail || err?.message || 'Failed to connect to backend server'
+    const isTimeout = err?.code === 'ECONNABORTED' || err?.code === 'ETIMEDOUT'
+    const message = isTimeout
+      ? 'Connection timed out. If your Render free instance is sleeping, it takes ~30-50 seconds to warm up. Please retry in a few moments.'
+      : err?.response?.data?.detail || (err?.message === 'Network Error' ? 'Could not reach the GreenMind backend service. The instance may be waking up or offline.' : err?.message || 'Failed to connect to backend server')
     return {
       connected: false,
       url: base,
       latencyMs,
       backend_url_trusted: isTrustedBackendUrl(rawUrl),
+      is_auth_error: false,
       error: message,
     }
   }
@@ -285,15 +332,26 @@ api.interceptors.request.use(async (config) => {
 
     const { data, error } = await supabase.auth.getSession()
     if (error) throw error
-    if (data.session?.access_token) {
+    let session = data.session
+    if (session?.access_token) {
+      if (session.expires_at && (session.expires_at * 1000 - Date.now() < 60_000)) {
+        try {
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+          if (!refreshError && refreshData.session?.access_token) {
+            session = refreshData.session
+          }
+        } catch {
+          // Proceed with current session
+        }
+      }
       config.headers = config.headers || {}
-      config.headers.Authorization = `Bearer ${data.session.access_token}`
+      config.headers.Authorization = `Bearer ${session.access_token}`
     }
   }
   return config
 })
 
-// Intercept HTML responses from SPA rewrites when backend is offline
+// Intercept HTML responses from SPA rewrites when backend is offline, and auto-refresh on 401
 api.interceptors.response.use(
   (response) => {
     if (typeof response.data === 'string' && (response.data.includes('<!doctype') || response.data.includes('<html'))) {
@@ -306,7 +364,22 @@ api.interceptors.response.use(
     }
     return response
   },
-  (error) => {
+  async (error) => {
+    const originalRequest = error?.config
+    if (error?.response?.status === 401 && originalRequest && !originalRequest._retry && supabase) {
+      originalRequest._retry = true
+      try {
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+        if (!refreshError && refreshData.session?.access_token) {
+          originalRequest.headers = originalRequest.headers || {}
+          originalRequest.headers.Authorization = `Bearer ${refreshData.session.access_token}`
+          return api(originalRequest)
+        }
+      } catch {
+        // Fall through to error dispatch
+      }
+    }
+
     const requestUrl = String(error?.config?.url || '')
     const handledBySettingsForm = /\/settings\/(test-connection|configure|disconnect)/.test(requestUrl)
     if (typeof window !== 'undefined' && !handledBySettingsForm) {

@@ -29,17 +29,32 @@ def get_current_user_id() -> str | None:
 @lru_cache(maxsize=8)
 def _jwks_client(jwks_url: str) -> PyJWKClient:
     # Supabase rotates asymmetric signing keys through this public JWKS endpoint.
-    return PyJWKClient(jwks_url, cache_jwk_set=True, lifespan=300, timeout=10)
+    return PyJWKClient(jwks_url, cache_jwk_set=True, lifespan=120, timeout=10)
+
+
+def _normalize_supabase_issuer(supabase_url: str) -> tuple[str, str]:
+    """Return (clean_base_url, issuer_url) handling inputs with or without trailing /auth/v1."""
+    clean = supabase_url.strip().rstrip("/")
+    if clean.endswith("/auth/v1"):
+        clean = clean[:-8].rstrip("/")
+    return clean, f"{clean}/auth/v1"
 
 
 def _verify_asymmetric_token(token: str, supabase_url: str) -> dict[str, Any]:
-    issuer = f"{supabase_url.rstrip('/')}/auth/v1"
-    client = _jwks_client(f"{issuer}/.well-known/jwks.json")
-    signing_key = client.get_signing_key_from_jwt(token)
+    _, issuer = _normalize_supabase_issuer(supabase_url)
+    jwks_url = f"{issuer}/.well-known/jwks.json"
+    client = _jwks_client(jwks_url)
+    try:
+        signing_key = client.get_signing_key_from_jwt(token)
+    except PyJWKClientError:
+        # Key may have been newly rotated or not in current cache; force refresh
+        fresh_client = PyJWKClient(jwks_url, cache_jwk_set=False, timeout=10)
+        signing_key = fresh_client.get_signing_key_from_jwt(token)
+
     header = jwt.get_unverified_header(token)
     algorithm = header.get("alg")
     if algorithm not in {"ES256", "RS256"}:
-        raise jwt.InvalidAlgorithmError("Unsupported Supabase signing algorithm")
+        raise jwt.InvalidAlgorithmError(f"Unsupported Supabase signing algorithm: {algorithm}")
 
     return jwt.decode(
         token,
@@ -66,10 +81,13 @@ async def _verify_legacy_hs256_token(
             ),
         )
 
+    clean_base, _ = _normalize_supabase_issuer(supabase_url)
+    user_endpoint = f"{clean_base}/auth/v1/user"
+
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.get(
-                f"{supabase_url.rstrip('/')}/auth/v1/user",
+                user_endpoint,
                 headers={
                     "apikey": publishable_key,
                     "Authorization": f"Bearer {token}",

@@ -30,7 +30,13 @@ export default function AuthPage() {
     setMessage(null)
     const { error: signInError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+        queryParams: {
+          prompt: 'select_account',
+          access_type: 'offline',
+        },
+      },
     })
     if (signInError) {
       setError(signInError.message)
@@ -158,22 +164,79 @@ export default function AuthPage() {
 
 export function AuthCallbackPage() {
   const { session, loading } = useAuth()
-  const query = new URLSearchParams(window.location.search)
-  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
-  const errorDescription =
-    query.get('error_description') ||
-    query.get('error') ||
-    hashParams.get('error_description') ||
-    hashParams.get('error')
+  const navigate = useNavigate()
+  const [exchangeError, setExchangeError] = useState<string | null>(null)
+  const [exchanging, setExchanging] = useState(true)
+
+  useEffect(() => {
+    if (session) {
+      navigate('/', { replace: true })
+      return
+    }
+
+    const query = new URLSearchParams(window.location.search)
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+    const errorDescription =
+      query.get('error_description') ||
+      query.get('error') ||
+      hashParams.get('error_description') ||
+      hashParams.get('error')
+
+    if (errorDescription) {
+      setExchangeError(decodeURIComponent(errorDescription.replace(/\+/g, ' ')))
+      setExchanging(false)
+      return
+    }
+
+    const code = query.get('code')
+    if (code && supabase) {
+      supabase.auth.exchangeCodeForSession(code).then(({ data, error }) => {
+        if (error) {
+          // If code was already exchanged by detectSessionInUrl, check if session is active
+          supabase?.auth.getSession().then(({ data: sessData }) => {
+            if (sessData.session) {
+              navigate('/', { replace: true })
+            } else {
+              setExchangeError(error.message)
+              setExchanging(false)
+            }
+          })
+        } else if (data.session) {
+          navigate('/', { replace: true })
+        }
+      }).catch((err: any) => {
+        setExchangeError(err?.message || 'Authentication exchange failed.')
+        setExchanging(false)
+      })
+      return
+    }
+
+    // Wait a brief period for detectSessionInUrl / onAuthStateChange if not using code query
+    const timer = window.setTimeout(async () => {
+      if (supabase) {
+        const { data } = await supabase.auth.getSession()
+        if (data.session) {
+          navigate('/', { replace: true })
+          return
+        }
+      }
+      if (!loading && !session) {
+        setExchangeError('The authentication session was not returned. Please try signing in again.')
+        setExchanging(false)
+      }
+    }, 1500)
+
+    return () => window.clearTimeout(timer)
+  }, [session, loading, navigate])
 
   if (session) return <Navigate to="/" replace />
 
   return (
     <main className="auth-loading" role="status">
-      {loading ? 'Finishing your sign in…' : (
+      {exchanging ? 'Finishing your sign in…' : (
         <div className="auth-callback-error">
           <h1>Sign in could not be completed</h1>
-          <p>{errorDescription ? decodeURIComponent(errorDescription.replace(/\+/g, ' ')) : 'The session was not returned. Please try again.'}</p>
+          <p>{exchangeError || 'The session was not returned. Please try again.'}</p>
           <a href="/login" className="auth-callback-link">Return to sign in</a>
         </div>
       )}
