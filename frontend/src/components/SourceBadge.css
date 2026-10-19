@@ -1,6 +1,6 @@
 /* =============================================================================
    SourceBadge — Data Truth Transparency System
-   Non-negotiable: every metric must display its data source label.
+   Analytics Metric Flow — Light-Only Design System
    ============================================================================= */
 
 /* Base badge */
@@ -51,44 +51,44 @@
 
 @keyframes source-badge-pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
-  50%       { opacity: 0.5; transform: scale(0.85); }
+  50%       { opacity: 0.6; transform: scale(0.9); }
 }
 
-/* Color themes per source type */
+/* Color themes per source type — strictly light palette */
 .source-badge--live {
-  background: rgba(34, 197, 94, 0.12);
-  color: #4ade80;
-  border: 1px solid rgba(34, 197, 94, 0.25);
+  background: #DCFCE7;
+  color: #14532D;
+  border: 1px solid rgba(20, 83, 45, 0.2);
 }
 
 .source-badge--demo {
-  background: rgba(99, 102, 241, 0.12);
-  color: #818cf8;
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: #F0FDF4;
+  color: #166534;
+  border: 1px solid rgba(22, 101, 52, 0.2);
 }
 
 .source-badge--estimated {
-  background: rgba(245, 158, 11, 0.12);
-  color: #fbbf24;
+  background: #FEF3C7;
+  color: #92400E;
   border: 1px solid rgba(245, 158, 11, 0.25);
 }
 
 .source-badge--simulated {
-  background: rgba(139, 92, 246, 0.12);
-  color: #a78bfa;
-  border: 1px solid rgba(139, 92, 246, 0.25);
+  background: #F3F4F6;
+  color: #374151;
+  border: 1px solid #E5E7EB;
 }
 
 .source-badge--unavailable {
-  background: rgba(107, 114, 128, 0.1);
-  color: #9ca3af;
-  border: 1px solid rgba(107, 114, 128, 0.2);
+  background: #F3F4F6;
+  color: #6B7280;
+  border: 1px solid #E5E7EB;
 }
 
 .source-badge--error {
-  background: rgba(239, 68, 68, 0.1);
-  color: #f87171;
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  background: #FEE2E2;
+  color: #991B1B;
+  border: 1px solid rgba(239, 68, 68, 0.25);
 }
 
 /* Source notes shown beneath unavailable/estimated metrics */
@@ -99,7 +99,7 @@
   font-size: 0.65rem;
   line-height: 1.4;
   margin: 4px 0 0;
-  opacity: 0.7;
+  opacity: 0.85;
 }
 
 .source-note__icon {
@@ -109,11 +109,11 @@
   margin-top: 1px;
 }
 
-.source-note--demo       { color: #818cf8; }
-.source-note--estimated  { color: #fbbf24; }
-.source-note--simulated  { color: #a78bfa; }
-.source-note--unavailable { color: #9ca3af; }
-.source-note--error      { color: #f87171; }
+.source-note--demo        { color: #166534; }
+.source-note--estimated   { color: #92400E; }
+.source-note--simulated   { color: #4B5563; }
+.source-note--unavailable { color: #6B7280; }
+.source-note--error       { color: #991B1B; }
 
 /* MetricWithSource container */
 .metric-with-source {
@@ -133,26 +133,26 @@
   font-size: 0.7rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.5);
-  font-weight: 500;
+  color: var(--text-secondary);
+  font-weight: 600;
 }
 
 .metric-with-source__value {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--text-primary);
   line-height: 1.1;
 }
 
 .metric-with-source__value--unavailable {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--text-muted);
   font-size: 1.1rem;
 }
 
 .metric-with-source__unit {
   font-size: 0.75rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--text-secondary);
   margin-left: 3px;
 }
 
@@ -162,11 +162,11 @@
   align-items: center;
   gap: 10px;
   padding: 8px 16px;
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: #F0FDF4;
+  border: 1px solid rgba(22, 163, 74, 0.25);
   border-radius: 8px;
   font-size: 0.75rem;
-  color: #a5b4fc;
+  color: #166534;
   margin-bottom: 16px;
 }
 
@@ -176,11 +176,12 @@
 }
 
 .demo-mode-banner__text strong {
-  color: #c7d2fe;
+  color: #14532D;
 }
 
 .demo-mode-banner__link {
-  color: #818cf8;
+  color: #15803D;
   text-decoration: underline;
   cursor: pointer;
+  font-weight: 600;
 }

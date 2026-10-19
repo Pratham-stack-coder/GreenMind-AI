@@ -13,7 +13,7 @@ const REGIONS = ['us-east', 'us-west', 'eu-west', 'ap-southeast', 'ca-central', 
 function DeltaCell({ value, suffix = '%', invert = false }: { value: number; suffix?: string; invert?: boolean }) {
   const positive = invert ? value < 0 : value > 0
   return (
-    <span style={{ color: positive ? 'var(--red-400)' : value < 0 ? 'var(--emerald-400)' : 'var(--text-muted)', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>
+    <span style={{ color: positive ? 'var(--red-600)' : value < 0 ? 'var(--emerald-600)' : 'var(--text-muted)', fontWeight: 700, fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>
       {value > 0 ? '+' : ''}{value.toFixed(1)}{suffix}
     </span>
   )
@@ -59,7 +59,7 @@ export default function DigitalTwinPage() {
           <h1>Digital Twin Simulator</h1>
           <p className="text-secondary text-sm mt-1">Simulate infrastructure changes and estimate impact before applying</p>
         </div>
-        <div className="badge badge-indigo">
+        <div className="badge badge-emerald">
           <GitFork size={12} />
           SIMULATION MODE
         </div>
@@ -146,7 +146,7 @@ export default function DigitalTwinPage() {
                   <h3 style={{ fontSize: 14, fontWeight: 700 }}>Simulation Results</h3>
                   <div className="flex gap-2">
                     <span className="badge badge-muted">ID: {result.simulation_id}</span>
-                    <span className="badge badge-indigo">Confidence: {(result.confidence * 100).toFixed(0)}%</span>
+                    <span className="badge badge-emerald">Confidence: {(result.confidence * 100).toFixed(0)}%</span>
                   </div>
                 </div>
 
@@ -171,13 +171,13 @@ export default function DigitalTwinPage() {
                 </div>
 
                 {/* Recommendation */}
-                <div className="card" style={{ padding: '14px 16px', borderColor: 'rgba(16,185,129,0.2)', background: 'rgba(16,185,129,0.05)' }}>
+                <div className="card" style={{ padding: '14px 16px', borderColor: '#BBF7D0', background: '#F0FDF4' }}>
                   <div className="text-xs text-emerald mb-1" style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>AI Recommendation</div>
                   <p className="text-sm" style={{ lineHeight: 1.6 }}>{result.recommendation}</p>
                 </div>
 
                 {result.warnings.length > 0 && (
-                  <div className="card mt-3" style={{ padding: '12px 14px', borderColor: 'rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.05)' }}>
+                  <div className="card mt-3" style={{ padding: '12px 14px', borderColor: '#FDE68A', background: '#FFFBEB' }}>
                     {result.warnings.map((w, i) => (
                       <div key={i} className="flex items-start gap-2 text-sm text-amber">
                         <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 2 }} />

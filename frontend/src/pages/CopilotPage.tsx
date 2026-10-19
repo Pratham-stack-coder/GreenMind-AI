@@ -147,12 +147,12 @@ export default function CopilotPage() {
             >
               <div style={{
                 width: 60, height: 60, borderRadius: '50%',
-                background: 'linear-gradient(135deg, rgba(16,185,129,0.2), rgba(99,102,241,0.2))',
-                border: '2px solid rgba(16,185,129,0.3)',
+                background: '#DCFCE7',
+                border: '1px solid rgba(20, 83, 45, 0.2)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 margin: '0 auto 16px',
               }}>
-                <Bot size={28} color="var(--emerald-400)" />
+                <Bot size={28} color="var(--emerald-700)" />
               </div>
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>
                 Hello! I'm GreenMind Copilot
@@ -210,11 +210,11 @@ export default function CopilotPage() {
                 <div className="flex items-center gap-2" style={{ flexDirection: msg.role === 'user' ? 'row-reverse' : 'row' }}>
                   <div style={{
                     width: 28, height: 28, borderRadius: '50%',
-                    background: msg.role === 'user' ? 'var(--indigo-500)' : 'rgba(16,185,129,0.15)',
-                    border: '1px solid ' + (msg.role === 'user' ? 'var(--indigo-600)' : 'rgba(16,185,129,0.3)'),
+                    background: msg.role === 'user' ? 'var(--emerald-600)' : '#DCFCE7',
+                    border: '1px solid ' + (msg.role === 'user' ? 'var(--emerald-700)' : 'rgba(20,83,45,0.2)'),
                     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                   }}>
-                    {msg.role === 'user' ? <User size={14} /> : <Bot size={14} color="var(--emerald-400)" />}
+                    {msg.role === 'user' ? <User size={14} color="#fff" /> : <Bot size={14} color="var(--emerald-700)" />}
                   </div>
                   <span className="text-xs text-muted">{msg.role === 'user' ? 'You' : 'GreenMind AI'}</span>
                 </div>
@@ -235,10 +235,10 @@ export default function CopilotPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
                 <div style={{
                   width: 28, height: 28, borderRadius: '50%',
-                  background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)',
+                  background: '#DCFCE7', border: '1px solid rgba(20,83,45,0.2)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
-                  <Bot size={14} color="var(--emerald-400)" />
+                  <Bot size={14} color="var(--emerald-700)" />
                 </div>
                 <span className="text-xs text-muted">GreenMind AI</span>
               </div>

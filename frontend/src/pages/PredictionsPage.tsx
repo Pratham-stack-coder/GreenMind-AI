@@ -188,7 +188,7 @@ export default function PredictionsPage() {
                 Shaded area shows ±{(((forecast.cpu as any)?.confidence_interval || 0.1) * 100).toFixed(0)}% confidence interval
               </p>
             </div>
-            <span className="badge badge-indigo">
+            <span className="badge badge-emerald">
               {((forecast.cpu as any)?.confidence * 100 || 95).toFixed(0)}% confidence
             </span>
           </div>
@@ -217,8 +217,8 @@ export default function PredictionsPage() {
                   <ComposedChart data={points}>
                     <defs>
                       <linearGradient id="bandGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0.05} />
+                        <stop offset="5%" stopColor="#16a34a" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#16a34a" stopOpacity={0.03} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -227,10 +227,10 @@ export default function PredictionsPage() {
                     <Tooltip content={<ChartTooltip />} />
                     {/* Confidence band */}
                     <Area type="monotone" dataKey="max" stroke="transparent" fill="url(#bandGrad)" legendType="none" name="Upper bound" />
-                    <Area type="monotone" dataKey="min" stroke="transparent" fill="var(--card-bg)" legendType="none" name="Lower bound" />
+                    <Area type="monotone" dataKey="min" stroke="transparent" fill="#FFFFFF" legendType="none" name="Lower bound" />
                     {/* Actual prediction line */}
-                    <Area type="monotone" dataKey="cpu" stroke="#10b981" fill="rgba(16,185,129,0.1)" strokeWidth={2.5} dot={false} name="CPU Forecast" />
-                    <ReferenceLine y={now} stroke="rgba(251,191,36,0.5)" strokeDasharray="4 3" label={{ value: 'current', fill: 'var(--amber-400)', fontSize: 9, position: 'insideTopRight' }} />
+                    <Area type="monotone" dataKey="cpu" stroke="#16a34a" fill="#DCFCE7" strokeWidth={2.5} dot={false} name="CPU Forecast" />
+                    <ReferenceLine y={now} stroke="rgba(217,119,6,0.6)" strokeDasharray="4 3" label={{ value: 'current', fill: 'var(--amber-600)', fontSize: 9, position: 'insideTopRight' }} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
@@ -263,8 +263,8 @@ export default function PredictionsPage() {
                 {curveData.map((entry: any, i: number) => (
                   <Cell
                     key={i}
-                    fill={entry.isCurrent ? '#f59e0b' : entry.intensity < 250 ? '#10b981' : entry.intensity < 400 ? '#3b82f6' : '#ef4444'}
-                    fillOpacity={entry.isCurrent ? 1 : 0.7}
+                    fill={entry.isCurrent ? '#d97706' : entry.intensity < 250 ? '#16a34a' : entry.intensity < 400 ? '#f59e0b' : '#ef4444'}
+                    fillOpacity={entry.isCurrent ? 1 : 0.8}
                   />
                 ))}
               </Bar>
@@ -272,10 +272,10 @@ export default function PredictionsPage() {
           </ResponsiveContainer>
         </div>
         <div className="flex gap-3 mt-2 flex-wrap" style={{ justifyContent: 'flex-end' }}>
-          <div className="flex items-center gap-1"><div style={{ width: 10, height: 10, borderRadius: 2, background: '#10b981' }} /><span className="text-xs text-muted">Clean (&lt;250)</span></div>
-          <div className="flex items-center gap-1"><div style={{ width: 10, height: 10, borderRadius: 2, background: '#3b82f6' }} /><span className="text-xs text-muted">Moderate</span></div>
+          <div className="flex items-center gap-1"><div style={{ width: 10, height: 10, borderRadius: 2, background: '#16a34a' }} /><span className="text-xs text-muted">Clean (&lt;250)</span></div>
+          <div className="flex items-center gap-1"><div style={{ width: 10, height: 10, borderRadius: 2, background: '#f59e0b' }} /><span className="text-xs text-muted">Moderate</span></div>
           <div className="flex items-center gap-1"><div style={{ width: 10, height: 10, borderRadius: 2, background: '#ef4444' }} /><span className="text-xs text-muted">High</span></div>
-          <div className="flex items-center gap-1"><div style={{ width: 10, height: 10, borderRadius: 2, background: '#f59e0b' }} /><span className="text-xs text-muted">Now</span></div>
+          <div className="flex items-center gap-1"><div style={{ width: 10, height: 10, borderRadius: 2, background: '#d97706' }} /><span className="text-xs text-muted">Now</span></div>
         </div>
       </div>
     </div>

@@ -155,7 +155,7 @@ export default function AnalyticsPage() {
           label="Sustainability Score"
           value={scores?.sustainability != null ? `${scores.sustainability}/100` : '–'}
           sub={`Region: ${region}`}
-          color="indigo"
+          color="emerald"
           icon={BarChart3}
         />
         <KpiCard
@@ -254,8 +254,8 @@ export default function AnalyticsPage() {
               {avgCarbon != null && (
                 <ReferenceLine yAxisId="left" y={parseFloat(avgCarbon.toFixed(2))} stroke="rgba(52,211,153,0.4)" strokeDasharray="6 3" />
               )}
-              <Line yAxisId="left" type="monotone" dataKey="carbon" name="gCO₂" stroke="#10b981" strokeWidth={2} dot={false} />
-              <Line yAxisId="right" type="monotone" dataKey="intensity" name="Intensity (gCO₂/kWh)" stroke="#818cf8" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
+              <Line yAxisId="left" type="monotone" dataKey="carbon" name="gCO₂" stroke="#16A34A" strokeWidth={2} dot={false} />
+              <Line yAxisId="right" type="monotone" dataKey="intensity" name="Intensity (gCO₂/kWh)" stroke="#6B7280" strokeWidth={1.5} dot={false} strokeDasharray="4 2" />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -265,7 +265,7 @@ export default function AnalyticsPage() {
       {costData?.breakdown_by_provider && (
         <div className="card">
           <div className="flex items-center gap-2 mb-3">
-            <BarChart3 size={16} color="var(--indigo-400)" />
+            <BarChart3 size={16} color="var(--emerald-600)" />
             <h3 style={{ fontSize: 14, fontWeight: 700 }}>Cost by Provider</h3>
           </div>
           <div className="flex gap-4 flex-wrap">

@@ -130,7 +130,7 @@ export default function TopBar() {
             title="Toggle navigation"
             aria-label="Toggle navigation"
           >
-            <Menu size={20} color="var(--emerald-400)" />
+            <Menu size={20} color="var(--emerald-600)" />
           </button>
 
           <div className="topbar-brand">
@@ -141,7 +141,7 @@ export default function TopBar() {
           </div>
 
           <span className="desktop-globe">
-            <Globe size={16} color="var(--emerald-400)" />
+            <Globe size={16} color="var(--emerald-600)" />
           </span>
         </div>
 

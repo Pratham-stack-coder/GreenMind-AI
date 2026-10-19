@@ -25,10 +25,10 @@ export default function AgentCard({ agent }: AgentCardProps) {
               border: '1px solid var(--border)',
             }}
           >
-            <Bot size={18} color="var(--emerald-400)" />
+            <Bot size={18} color="var(--emerald-600)" />
           </div>
           <div>
-            <h4 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>{agent.agent} Agent</h4>
+            <h4 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>{agent.agent} Agent</h4>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className="badge badge-emerald">
                 <CheckCircle2 size={10} />
@@ -42,7 +42,7 @@ export default function AgentCard({ agent }: AgentCardProps) {
         </div>
 
         <div className="text-right">
-          <div style={{ fontSize: 24, fontWeight: 800, color: isHealthy ? 'var(--emerald-400)' : 'var(--amber-400)' }}>
+          <div style={{ fontSize: 24, fontWeight: 800, color: isHealthy ? 'var(--emerald-600)' : 'var(--amber-600)' }}>
             {agent.score}
             <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>/100</span>
           </div>
@@ -60,7 +60,7 @@ export default function AgentCard({ agent }: AgentCardProps) {
         <div className="space-y-1">
           {agent.findings.map((f, i) => (
             <div key={i} className="flex items-start gap-2 text-xs text-secondary" style={{ lineHeight: 1.4 }}>
-              <span style={{ color: 'var(--emerald-400)', marginTop: 2 }}>•</span>
+              <span style={{ color: 'var(--emerald-600)', marginTop: 2 }}>•</span>
               <span>{f}</span>
             </div>
           ))}
@@ -76,7 +76,7 @@ export default function AgentCard({ agent }: AgentCardProps) {
           <div className="text-xs font-medium text-muted mb-1">Top Reconciled Action:</div>
           <div className="text-xs text-primary font-mono flex items-center justify-between">
             <span>{agent.recommendations[0].action}</span>
-            <span className="text-emerald-400 font-bold">
+            <span className="text-emerald font-bold">
               {agent.recommendations[0].estimated_monthly_savings_usd > 0 &&
                 `+$${agent.recommendations[0].estimated_monthly_savings_usd.toFixed(0)}/mo`}
             </span>

@@ -292,13 +292,13 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                 animate={{ opacity: 1, y: 0 }}
                 className="card"
                 style={{
-                  background: 'rgba(0, 0, 0, 0.5)',
-                  borderColor: applyResult.status === 'error' ? 'var(--red-500)' : applyResult.status === 'simulated' ? 'var(--emerald-400)' : 'var(--blue-400)',
+                  background: '#F9FAFB',
+                  borderColor: applyResult.status === 'error' ? 'var(--red-500)' : 'var(--emerald-600)',
                   padding: 14,
                 }}
               >
                 <div className="flex items-center gap-2 mb-2">
-                  <Terminal size={14} color={applyResult.status === 'error' ? 'var(--red-400)' : applyResult.status === 'simulated' ? 'var(--emerald-400)' : 'var(--blue-400)'} />
+                  <Terminal size={14} color={applyResult.status === 'error' ? 'var(--red-600)' : 'var(--emerald-600)'} />
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
                     {applyResult.status === 'error'
                       ? 'Action Failed'
@@ -307,7 +307,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                       : 'Dry-Run Preview Complete'}
                   </span>
                   <span
-                    className={`badge ${applyResult.status === 'error' ? 'badge-red' : applyResult.status === 'simulated' ? 'badge-emerald' : 'badge-blue'}`}
+                    className={`badge ${applyResult.status === 'error' ? 'badge-red' : applyResult.status === 'simulated' ? 'badge-emerald' : 'badge-muted'}`}
                     style={{ marginLeft: 'auto' }}
                   >
                     {applyResult.status}
@@ -319,10 +319,10 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                 {applyResult.baseline_score !== undefined && applyResult.projected_score !== undefined && (
                   <div
                     className="p-2.5 rounded mb-3 flex items-center justify-between flex-wrap gap-2"
-                    style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)' }}
+                    style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}
                   >
                     <div>
-                      <div className="text-xs font-semibold text-emerald-400">Projected Score Impact</div>
+                      <div className="text-xs font-semibold text-emerald">Projected Score Impact</div>
                       <div className="text-xs text-secondary">
                         Baseline: {applyResult.baseline_score}/100 → Projected: {applyResult.projected_score}/100
                       </div>
@@ -498,11 +498,11 @@ function RecCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       style={{
-        borderColor: isApplied ? 'rgba(16, 185, 129, 0.4)' : isSimulated ? 'rgba(99, 102, 241, 0.4)' : undefined,
+        borderColor: isApplied ? 'rgba(22, 163, 74, 0.4)' : isSimulated ? 'rgba(22, 163, 74, 0.4)' : undefined,
         background: isApplied
-          ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.06), rgba(15, 23, 42, 0.8))'
+          ? '#F0FDF4'
           : isSimulated
-          ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(15, 23, 42, 0.8))'
+          ? '#F0FDF4'
           : undefined,
       }}
     >
@@ -522,7 +522,7 @@ function RecCard({
             </span>
           )}
           {isSimulated && (
-            <span className="badge badge-blue" style={{ fontSize: 10, padding: '1px 6px' }}>
+            <span className="badge badge-emerald" style={{ fontSize: 10, padding: '1px 6px' }}>
               <Sparkles size={11} /> Simulated
             </span>
           )}
@@ -665,10 +665,10 @@ function RecCard({
                   Action:{' '}
                   <code
                     style={{
-                      background: 'rgba(255,255,255,0.06)',
+                      background: '#DCFCE7',
                       padding: '1px 6px',
                       borderRadius: 4,
-                      color: 'var(--emerald-400)',
+                      color: 'var(--emerald-700)',
                     }}
                   >
                     {rec.action}
@@ -804,7 +804,7 @@ export default function RecommendationsPage() {
             {openRecs.length} actionable optimizations available ·
             {openSavings > 0 && <span className="text-emerald"> ${openSavings.toFixed(0)}/month potential savings</span>}
             {simulatedRecs.length > 0 && (
-              <span className="text-blue-400"> · {simulatedRecs.length} simulated in twin</span>
+              <span className="text-emerald"> · {simulatedRecs.length} simulated in twin</span>
             )}
             {appliedRecs.length > 0 && (
               <span className="text-muted"> · {appliedRecs.length} recorded applied</span>
@@ -838,8 +838,8 @@ export default function RecommendationsPage() {
           animate={{ opacity: 1, y: 0 }}
           className="card card-accent-emerald mb-4"
           style={{
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(99, 102, 241, 0.05) 100%)',
-            borderColor: 'rgba(16, 185, 129, 0.35)',
+            background: '#F0FDF4',
+            borderColor: 'rgba(22, 163, 74, 0.3)',
             padding: '16px 20px',
           }}
         >
@@ -850,7 +850,7 @@ export default function RecommendationsPage() {
                   width: 36,
                   height: 36,
                   borderRadius: 8,
-                  background: 'var(--gradient-emerald)',
+                  background: 'var(--emerald-600)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',

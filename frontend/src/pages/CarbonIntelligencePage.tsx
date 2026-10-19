@@ -68,22 +68,22 @@ export default function CarbonIntelligencePage() {
       <div className="grid-4 mb-4">
         <div className="card card-accent-emerald">
           <div className="text-xs text-muted mb-1 font-semibold uppercase">Regional Green Score</div>
-          <div className="text-3xl font-black text-emerald-400">
+          <div className="text-3xl font-black text-emerald">
             {greenScore}
             <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>/100</span>
           </div>
-          <div className="text-xs text-emerald-500 mt-1">Grid sustainability rating</div>
+          <div className="text-xs text-emerald-700 mt-1">Grid sustainability rating</div>
         </div>
 
         <div className="card">
           <div className="text-xs text-muted mb-1 font-semibold uppercase">Clean Energy Hours</div>
-          <div className="text-3xl font-black text-emerald-400">{greenHoursPct}%</div>
+          <div className="text-3xl font-black text-emerald">{greenHoursPct}%</div>
           <div className="text-xs text-secondary mt-1">&lt; 250 gCO₂/kWh grid threshold</div>
         </div>
 
         <div className="card">
           <div className="text-xs text-muted mb-1 font-semibold uppercase">Optimal Scheduling Window</div>
-          <div className="text-3xl font-black text-blue-400">
+          <div className="text-3xl font-black text-emerald">
             {minHour.hour}:00 - {minHour.hour + 4}:00
           </div>
           <div className="text-xs text-secondary mt-1">Lowest carbon intensity ({minHour.carbon_intensity_gco2_per_kwh} gCO₂/kWh)</div>
@@ -91,7 +91,7 @@ export default function CarbonIntelligencePage() {
 
         <div className="card">
           <div className="text-xs text-muted mb-1 font-semibold uppercase">Weekly Carbon Footprint</div>
-          <div className="text-3xl font-black text-amber-400">
+          <div className="text-3xl font-black text-amber">
             {analyticsData?.total_gco2 ? (analyticsData.total_gco2 / 1000).toFixed(1) : '18.4'} kg
           </div>
           <div className="text-xs text-secondary mt-1">Scope 2 emissions equivalent</div>
@@ -102,7 +102,7 @@ export default function CarbonIntelligencePage() {
       <div className="card mb-4">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div className="flex items-center gap-2">
-            <Leaf size={16} color="var(--emerald-400)" />
+            <Leaf size={16} color="var(--emerald-600)" />
             <h3 style={{ fontSize: 15, fontWeight: 700 }}>24-Hour Carbon Intensity Curve ({region})</h3>
           </div>
           <span className="badge badge-emerald">
@@ -116,18 +116,18 @@ export default function CarbonIntelligencePage() {
             <AreaChart data={curve.map(c => ({ hour: `${c.hour}:00`, intensity: c.carbon_intensity_gco2_per_kwh }))}>
               <defs>
                 <linearGradient id="carbonGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                  <stop offset="5%" stopColor="#16a34a" stopOpacity={0.25} />
+                  <stop offset="95%" stopColor="#16a34a" stopOpacity={0.0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
               <XAxis dataKey="hour" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} />
               <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} domain={[0, 'auto']} />
               <Tooltip
-                contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }}
+                contentStyle={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }}
                 formatter={(val: any) => [`${val} gCO₂/kWh`, 'Grid Carbon Intensity']}
               />
-              <Area type="monotone" dataKey="intensity" stroke="#10b981" fill="url(#carbonGrad)" strokeWidth={2} />
+              <Area type="monotone" dataKey="intensity" stroke="#16a34a" fill="url(#carbonGrad)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
@@ -137,7 +137,7 @@ export default function CarbonIntelligencePage() {
       <div className="grid-2 mb-4">
         <div className="card">
           <div className="flex items-center gap-2 mb-3">
-            <Globe size={16} color="var(--blue-400)" />
+            <Globe size={16} color="var(--emerald-600)" />
             <h3 style={{ fontSize: 15, fontWeight: 700 }}>Cleanest Regional Grids</h3>
           </div>
           <div className="space-y-3">
@@ -158,7 +158,7 @@ export default function CarbonIntelligencePage() {
                   <div className="text-xs text-muted">{r.source}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-bold text-emerald-400">{r.score}/100</div>
+                  <div className="text-sm font-bold text-emerald">{r.score}/100</div>
                   <div className="text-xs text-secondary">{r.delta}</div>
                 </div>
               </div>
@@ -168,11 +168,11 @@ export default function CarbonIntelligencePage() {
 
         <div className="card">
           <div className="flex items-center gap-2 mb-3">
-            <Clock size={16} color="var(--emerald-400)" />
+            <Clock size={16} color="var(--emerald-600)" />
             <h3 style={{ fontSize: 15, fontWeight: 700 }}>Time-Shift Scheduling Policy</h3>
           </div>
-          <div className="p-3 rounded mb-3" style={{ background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.15)' }}>
-            <div className="text-sm font-bold text-emerald-400 mb-1">
+          <div className="p-3 rounded mb-3" style={{ background: '#F0FDF4', border: '1px solid rgba(22,163,74,0.2)' }}>
+            <div className="text-sm font-bold text-emerald mb-1">
               Active Recommendation: Shift Batch Jobs to 02:00 UTC
             </div>
             <p className="text-xs text-secondary" style={{ lineHeight: 1.5 }}>
@@ -182,15 +182,15 @@ export default function CarbonIntelligencePage() {
 
           <div className="space-y-2 text-xs text-secondary">
             <div className="flex items-center gap-2">
-              <CheckCircle2 size={13} color="var(--emerald-400)" />
+              <CheckCircle2 size={13} color="var(--emerald-600)" />
               <span>Kubernetes CronJobs scheduled with carbon-aware annotations</span>
             </div>
             <div className="flex items-center gap-2">
-              <CheckCircle2 size={13} color="var(--emerald-400)" />
+              <CheckCircle2 size={13} color="var(--emerald-600)" />
               <span>Electricity Maps integration for live marginal emission factors</span>
             </div>
             <div className="flex items-center gap-2">
-              <CheckCircle2 size={13} color="var(--emerald-400)" />
+              <CheckCircle2 size={13} color="var(--emerald-600)" />
               <span>Automated deferral buffers up to 8 hours for non-urgent tasks</span>
             </div>
           </div>

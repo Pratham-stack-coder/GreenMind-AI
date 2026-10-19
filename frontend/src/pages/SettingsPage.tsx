@@ -121,7 +121,7 @@ export default function SettingsPage() {
     }
     if (status === 'connected' && mode === 'DEMO') {
       return (
-        <span className="badge badge-blue flex items-center gap-1">
+        <span className="badge badge-muted flex items-center gap-1">
           <CheckCircle2 size={11} /> VERIFIED · DEMO MODE
         </span>
       )
@@ -149,7 +149,7 @@ export default function SettingsPage() {
     }
     if (mode === 'DEMO' || status === 'demo') {
       return (
-        <span className="badge badge-blue flex items-center gap-1">
+        <span className="badge badge-muted flex items-center gap-1">
           DEMO MODE
         </span>
       )
@@ -458,7 +458,7 @@ export default function SettingsPage() {
           <div className="flex items-center gap-3 flex-wrap">
             <h1 style={{ fontSize: 24, fontWeight: 800 }}>Multi-Cloud Settings & Security</h1>
             <span
-              className={`badge ${isDemo ? 'badge-blue' : 'badge-emerald'}`}
+              className={`badge ${isDemo ? 'badge-muted' : 'badge-emerald'}`}
               style={{ fontSize: 12, padding: '4px 10px' }}
             >
               {isDemo ? 'SYSTEM MODE: DEMO (Synthetic)' : 'SYSTEM MODE: LIVE TELEMETRY'}
@@ -483,16 +483,16 @@ export default function SettingsPage() {
       <div
         className="card mb-6"
         style={{
-          background: 'linear-gradient(135deg, rgba(16,185,129,0.08) 0%, rgba(10,18,30,0.85) 100%)',
-          borderColor: 'rgba(16,185,129,0.3)',
+          background: '#F0FDF4',
+          borderColor: 'rgba(22,163,74,0.3)',
           padding: '16px 20px',
         }}
       >
         <div className="flex items-start gap-3">
-          <Shield size={20} color="var(--emerald-400)" style={{ flexShrink: 0, marginTop: 2 }} />
+          <Shield size={20} color="var(--emerald-600)" style={{ flexShrink: 0, marginTop: 2 }} />
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--emerald-400)' }}>
+              <h4 style={{ fontSize: 14, fontWeight: 700, color: 'var(--emerald-700)' }}>
                 Safe Mode Policy & Zero-Secret-Leakage Guarantee
               </h4>
               <span className="badge badge-emerald" style={{ fontSize: 10 }}>READ-ONLY ENFORCED</span>
@@ -508,14 +508,14 @@ export default function SettingsPage() {
       </div>
 
       {/* ── Appearance — Theme Selector ───────────────────────────────────────── */}
-      <div className="card mb-6" style={{ borderColor: 'rgba(99,102,241,0.25)' }}>
+      <div className="card mb-6" style={{ borderColor: 'var(--border)' }}>
         <div className="flex items-center gap-2 mb-3">
-          <Monitor size={18} color="var(--indigo-400)" />
+          <Monitor size={18} color="var(--emerald-600)" />
           <h3 style={{ fontSize: 15, fontWeight: 700 }}>Appearance</h3>
-          <span className="badge badge-indigo" style={{ fontSize: 10, marginLeft: 4 }}>UI</span>
+          <span className="badge badge-emerald" style={{ fontSize: 10, marginLeft: 4 }}>UI</span>
         </div>
         <p className="text-sm text-secondary mb-1">
-          Choose between Dark, Light, or System theme. Your preference is saved locally.
+          Analytics Metric Flow light theme is enforced across all dashboards and reports.
         </p>
         <ThemeSelector />
       </div>
@@ -523,10 +523,10 @@ export default function SettingsPage() {
       <div className="flex-col gap-6" style={{ maxWidth: 880 }}>
 
         {/* ── Render Backend & Deployment Connection ─────────────────────────── */}
-        <div className="card" style={{ borderColor: 'rgba(56, 189, 248, 0.35)', background: 'linear-gradient(180deg, rgba(14, 165, 233, 0.04) 0%, rgba(15, 23, 42, 0.4) 100%)' }}>
+        <div className="card" style={{ borderColor: 'var(--border)', background: '#FFFFFF' }}>
           <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <Server size={18} color="var(--sky-400, #38bdf8)" />
+              <Server size={18} color="var(--emerald-600)" />
               <h3 style={{ fontSize: 16, fontWeight: 700 }}>FastAPI Backend Connection (Render.com)</h3>
             </div>
             {backendTestResult ? (
@@ -544,7 +544,7 @@ export default function SettingsPage() {
                 <CheckCircle2 size={11} /> ACTIVE ({getActiveBackendUrl() ? 'RENDER' : 'LOCAL'})
               </span>
             ) : (
-              <span className="badge badge-blue flex items-center gap-1">
+              <span className="badge badge-muted flex items-center gap-1">
                 DEMO FALLBACK
               </span>
             )}
@@ -559,8 +559,8 @@ export default function SettingsPage() {
             style={{
               padding: '10px 14px',
               borderRadius: 8,
-              background: 'rgba(0, 0, 0, 0.3)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              background: 'var(--bg-deep)',
+              border: '1px solid var(--border)',
               marginBottom: 16,
               fontSize: 12,
             }}
@@ -568,7 +568,7 @@ export default function SettingsPage() {
           >
             <div>
               <span className="text-muted" style={{ fontWeight: 600, marginRight: 8 }}>EFFECTIVE API ENDPOINT:</span>
-              <code style={{ color: 'var(--sky-400, #38bdf8)', background: 'transparent', padding: 0 }}>
+              <code style={{ color: 'var(--emerald-700)', background: 'transparent', padding: 0 }}>
                 {normalizeApiBaseUrl(getActiveBackendUrl())}
               </code>
             </div>
@@ -637,7 +637,7 @@ export default function SettingsPage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                   className="p-3 rounded text-xs flex items-center gap-2"
-                  style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399' }}
+                  style={{ background: '#DCFCE7', border: '1px solid rgba(22,163,74,0.3)', color: '#14532D' }}
                 >
                   <CheckCircle2 size={14} style={{ flexShrink: 0 }} />
                   <span>{backendSuccessMsg}</span>
@@ -649,13 +649,13 @@ export default function SettingsPage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0 }}
                   className="p-3 rounded text-xs flex items-start gap-2"
-                  style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}
+                  style={{ background: '#FEE2E2', border: '1px solid rgba(239,68,68,0.25)', color: '#991B1B' }}
                 >
                   <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
                   <div>
                     <div style={{ fontWeight: 600 }}>Backend Connection Failed</div>
                     <div className="mt-1 leading-relaxed">{backendTestResult.error}</div>
-                    <div className="mt-2 text-muted" style={{ color: '#fca5a5' }}>
+                    <div className="mt-2 text-muted" style={{ color: '#991B1B' }}>
                       💡 <strong>Render Cold Starts:</strong> Render free-tier services spin down after 15 minutes of inactivity and take 30–50 seconds to boot up on the first request. Click <em>Test Connection</em> again in ~20 seconds.
                     </div>
                   </div>
@@ -669,21 +669,21 @@ export default function SettingsPage() {
                 marginTop: 8,
                 padding: '12px 14px',
                 borderRadius: 6,
-                background: 'rgba(255, 255, 255, 0.02)',
-                border: '1px solid rgba(255, 255, 255, 0.06)',
+                background: '#F9FAFB',
+                border: '1px solid var(--border)',
                 fontSize: 12,
               }}
             >
               <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 }} className="flex items-center gap-1.5">
-                <Globe size={13} color="var(--sky-400, #38bdf8)" />
+                <Globe size={13} color="var(--emerald-600)" />
                 <span>How Render.com ↔ Vercel.com Communication Works</span>
               </div>
               <ul className="text-muted leading-relaxed" style={{ paddingLeft: 18, listStyleType: 'disc', margin: 0 }}>
                 <li>
-                  <strong>On Vercel (Frontend):</strong> In your Vercel Project Settings &rarr; <em>Environment Variables</em>, add <code style={{ color: '#e2e8f0' }}>VITE_API_BASE_URL=https://your-app.onrender.com</code>, then trigger a redeploy.
+                  <strong>On Vercel (Frontend):</strong> In your Vercel Project Settings &rarr; <em>Environment Variables</em>, add <code style={{ color: 'var(--emerald-700)', background: '#DCFCE7', padding: '1px 5px', borderRadius: 4 }}>VITE_API_BASE_URL=https://your-app.onrender.com</code>, then trigger a redeploy.
                 </li>
                 <li>
-                  <strong>On Render (Backend):</strong> The backend allows only its listed local and production origins plus exact origins in <code style={{ color: '#e2e8f0' }}>CORS_ORIGINS</code>. Add your Vercel production URL, preview URL, or custom domain there explicitly.
+                  <strong>On Render (Backend):</strong> The backend allows only its listed local and production origins plus exact origins in <code style={{ color: 'var(--emerald-700)', background: '#DCFCE7', padding: '1px 5px', borderRadius: 4 }}>CORS_ORIGINS</code>. Add your Vercel production URL, preview URL, or custom domain there explicitly.
                 </li>
                 <li>
                   <strong>Switching the deployed backend:</strong> Entering a URL here checks its health only. To route authenticated requests to a different backend, set <code>VITE_API_BASE_URL</code> in Vercel and redeploy.
@@ -824,14 +824,15 @@ export default function SettingsPage() {
                 className="card mt-2"
                 style={{
                   padding: '10px 14px',
-                  borderColor: testResults.aws.status === 'connected' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)',
-                  background: testResults.aws.status === 'connected' ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)'
+                  borderColor: testResults.aws.status === 'connected' ? 'rgba(22,163,74,0.3)' : 'rgba(239,68,68,0.3)',
+                  background: testResults.aws.status === 'connected' ? '#DCFCE7' : '#FEE2E2',
+                  color: testResults.aws.status === 'connected' ? '#14532D' : '#991B1B'
                 }}
               >
                 <div className="text-xs">
                   <strong>Result:</strong> {testResults.aws.message}
                   {testResults.aws.caller_arn && (
-                    <div className="text-muted mt-1 font-mono">Caller: {testResults.aws.caller_arn}</div>
+                    <div className="mt-1 font-mono" style={{ opacity: 0.85 }}>Caller: {testResults.aws.caller_arn}</div>
                   )}
                 </div>
               </div>
@@ -961,8 +962,9 @@ export default function SettingsPage() {
                 className="card mt-2"
                 style={{
                   padding: '10px 14px',
-                  borderColor: testResults.azure.status === 'connected' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)',
-                  background: testResults.azure.status === 'connected' ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)'
+                  borderColor: testResults.azure.status === 'connected' ? 'rgba(22,163,74,0.3)' : 'rgba(239,68,68,0.3)',
+                  background: testResults.azure.status === 'connected' ? '#DCFCE7' : '#FEE2E2',
+                  color: testResults.azure.status === 'connected' ? '#14532D' : '#991B1B'
                 }}
               >
                 <div className="text-xs">
@@ -1068,8 +1070,9 @@ export default function SettingsPage() {
                 className="card mt-2"
                 style={{
                   padding: '10px 14px',
-                  borderColor: testResults.gcp.status === 'connected' ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)',
-                  background: testResults.gcp.status === 'connected' ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)'
+                  borderColor: testResults.gcp.status === 'connected' ? 'rgba(22,163,74,0.3)' : 'rgba(239,68,68,0.3)',
+                  background: testResults.gcp.status === 'connected' ? '#DCFCE7' : '#FEE2E2',
+                  color: testResults.gcp.status === 'connected' ? '#14532D' : '#991B1B'
                 }}
               >
                 <div className="text-xs">
@@ -1088,11 +1091,11 @@ export default function SettingsPage() {
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Brain size={18} color="var(--emerald-400)" />
+              <Brain size={18} color="var(--emerald-600)" />
               <h3 style={{ fontSize: 16, fontWeight: 700 }}>AI Copilot Language Models</h3>
             </div>
             <span
-              className={`badge ${statusData?.llm?.openai_configured || statusData?.llm?.gemini_configured ? 'badge-emerald' : 'badge-blue'}`}
+              className={`badge ${statusData?.llm?.openai_configured || statusData?.llm?.gemini_configured ? 'badge-emerald' : 'badge-muted'}`}
             >
               {statusData?.llm?.gemini_configured ? 'GEMINI KEY SAVED · UNVERIFIED' : statusData?.llm?.openai_configured ? 'OPENAI KEY SAVED · UNVERIFIED' : 'DETERMINISTIC FALLBACK'}
             </span>

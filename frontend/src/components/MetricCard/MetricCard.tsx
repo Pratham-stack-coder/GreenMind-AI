@@ -56,12 +56,12 @@ export default function MetricCard({
   const deltaLabel = delta == null ? '' : `${delta > 0 ? '+' : ''}${delta.toFixed(1)}%`
 
   const colorMap = {
-    emerald: 'var(--emerald-400)',
-    blue: 'var(--blue-400)',
-    indigo: 'var(--indigo-400)',
-    amber: 'var(--amber-400)',
-    purple: '#a855f7',
-    red: 'var(--red-400)',
+    emerald: 'var(--emerald-600)',
+    blue: 'var(--emerald-600)',
+    indigo: 'var(--emerald-600)',
+    amber: 'var(--amber-600)',
+    purple: 'var(--emerald-600)',
+    red: 'var(--red-600)',
   }
 
   return (

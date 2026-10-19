@@ -46,7 +46,7 @@ export default function CloudResourcesPage() {
     : providerMode === 'LIVE'
       ? 'badge badge-emerald'
       : providerMode === 'DEMO'
-        ? 'badge badge-blue'
+        ? 'badge badge-muted'
         : 'badge badge-muted'
 
   return (
@@ -82,13 +82,13 @@ export default function CloudResourcesPage() {
 
         <div className="card">
           <div className="text-xs text-muted mb-1 font-semibold uppercase">Right-Size Candidates</div>
-          <div className="text-2xl font-black text-amber-400">{isLoading ? '…' : isError ? '—' : rightSizeCount}</div>
+          <div className="text-2xl font-black text-amber">{isLoading ? '…' : isError ? '—' : rightSizeCount}</div>
           <div className="text-xs text-secondary mt-1">Sustained CPU &lt; 25%</div>
         </div>
 
         <div className="card">
           <div className="text-xs text-muted mb-1 font-semibold uppercase">Average Resource Load</div>
-          <div className="text-2xl font-black text-emerald-400">
+          <div className="text-2xl font-black text-emerald">
             {isLoading
               ? '…'
               : isError
@@ -102,7 +102,7 @@ export default function CloudResourcesPage() {
 
         <div className="card">
           <div className="text-xs text-muted mb-1 font-semibold uppercase">Total Hourly Burn</div>
-          <div className="text-2xl font-black text-indigo-400">
+          <div className="text-2xl font-black text-primary">
             {isLoading ? '…' : isError ? '—' : `$${resources.reduce((acc, r) => acc + r.cost_per_hour, 0).toFixed(3)}/hr`}
           </div>
           <div className="text-xs text-secondary mt-1">Compute & storage compute run-rate</div>
@@ -193,11 +193,11 @@ export default function CloudResourcesPage() {
                   <tr
                     key={r.id}
                     style={{ borderBottom: '1px solid var(--border)' }}
-                    className="hover:bg-white/5 transition-colors"
+                    className="hover:bg-slate-50 transition-colors"
                   >
                     <td style={{ padding: '12px 16px' }}>
                       <div className="flex items-center gap-2">
-                        <Server size={14} color="var(--emerald-400)" />
+                        <Server size={14} color="var(--emerald-600)" />
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</div>
                           <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
@@ -217,12 +217,12 @@ export default function CloudResourcesPage() {
                     </td>
                     <td style={{ padding: '12px 16px' }}>
                       <div className="flex items-center gap-2">
-                        <div style={{ width: 50, height: 6, background: 'var(--border-strong)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ width: 50, height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden' }}>
                           <div
                             style={{
                               width: `${Math.min(100, r.cpu_utilization)}%`,
                               height: '100%',
-                              background: r.cpu_utilization > 75 ? 'var(--red-400)' : r.cpu_utilization < 25 ? 'var(--amber-400)' : 'var(--emerald-400)',
+                              background: r.cpu_utilization > 75 ? 'var(--red-600)' : r.cpu_utilization < 25 ? 'var(--amber-600)' : 'var(--emerald-600)',
                             }}
                           />
                         </div>

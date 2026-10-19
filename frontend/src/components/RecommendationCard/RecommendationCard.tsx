@@ -29,7 +29,7 @@ export default function RecommendationCard({
   const priorityColor = {
     critical: 'badge-red',
     high: 'badge-amber',
-    medium: 'badge-blue',
+    medium: 'badge-emerald',
     low: 'badge-muted',
   }[rec.priority] || 'badge-muted'
 
@@ -50,10 +50,10 @@ export default function RecommendationCard({
               border: '1px solid var(--border)',
             }}
           >
-            <Icon size={16} color="var(--emerald-400)" />
+            <Icon size={16} color="var(--emerald-600)" />
           </div>
           <div>
-            <h4 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>{rec.title}</h4>
+            <h4 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>{rec.title}</h4>
             <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className={`badge ${priorityColor}`}>
                 {rec.priority.toUpperCase()}
@@ -102,19 +102,19 @@ export default function RecommendationCard({
       <div
         className="flex items-center justify-between p-2 rounded"
         style={{
-          background: 'rgba(16, 185, 129, 0.04)',
-          border: '1px solid rgba(16, 185, 129, 0.12)',
+          background: '#F0FDF4',
+          border: '1px solid rgba(22, 163, 74, 0.2)',
         }}
       >
         <div className="flex items-center gap-4 text-xs">
           {rec.estimated_monthly_savings_usd > 0 && (
-            <div className="flex items-center gap-1 text-emerald-400 font-semibold">
+            <div className="flex items-center gap-1 text-emerald font-semibold">
               <DollarSign size={13} />
               <span>${rec.estimated_monthly_savings_usd.toFixed(0)}/mo savings</span>
             </div>
           )}
           {rec.estimated_carbon_reduction_pct > 0 && (
-            <div className="flex items-center gap-1 text-emerald-400 font-semibold">
+            <div className="flex items-center gap-1 text-emerald font-semibold">
               <Leaf size={13} />
               <span>-{rec.estimated_carbon_reduction_pct.toFixed(0)}% CO₂</span>
             </div>
@@ -124,7 +124,7 @@ export default function RecommendationCard({
           </div>
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-          Action: <code style={{ color: 'var(--emerald-300)' }}>{rec.action}</code>
+          Action: <code style={{ color: 'var(--emerald-700)', background: '#DCFCE7', padding: '1px 5px', borderRadius: 4 }}>{rec.action}</code>
         </div>
       </div>
     </motion.div>

@@ -7,8 +7,8 @@ import { runAgents, fetchAgentStatus } from '../api/client'
 import type { AgentRunResponse, AgentResult, AgentExecutionStep, ConflictResolutionItem } from '../types'
 
 const agentColors: Record<string, string> = {
-  CostAgent: 'amber', PerformanceAgent: 'blue', SustainabilityAgent: 'emerald',
-  SecurityAgent: 'red', ReliabilityAgent: 'indigo',
+  CostAgent: 'amber', PerformanceAgent: 'emerald', SustainabilityAgent: 'emerald',
+  SecurityAgent: 'red', ReliabilityAgent: 'muted',
 }
 
 const AGENT_ORDER = ['CostAgent', 'PerformanceAgent', 'SustainabilityAgent', 'SecurityAgent', 'ReliabilityAgent']
@@ -16,7 +16,7 @@ const AGENT_ORDER = ['CostAgent', 'PerformanceAgent', 'SustainabilityAgent', 'Se
 function AgentCard({ agent }: { agent: AgentResult }) {
   const [expanded, setExpanded] = useState(false)
   const color = agentColors[agent.agent] || 'muted'
-  const prioColors: Record<string, string> = { critical: 'red', high: 'amber', medium: 'blue', low: 'muted' }
+  const prioColors: Record<string, string> = { critical: 'red', high: 'amber', medium: 'emerald', low: 'muted' }
 
   return (
     <motion.div className={`card`} layout initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
@@ -41,7 +41,7 @@ function AgentCard({ agent }: { agent: AgentResult }) {
         <div className="agent-card-score-area">
           <div style={{ textAlign: 'right' }}>
             <div className="text-xs text-muted">Domain Score</div>
-            <div style={{ fontWeight: 800, fontSize: 20, color: agent.score >= 70 ? 'var(--emerald-400)' : agent.score >= 50 ? 'var(--amber-400)' : 'var(--red-400)' }}>
+            <div style={{ fontWeight: 800, fontSize: 20, color: agent.score >= 70 ? 'var(--emerald-600)' : agent.score >= 50 ? 'var(--amber-600)' : 'var(--red-600)' }}>
               {agent.score}
             </div>
           </div>
@@ -114,16 +114,16 @@ function AgentTimeline({ isPending, doneAgents }: { isPending: boolean, doneAgen
                     width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     background: isDone
-                      ? 'var(--emerald-500)'
+                      ? 'var(--emerald-600)'
                       : isRunning
-                        ? 'rgba(99,102,241,0.3)'
+                        ? '#DCFCE7'
                         : 'var(--bg-active)',
-                    border: `2px solid ${isDone ? 'var(--emerald-500)' : isRunning ? 'var(--indigo-400)' : 'var(--border)'}`,
+                    border: `2px solid ${isDone ? 'var(--emerald-600)' : isRunning ? 'var(--emerald-600)' : 'var(--border)'}`,
                     transition: 'all 0.4s ease',
                   }}
                 >
                   {isDone && <CheckCircle size={11} color="#fff" />}
-                  {isRunning && <Loader2 size={11} color="var(--indigo-400)" className="animate-spin" />}
+                  {isRunning && <Loader2 size={11} color="var(--emerald-600)" className="animate-spin" />}
                   {isPendingStep && <Circle size={8} color="var(--text-muted)" />}
                 </motion.div>
                 {idx < AGENT_ORDER.length - 1 && (
@@ -188,7 +188,7 @@ function ExecutionTraceSection({ trace }: { trace: AgentExecutionStep[] }) {
         <div className="text-xs text-muted" style={{ fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           LangGraph Execution Trace ({trace.length} Nodes)
         </div>
-        <span className="badge badge-indigo">
+        <span className="badge badge-emerald">
           Total Duration: {trace.reduce((acc, s) => acc + s.execution_ms, 0).toFixed(1)}ms
         </span>
       </div>
@@ -233,11 +233,11 @@ function ExecutionTraceSection({ trace }: { trace: AgentExecutionStep[] }) {
                   <div className="text-xs text-muted mb-2" style={{ fontWeight: 700 }}>Node Thought Log & Inputs:</div>
                   {step.thoughts.map((th, i) => (
                     <div key={i} className="text-xs text-secondary mb-1 flex items-center gap-2">
-                      <span style={{ color: 'var(--indigo-400)' }}>›</span> {th}
+                      <span style={{ color: 'var(--emerald-600)' }}>›</span> {th}
                     </div>
                   ))}
                   {step.inputs_evaluated && Object.keys(step.inputs_evaluated).length > 0 && (
-                    <div className="mt-2 text-xs text-muted" style={{ fontFamily: 'monospace', background: 'rgba(0,0,0,0.2)', padding: '6px 10px', borderRadius: 4 }}>
+                    <div className="mt-2 text-xs text-secondary" style={{ fontFamily: 'monospace', background: 'var(--bg-hover)', padding: '6px 10px', borderRadius: 4, border: '1px solid var(--border)' }}>
                       Evaluated: {JSON.stringify(step.inputs_evaluated)}
                     </div>
                   )}
@@ -354,7 +354,7 @@ export default function AgentsPage() {
             <div className="text-secondary" style={{ fontSize: 18, display: 'flex', alignItems: 'center', padding: '0 4px' }}>→</div>
             <div className="badge badge-emerald">Orchestrator</div>
             <div className="text-secondary" style={{ fontSize: 18, display: 'flex', alignItems: 'center', padding: '0 4px' }}>→</div>
-            <div className="badge badge-indigo">Unified Plan</div>
+            <div className="badge badge-emerald">Unified Plan</div>
           </div>
         </div>
       )}

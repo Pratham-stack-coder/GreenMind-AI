@@ -101,7 +101,7 @@ export default function Sidebar() {
               <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.2, color: 'var(--text-primary)', paddingLeft: 10 }}>
                 GreenMind
               </div>
-              <div style={{ fontSize: 10, color: 'var(--emerald-400)', fontWeight: 600, letterSpacing: '0.05em', paddingLeft: 10 }}>
+              <div style={{ fontSize: 10, color: 'var(--emerald-600)', fontWeight: 700, letterSpacing: '0.05em', paddingLeft: 10 }}>
                 AI CLOUD OS
               </div>
             </div>
@@ -124,7 +124,7 @@ export default function Sidebar() {
         {!isRail && (
           <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--border)' }}>
             <div className="flex items-center gap-2">
-              <span className="status-dot online animate-pulse-glow" />
+              <span className="status-dot online" />
               <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 500 }}>
                 Demo Mode • 6 Regions
               </span>
@@ -167,10 +167,10 @@ export default function Sidebar() {
         {/* Bottom card */}
         {!isRail && (
           <div style={{ padding: 16, borderTop: '1px solid var(--border)' }}>
-            <div className="card" style={{ padding: '12px 14px', borderColor: 'rgba(16,185,129,0.2)', background: 'rgba(16,185,129,0.05)' }}>
+            <div className="card" style={{ padding: '12px 14px', borderColor: 'var(--border)', background: '#FFFFFF' }}>
               <div className="flex items-center gap-2 mb-2">
-                <Zap size={14} color="var(--emerald-400)" />
-                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--emerald-400)' }}>5 ML MODELS</span>
+                <Zap size={14} color="var(--emerald-600)" />
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--emerald-600)' }}>5 ML MODELS</span>
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                 CPU · Memory · Network<br />Cost · Carbon

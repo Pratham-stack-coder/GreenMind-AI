@@ -161,7 +161,7 @@ export default function CostOptimizationPage() {
             <div className="skeleton" style={{ height: 32, width: 120, margin: '4px 0' }} />
           ) : detectedIdleBurn > 0 ? (
             <>
-              <div className="text-2xl font-black text-red-400">${detectedIdleBurn.toFixed(0)}/mo</div>
+              <div className="text-2xl font-black text-red">${detectedIdleBurn.toFixed(0)}/mo</div>
               <div className="text-xs text-secondary mt-1">
                 {idleRecs.length} idle/unattached resource(s) detected
               </div>
@@ -182,7 +182,7 @@ export default function CostOptimizationPage() {
             <div className="text-xs text-muted font-semibold uppercase">Commitment Coverage</div>
             <span className="badge badge-amber" style={{ fontSize: 9, padding: '1px 5px' }}>Demo Benchmark</span>
           </div>
-          <div className="text-2xl font-black text-blue-400">42%</div>
+          <div className="text-2xl font-black text-emerald">42%</div>
           <div className="text-xs text-secondary mt-1">
             Industry benchmark: &gt;75% (Live RI API not connected)
           </div>
@@ -193,7 +193,7 @@ export default function CostOptimizationPage() {
       <div className="card mb-4">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div className="flex items-center gap-2">
-            <DollarSign size={16} color="var(--amber-400)" />
+            <DollarSign size={16} color="var(--amber-600)" />
             <h3 style={{ fontSize: 15, fontWeight: 700 }}>Cloud Cost Spend Curve ({days}d Period)</h3>
           </div>
           <div className="text-xs text-muted">
@@ -205,7 +205,7 @@ export default function CostOptimizationPage() {
           <div className="skeleton" style={{ height: 220, borderRadius: 8 }} />
         ) : costError ? (
           <div style={{ height: 220, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-            <AlertTriangle size={24} color="var(--red-400)" className="mb-2" />
+            <AlertTriangle size={24} color="var(--red-600)" className="mb-2" />
             <div className="text-sm text-secondary">Unable to load telemetry cost trend.</div>
             <button className="btn btn-secondary btn-sm mt-2" onClick={() => refetchCost()}>Retry</button>
           </div>
@@ -219,18 +219,18 @@ export default function CostOptimizationPage() {
               <AreaChart data={chartPoints}>
                 <defs>
                   <linearGradient id="costGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0} />
+                    <stop offset="5%" stopColor="#d97706" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#d97706" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="time" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} />
                 <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} domain={['auto', 'auto']} />
                 <Tooltip
-                  contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }}
+                  contentStyle={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }}
                   formatter={(val: any) => [`$${Number(val).toFixed(4)}/hr`, 'Spend Rate']}
                 />
-                <Area type="monotone" dataKey="cost" stroke="#f59e0b" fill="url(#costGrad)" strokeWidth={2} />
+                <Area type="monotone" dataKey="cost" stroke="#d97706" fill="url(#costGrad)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -241,7 +241,7 @@ export default function CostOptimizationPage() {
       <div className="card mb-4 card-accent-emerald">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div className="flex items-center gap-2">
-            <Sparkles size={16} color="var(--emerald-400)" />
+            <Sparkles size={16} color="var(--emerald-600)" />
             <h3 style={{ fontSize: 15, fontWeight: 700 }}>Instant Scenario Simulation (Digital Twin)</h3>
           </div>
           <span className="badge badge-emerald">SIMULATED / NON-DESTRUCTIVE</span>
@@ -268,8 +268,8 @@ export default function CostOptimizationPage() {
         </div>
 
         {simError && (
-          <div className="card mb-3 p-3" style={{ background: 'rgba(239, 68, 68, 0.05)', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
-            <div className="text-xs text-red-400 flex items-center gap-2">
+          <div className="card mb-3 p-3" style={{ background: '#FEE2E2', borderColor: 'rgba(239, 68, 68, 0.25)' }}>
+            <div className="text-xs text-red flex items-center gap-2" style={{ color: '#991B1B' }}>
               <AlertTriangle size={14} />
               Simulation warning: {simError}
             </div>
@@ -288,17 +288,17 @@ export default function CostOptimizationPage() {
               </div>
               <div>
                 <div className="text-xs text-muted">Projected Spend After</div>
-                <div className="text-lg font-bold text-emerald-400">${simResult.after?.cost?.toFixed(0) ?? '0'}/mo</div>
+                <div className="text-lg font-bold text-emerald">${simResult.after?.cost?.toFixed(0) ?? '0'}/mo</div>
                 <div className="text-xs text-secondary">
                   CPU: {simResult.after?.cpu ?? 0}% · Headroom OK
                 </div>
               </div>
               <div>
                 <div className="text-xs text-muted">Projected Monthly Savings</div>
-                <div className="text-lg font-black text-emerald-400">
+                <div className="text-lg font-black text-emerald">
                   +${simResult.estimated_saving?.toFixed(0) ?? '0'}/mo
                 </div>
-                <div className="text-xs text-emerald-500">Risk Assessment: {simResult.risk}</div>
+                <div className="text-xs text-emerald" style={{ fontWeight: 600 }}>Risk Assessment: {simResult.risk}</div>
               </div>
             </div>
 
@@ -306,10 +306,10 @@ export default function CostOptimizationPage() {
             {simResult.baseline_score !== undefined && simResult.projected_score !== undefined && (
               <div
                 className="p-3 rounded flex items-center justify-between flex-wrap gap-3"
-                style={{ background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.2)' }}
+                style={{ background: '#F0FDF4', border: '1px solid rgba(22, 163, 74, 0.2)' }}
               >
                 <div>
-                  <div className="text-xs font-semibold" style={{ color: 'var(--emerald-400)' }}>
+                  <div className="text-xs font-semibold" style={{ color: 'var(--emerald-700)' }}>
                     Optimization Score Impact
                   </div>
                   <div className="text-xs text-secondary mt-0.5">

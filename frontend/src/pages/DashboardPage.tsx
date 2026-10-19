@@ -38,9 +38,9 @@ function ScoreRadar({ scores }: { scores: OptimizationScores }) {
         <Radar
           name="Optimization Score"
           dataKey="value"
-          stroke="var(--emerald-500)"
-          fill="var(--emerald-500)"
-          fillOpacity={0.2}
+          stroke="var(--emerald-600)"
+          fill="var(--emerald-600)"
+          fillOpacity={0.15}
           strokeWidth={2}
         />
       </RadarChart>
@@ -251,7 +251,7 @@ export default function DashboardPage() {
 
           {/* Current Provider Telemetry Source badge */}
           <span
-            className={`badge ${isLive ? 'badge-emerald' : 'badge-blue'}`}
+            className={`badge ${isLive ? 'badge-emerald' : 'badge-muted'}`}
             style={{ fontWeight: 700, letterSpacing: '0.05em', flexShrink: 0 }}
           >
             <span
@@ -291,10 +291,10 @@ export default function DashboardPage() {
                   fontWeight: 900,
                   color:
                     scores.overall >= 70
-                      ? 'var(--emerald-400)'
+                      ? 'var(--emerald-600)'
                       : scores.overall >= 50
-                      ? 'var(--amber-400)'
-                      : 'var(--red-400)',
+                      ? 'var(--amber-600)'
+                      : 'var(--red-600)',
                   lineHeight: 1,
                   letterSpacing: '-0.04em',
                 }}
@@ -434,7 +434,7 @@ export default function DashboardPage() {
         <div className="card">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <Cpu size={16} color="var(--emerald-400)" />
+              <Cpu size={16} color="var(--emerald-600)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>CPU History (Last 24 Readings)</h3>
             </div>
             <span className="text-xs text-muted">Current: {metricsAvailable && metrics?.cpu != null ? `${metrics.cpu}%` : 'Unavailable'}</span>
@@ -444,15 +444,15 @@ export default function DashboardPage() {
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="cpuArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                    <stop offset="5%" stopColor="#16a34a" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#16a34a" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
-                <Area type="monotone" dataKey="CPU" stroke="#10b981" fill="url(#cpuArea)" strokeWidth={2} />
+                <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
+                <Area type="monotone" dataKey="CPU" stroke="#16a34a" fill="url(#cpuArea)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -462,7 +462,7 @@ export default function DashboardPage() {
         <div className="card">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <MemoryStick size={16} color="var(--blue-400)" />
+              <MemoryStick size={16} color="var(--emerald-600)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>Memory History</h3>
             </div>
             <span className="text-xs text-muted">Current: {metricsAvailable && metrics?.memory != null ? `${metrics.memory}%` : 'Unavailable'}</span>
@@ -472,15 +472,15 @@ export default function DashboardPage() {
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="memArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
+                    <stop offset="5%" stopColor="#15803d" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#15803d" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
-                <Area type="monotone" dataKey="Memory" stroke="#3b82f6" fill="url(#memArea)" strokeWidth={2} />
+                <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
+                <Area type="monotone" dataKey="Memory" stroke="#15803d" fill="url(#memArea)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -493,7 +493,7 @@ export default function DashboardPage() {
         <div className="card">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <DollarSign size={16} color="var(--amber-400)" />
+              <DollarSign size={16} color="var(--amber-600)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>Cost Trend ($/hr)</h3>
             </div>
             <span className="text-xs text-muted">{metricsAvailable && metrics?.cost_usd_per_hour != null ? `$${metrics.cost_usd_per_hour}/hr` : 'Unavailable'}</span>
@@ -503,15 +503,15 @@ export default function DashboardPage() {
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="costArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#f59e0b" stopOpacity={0.0} />
+                    <stop offset="5%" stopColor="#d97706" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#d97706" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                 <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
-                <Area type="monotone" dataKey="Cost" stroke="#f59e0b" fill="url(#costArea)" strokeWidth={2} />
+                <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
+                <Area type="monotone" dataKey="Cost" stroke="#d97706" fill="url(#costArea)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -521,7 +521,7 @@ export default function DashboardPage() {
         <div className="card">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <Leaf size={16} color="var(--emerald-400)" />
+              <Leaf size={16} color="var(--emerald-600)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>Carbon Emissions Trend (gCO₂/hr)</h3>
             </div>
             <span className="text-xs text-muted">{metricsAvailable && metrics?.carbon_gco2_per_hour != null ? `${metrics.carbon_gco2_per_hour} gCO₂/hr` : 'Unavailable'}</span>
@@ -531,15 +531,15 @@ export default function DashboardPage() {
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="carbArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
+                    <stop offset="5%" stopColor="#16a34a" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#16a34a" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                 <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
-                <Area type="monotone" dataKey="Carbon" stroke="#10b981" fill="url(#carbArea)" strokeWidth={2} />
+                <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
+                <Area type="monotone" dataKey="Carbon" stroke="#16a34a" fill="url(#carbArea)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -552,7 +552,7 @@ export default function DashboardPage() {
         <div className="card">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <Network size={16} color="var(--purple-400)" />
+              <Network size={16} color="var(--emerald-600)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>Network Usage (Mbps)</h3>
             </div>
             <span className="text-xs text-muted">{metricsAvailable && metrics?.network != null ? `${metrics.network} Mbps` : 'Unavailable'}</span>
@@ -563,8 +563,8 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                 <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
-                <Bar dataKey="Network" fill="#a855f7" radius={[4, 4, 0, 0]} />
+                <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
+                <Bar dataKey="Network" fill="#16a34a" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -574,7 +574,7 @@ export default function DashboardPage() {
         <div className="card">
           <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <TrendingUp size={16} color="var(--emerald-400)" />
+              <TrendingUp size={16} color="var(--emerald-600)" />
               <h3 style={{ fontSize: 14, fontWeight: 700 }}>Predicted CPU Load (60-Min ML Forecast)</h3>
             </div>
             <div className="flex items-center gap-1">
@@ -589,15 +589,15 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="time" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} />
-                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
-                <Line type="monotone" dataKey="Actual" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="Projected" stroke="#10b981" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 4 }} />
+                <Tooltip contentStyle={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)' }} />
+                <Line type="monotone" dataKey="Actual" stroke="#6b7280" strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="Projected" stroke="#16a34a" strokeWidth={2} strokeDasharray="4 4" dot={{ r: 4 }} />
               </LineChart>
             </ResponsiveContainer>
           </div>
           <div className="flex items-center justify-between text-xs text-muted mt-2 flex-wrap gap-2">
             <span>Current: <strong>{metricsAvailable && metrics?.cpu != null ? `${metrics.cpu}%` : 'Unavailable'}</strong></span>
-            <span>Forecast +60m: <strong className="text-emerald-400">{forecast?.cpu?.predicted != null ? `${forecast.cpu.predicted}%` : 'Unavailable'}</strong></span>
+            <span>Forecast +60m: <strong className="text-emerald font-bold">{forecast?.cpu?.predicted != null ? `${forecast.cpu.predicted}%` : 'Unavailable'}</strong></span>
             <span>Confidence: <strong>{forecast?.cpu?.confidence != null ? `${(forecast.cpu.confidence * 100).toFixed(0)}%` : 'Unavailable'}</strong></span>
           </div>
         </div>
@@ -605,10 +605,10 @@ export default function DashboardPage() {
 
       {/* Top AI Recommendation Spotlight */}
       {topRec && (
-        <div className="card mb-4" style={{ background: 'rgba(16, 185, 129, 0.03)', border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+        <div className="card mb-4" style={{ background: '#F0FDF4', border: '1px solid rgba(22, 163, 74, 0.2)' }}>
           <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <Sparkles size={16} color="var(--emerald-400)" />
+              <Sparkles size={16} color="var(--emerald-600)" />
               <h3 style={{ fontSize: 15, fontWeight: 700 }}>Priority AI Recommendation</h3>
               <span className={`badge ${topRec.priority === 'critical' ? 'badge-red' : 'badge-amber'}`}>
                 {topRec.priority.toUpperCase()}

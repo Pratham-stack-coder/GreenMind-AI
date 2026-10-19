@@ -3,16 +3,16 @@ import { Bell, X, Trash2, CheckCheck } from 'lucide-react'
 import { useAppStore } from '../../store'
 
 const priorityColor: Record<string, string> = {
-  critical: 'var(--red-400)',
-  high: 'var(--amber-400)',
-  medium: 'var(--blue-400)',
+  critical: 'var(--red-600)',
+  high: 'var(--amber-600)',
+  medium: 'var(--emerald-600)',
   low: 'var(--text-muted)',
 }
 
 const priorityBadge: Record<string, string> = {
   critical: 'badge-red',
   high: 'badge-amber',
-  medium: 'badge-blue',
+  medium: 'badge-emerald',
   low: 'badge-muted',
 }
 
@@ -58,7 +58,7 @@ export default function NotificationsPanel() {
               alignItems: 'center',
               gap: 10,
             }}>
-              <Bell size={16} color="var(--emerald-400)" />
+              <Bell size={16} color="var(--emerald-600)" />
               <span style={{ fontSize: 15, fontWeight: 700, flex: 1, color: 'var(--text-primary)' }}>
                 Notifications
                 {unread > 0 && (
