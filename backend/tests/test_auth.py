@@ -52,6 +52,32 @@ def test_asymmetric_supabase_token_checks_signature_issuer_audience_and_expiry(m
 
     assert auth._verify_asymmetric_token(token, supabase_url)["sub"] == "user-123"
 
+    token_default_iss = jwt.encode(
+        {
+            "sub": "user-456",
+            "iss": "supabase",
+            "aud": "authenticated",
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        },
+        private_key,
+        algorithm="RS256",
+        headers={"kid": "test-key"},
+    )
+    assert auth._verify_asymmetric_token(token_default_iss, supabase_url)["sub"] == "user-456"
+
+    token_clean_iss = jwt.encode(
+        {
+            "sub": "user-789",
+            "iss": supabase_url,
+            "aud": "authenticated",
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        },
+        private_key,
+        algorithm="RS256",
+        headers={"kid": "test-key"},
+    )
+    assert auth._verify_asymmetric_token(token_clean_iss, supabase_url)["sub"] == "user-789"
+
     wrong_issuer = jwt.encode(
         {
             "sub": "user-123",

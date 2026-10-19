@@ -41,7 +41,7 @@ def _normalize_supabase_issuer(supabase_url: str) -> tuple[str, str]:
 
 
 def _verify_asymmetric_token(token: str, supabase_url: str) -> dict[str, Any]:
-    _, issuer = _normalize_supabase_issuer(supabase_url)
+    clean, issuer = _normalize_supabase_issuer(supabase_url)
     jwks_url = f"{issuer}/.well-known/jwks.json"
     client = _jwks_client(jwks_url)
     try:
@@ -56,28 +56,36 @@ def _verify_asymmetric_token(token: str, supabase_url: str) -> dict[str, Any]:
     if algorithm not in {"ES256", "RS256"}:
         raise jwt.InvalidAlgorithmError(f"Unsupported Supabase signing algorithm: {algorithm}")
 
+    allowed_issuers = [
+        "supabase",
+        issuer,
+        clean,
+        f"{issuer}/",
+        f"{clean}/",
+    ]
+
     return jwt.decode(
         token,
         signing_key.key,
         algorithms=[algorithm],
         audience="authenticated",
-        issuer=issuer,
+        issuer=allowed_issuers,
         options={"require": ["exp", "sub", "iss", "aud"]},
     )
 
 
-async def _verify_legacy_hs256_token(
+async def _verify_token_via_supabase_api(
     token: str,
     supabase_url: str,
     publishable_key: str,
 ) -> dict[str, Any]:
-    """Ask Supabase Auth to validate legacy shared-secret tokens."""
+    """Ask Supabase Auth to validate tokens directly via its /user endpoint."""
     if not publishable_key:
         raise HTTPException(
             status_code=503,
             detail=(
                 "Backend authentication is not fully configured. Set "
-                "SUPABASE_PUBLISHABLE_KEY when the Supabase project uses HS256 tokens."
+                "SUPABASE_PUBLISHABLE_KEY when the Supabase project uses API token validation."
             ),
         )
 
@@ -118,6 +126,9 @@ async def _verify_legacy_hs256_token(
     return {"sub": user_id, "email": user.get("email"), "role": "authenticated"}
 
 
+_verify_legacy_hs256_token = _verify_token_via_supabase_api
+
+
 async def verify_supabase_access_token(
     token: str,
     config: Settings | None = None,
@@ -131,9 +142,14 @@ async def verify_supabase_access_token(
             detail="Backend authentication is not configured. Set SUPABASE_URL on the backend.",
         )
 
+    pub_key = settings.supabase_publishable_key.strip()
+
     try:
         algorithm = jwt.get_unverified_header(token).get("alg")
     except jwt.PyJWTError as exc:
+        # If unverified header parsing fails, try authoritative Supabase API before rejecting
+        if pub_key:
+            return await _verify_token_via_supabase_api(token, supabase_url, pub_key)
         raise HTTPException(
             status_code=401,
             detail="Invalid access token.",
@@ -141,13 +157,19 @@ async def verify_supabase_access_token(
         ) from exc
 
     if algorithm == "HS256":
-        return await _verify_legacy_hs256_token(
+        return await _verify_token_via_supabase_api(
             token,
             supabase_url,
-            settings.supabase_publishable_key.strip(),
+            pub_key,
         )
 
     if algorithm not in {"ES256", "RS256"}:
+        if pub_key:
+            return await _verify_token_via_supabase_api(
+                token,
+                supabase_url,
+                pub_key,
+            )
         raise HTTPException(
             status_code=401,
             detail="Unsupported access-token signing algorithm.",
@@ -157,11 +179,24 @@ async def verify_supabase_access_token(
     try:
         return await asyncio.to_thread(_verify_asymmetric_token, token, supabase_url)
     except PyJWKClientConnectionError as exc:
+        if pub_key:
+            try:
+                return await _verify_token_via_supabase_api(token, supabase_url, pub_key)
+            except Exception:
+                pass
         raise HTTPException(
             status_code=503,
             detail="Supabase signing keys could not be reached to validate this session.",
         ) from exc
     except (jwt.PyJWTError, PyJWKClientError) as exc:
+        if pub_key:
+            try:
+                return await _verify_token_via_supabase_api(token, supabase_url, pub_key)
+            except HTTPException as sub_exc:
+                if sub_exc.status_code == 401:
+                    raise sub_exc
+            except Exception:
+                pass
         raise HTTPException(
             status_code=401,
             detail="Invalid or expired access token.",
