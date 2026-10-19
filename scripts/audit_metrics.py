@@ -1,12 +1,16 @@
 import json
+import warnings
 from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, r2_score
 import joblib
 
+warnings.filterwarnings("ignore")
+
 import sys
-sys.path.insert(0, str(Path("backend/app/ml").resolve()))
+ML_DIR = Path(__file__).resolve().parent.parent / "backend" / "app" / "ml"
+sys.path.insert(0, str(ML_DIR))
 from generate_dataset import generate_series
 from baseline import evaluate_temporal_persistence, evaluate_rolling_mean, compute_metrics
 
@@ -16,7 +20,13 @@ idx = int(len(df) * 0.8)
 train, test = df.iloc[:idx], df.iloc[idx:]
 print(f"Train len: {len(train)}, Test len: {len(test)}")
 
-with open("backend/app/ml/metrics.json") as f:
+metrics_file = ML_DIR / "metrics.json"
+if not metrics_file.exists():
+    from train import main as train_main
+    print("metrics.json not found, training models...")
+    train_main()
+
+with open(metrics_file) as f:
     saved_metrics = json.load(f)
 
 targets = [
@@ -31,9 +41,23 @@ for name, features, target_col, base_col in targets:
     y_test = test[target_col].values
     y_base = test[base_col].values
     
-    # Load model
-    model_path = Path("backend/app/ml") / f"{name}_model.pkl"
-    model = joblib.load(model_path)
+    # Load model with fallback to re-train if missing or incompatible with current scikit-learn
+    model_path = ML_DIR / f"{name}_model.pkl"
+    model = None
+    if model_path.exists():
+        try:
+            model = joblib.load(model_path)
+        except Exception:
+            model = None
+
+    if model is None:
+        print(f"Note: Model for '{name}' missing or incompatible with active environment. Training now...")
+        from train import train_model
+        model, _ = train_model(df, features, target_col, base_col)
+        joblib.dump(model, model_path)
+        if name == "cpu":
+            joblib.dump(model, ML_DIR / "model.pkl")
+
     X_test = test[features]
     preds = model.predict(X_test)
     

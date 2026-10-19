@@ -40,17 +40,31 @@ _ROLLING_STATS: dict[str, dict] = {
 def _load(name: str):
     if name not in _MODELS:
         path = HERE / f"{name}_model.pkl"
-        if not path.exists():
-            # Fall back to legacy cpu model.pkl during first run
-            if name == "cpu":
-                legacy = HERE / "model.pkl"
-                if legacy.exists():
-                    _MODELS[name] = joblib.load(legacy)
-                    return _MODELS[name]
-            raise FileNotFoundError(
-                f"{name}_model.pkl not found — run `python train.py` inside backend/app/ml/"
-            )
-        _MODELS[name] = joblib.load(path)
+        model = None
+        if path.exists():
+            try:
+                model = joblib.load(path)
+            except Exception as e:
+                logger.warning("Failed to load %s (%s). Re-training...", path, e)
+                model = None
+        elif name == "cpu":
+            legacy = HERE / "model.pkl"
+            if legacy.exists():
+                try:
+                    model = joblib.load(legacy)
+                except Exception:
+                    model = None
+
+        if model is None:
+            logger.info("Model %s missing or incompatible with active environment. Training now...", name)
+            try:
+                from .train import main as train_main
+            except ImportError:
+                from train import main as train_main
+            train_main()
+            model = joblib.load(path)
+
+        _MODELS[name] = model
         metrics_path = HERE / "metrics.json"
         if metrics_path.exists() and not _METRICS:
             _METRICS.update(json.loads(metrics_path.read_text()))
