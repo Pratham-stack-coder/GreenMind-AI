@@ -39,13 +39,46 @@ export function normalizeApiBaseUrl(rawUrl?: string): string {
 
 export const DEFAULT_PRODUCTION_BACKEND = 'https://greenmind-backend-zqn5.onrender.com'
 
+export function isLocalNetworkHost(hostname: string): boolean {
+  if (!hostname) return true
+  const lower = hostname.toLowerCase().trim()
+  if (
+    lower === 'localhost' ||
+    lower === '127.0.0.1' ||
+    lower === '0.0.0.0' ||
+    lower === '::1' ||
+    lower === '[::1]' ||
+    lower.endsWith('.local') ||
+    lower.endsWith('.internal') ||
+    lower.endsWith('.lan')
+  ) {
+    return true
+  }
+  // Check private / link-local IPv4 addresses
+  if (
+    /^10\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(lower) ||
+    /^172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}$/.test(lower) ||
+    /^192\.168\.\d{1,3}\.\d{1,3}$/.test(lower) ||
+    /^169\.254\.\d{1,3}\.\d{1,3}$/.test(lower)
+  ) {
+    return true
+  }
+  return false
+}
+
+export function isCloudDeployedHost(hostname: string): boolean {
+  if (!hostname) return false
+  const lower = hostname.toLowerCase().trim()
+  return lower.endsWith('.vercel.app') || lower.includes('vercel.app')
+}
+
 /**
  * Returns the currently active backend URL.
  * Priority:
  * 1. User runtime override saved in localStorage
  * 2. Build-time environment variable import.meta.env.VITE_API_BASE_URL
  * 3. Default deployed Render backend (when running in deployed browser environments like Vercel)
- * 4. Empty string '' (when running locally, falling back to Vite dev proxy /api/v1)
+ * 4. Empty string '' (when running locally or over LAN, falling back to Vite/Nginx proxy /api/v1)
  */
 export function getActiveBackendUrl(): string {
   if (typeof window !== 'undefined') {
@@ -63,8 +96,7 @@ export function getActiveBackendUrl(): string {
   if (
     typeof window !== 'undefined' &&
     window.location.hostname &&
-    !window.location.hostname.includes('localhost') &&
-    !window.location.hostname.includes('127.0.0.1')
+    isCloudDeployedHost(window.location.hostname)
   ) {
     return DEFAULT_PRODUCTION_BACKEND
   }
@@ -100,15 +132,38 @@ export function resetActiveBackendUrl(): void {
 function expectedBackendOrigin(): string {
   const configuredUrl = ((import.meta.env.VITE_API_BASE_URL as string | undefined) || '').trim()
   if (configuredUrl) return new URL(configuredUrl, window.location.origin).origin
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return window.location.origin
+  if (typeof window !== 'undefined' && window.location.hostname && isCloudDeployedHost(window.location.hostname)) {
+    return new URL(DEFAULT_PRODUCTION_BACKEND).origin
   }
-  return new URL(DEFAULT_PRODUCTION_BACKEND).origin
+  return window.location.origin
 }
 
 export function isTrustedBackendUrl(rawUrl = getActiveBackendUrl()): boolean {
   try {
-    return new URL(normalizeApiBaseUrl(rawUrl), window.location.origin).origin === expectedBackendOrigin()
+    const normalized = normalizeApiBaseUrl(rawUrl)
+    const targetUrl = new URL(normalized, window.location.origin)
+    const expectedOrigin = expectedBackendOrigin()
+
+    // 1. Direct match with expected origin (same origin or configured production backend)
+    if (targetUrl.origin === expectedOrigin) return true
+
+    // 2. Relative URLs or same origin are always trusted
+    if (targetUrl.origin === window.location.origin) return true
+
+    // 3. Same hostname on another port (e.g. frontend on 5173, backend on 8000)
+    if (targetUrl.hostname === window.location.hostname) return true
+
+    // 4. In local / LAN development environments, allow connecting to any local/LAN backend
+    if (isLocalNetworkHost(window.location.hostname) && isLocalNetworkHost(targetUrl.hostname)) {
+      return true
+    }
+
+    // 5. Default production backend is trusted
+    if (targetUrl.origin === new URL(DEFAULT_PRODUCTION_BACKEND).origin) {
+      return true
+    }
+
+    return false
   } catch {
     return false
   }

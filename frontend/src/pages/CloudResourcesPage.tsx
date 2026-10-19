@@ -1,16 +1,12 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
-import {
-  Server, Database, HardDrive, Search, Filter, RefreshCw,
-  CheckCircle2, AlertTriangle, ArrowUpRight, ShieldCheck, Zap
-} from 'lucide-react'
+import { Server, Search, Filter, RefreshCw, AlertTriangle } from 'lucide-react'
 import { useAppStore } from '../store'
 import { fetchCloudResources, fetchCloudProviders } from '../api/client'
 import type { CloudResource } from '../types'
 
 export default function CloudResourcesPage() {
-  const { provider, region, setProvider, setRegion } = useAppStore()
+  const { provider, region, setProvider } = useAppStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [filterCandidate, setFilterCandidate] = useState(false)
 
@@ -160,7 +156,7 @@ export default function CloudResourcesPage() {
 
       {/* Resources Table */}
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
+        <div className="table-scroll-container">
           <table className="table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-hover)' }}>

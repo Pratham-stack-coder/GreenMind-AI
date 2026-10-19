@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { GitFork, Play, ArrowRight, AlertTriangle, TrendingDown, TrendingUp } from 'lucide-react'
+import { GitFork, Play, ArrowRight, AlertTriangle } from 'lucide-react'
 import { useAppStore } from '../store'
 import { simulateChange, fetchLiveMetrics } from '../api/client'
 import type { SimulationResult } from '../types'

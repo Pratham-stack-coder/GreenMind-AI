@@ -55,6 +55,7 @@ class BaseCloudProvider(ABC):
     def __init__(self, provider_name: str, is_live: bool = False):
         self.provider_name = provider_name
         self.is_live = is_live
+        self.is_configured = False
         self._last_test_result: dict[str, Any] | None = None
 
     @abstractmethod

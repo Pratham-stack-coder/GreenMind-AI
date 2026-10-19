@@ -1,6 +1,6 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { Bot, CheckCircle2, AlertCircle, ArrowRight } from 'lucide-react'
+import { Bot, CheckCircle2 } from 'lucide-react'
 import type { AgentResult } from '../../types'
 
 interface AgentCardProps {

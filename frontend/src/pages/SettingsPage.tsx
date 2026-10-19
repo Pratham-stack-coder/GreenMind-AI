@@ -1,10 +1,10 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Settings, Cloud, Brain, Shield, RefreshCw, CheckCircle2,
-  AlertCircle, Info, Lock, Eye, EyeOff, Trash2, Zap, Server, Database,
-  Globe, ExternalLink, Activity, ArrowRight, Monitor
+  AlertCircle, Eye, EyeOff, Trash2, Zap, Server, Database,
+  Globe, Monitor
 } from 'lucide-react'
 import ThemeSelector from '../components/ThemeSelector'
 import {
@@ -17,6 +17,7 @@ import {
   resetActiveBackendUrl,
   testBackendConnection,
   normalizeApiBaseUrl,
+  isTrustedBackendUrl,
   type BackendHealthCheckResult,
 } from '../api/client'
 import type { ProviderConnectionStatus, TestConnectionResponse } from '../types'
@@ -25,7 +26,7 @@ export default function SettingsPage() {
   const queryClient = useQueryClient()
 
   // ── Fetch real status from backend ──────────────────────────────────────────
-  const { data: statusData, isLoading, refetch, isFetching } = useQuery({
+  const { data: statusData, refetch, isFetching } = useQuery({
     queryKey: ['settings-status'],
     queryFn: fetchSettingsStatus,
     refetchInterval: 15000,
@@ -59,14 +60,7 @@ export default function SettingsPage() {
     queryClient.invalidateQueries({ queryKey: ['settings-status'] })
     queryClient.invalidateQueries({ queryKey: ['topbar-live'] })
     if (result?.connected) {
-      const buildUrl = ((import.meta.env.VITE_API_BASE_URL as string | undefined) || '').trim()
-      const targetOrigin = new URL(backendUrlInput || window.location.origin, window.location.origin).origin
-      const trustedOrigin = buildUrl
-        ? new URL(buildUrl, window.location.origin).origin
-        : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-          ? window.location.origin
-          : new URL('https://greenmind-backend-zqn5.onrender.com').origin
-      if (targetOrigin === trustedOrigin) {
+      if (isTrustedBackendUrl(backendUrlInput)) {
         setActiveBackendUrl(backendUrlInput)
         setBackendSuccessMsg(`Trusted backend URL updated to: ${normalizeApiBaseUrl(backendUrlInput)}`)
       } else {
@@ -594,21 +588,13 @@ export default function SettingsPage() {
               <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>
                 Render Backend Service URL
               </label>
-              <div className="flex gap-2 flex-wrap">
+              <div className="backend-url-row">
                 <input
                   type="text"
                   placeholder="https://greenmind-backend.onrender.com"
                   value={backendUrlInput}
                   onChange={(e) => setBackendUrlInput(e.target.value)}
-                  style={{
-                    flex: '1 1 320px',
-                    padding: '8px 12px',
-                    borderRadius: 6,
-                    fontSize: 13,
-                    background: 'rgba(15, 23, 42, 0.6)',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
-                    color: 'var(--text-primary)',
-                  }}
+                  className="backend-url-input"
                 />
                 <button
                   type="button"
@@ -706,6 +692,26 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {actionMessage && (
+          <div
+            className={`auth-alert ${actionMessage.type === 'success' ? 'auth-alert-success' : 'auth-alert-error'}`}
+            role="status"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}
+          >
+            <span>
+              <strong>{actionMessage.provider.toUpperCase()}:</strong> {actionMessage.text}
+            </span>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{ padding: '2px 6px', fontSize: 11 }}
+              onClick={() => setActionMessage(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* ── AWS Connector ─────────────────────────────────────────────────── */}
         <div className="card">

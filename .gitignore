@@ -37,9 +37,9 @@ Thumbs.db
 backend/app/ml/dataset.csv
 backend/app/ml/*.csv
 backend/app/ml/*.pkl
-backend/data/*.db
-backend/*.db
-*.db
+backend/data/*.db*
+backend/*.db*
+*.db*
 
 # Security & Private Credentials
 *.pem

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Send, MessageSquare, Sparkles, User, Bot, Zap } from 'lucide-react'
+import { Send, Sparkles, User, Bot, Zap } from 'lucide-react'
 import { sendCopilotMessage, fetchCopilotSuggestions, fetchLiveMetrics, fetchScores } from '../api/client'
 import { useAppStore } from '../store'
 import type { CopilotMessage } from '../types'
@@ -137,13 +137,8 @@ export default function CopilotPage() {
       </div>
 
       {/* Chat area */}
-      <div
-        className="card flex-1"
-        style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}
-      >
-        <div
-          style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16, padding: '20px 20px 8px' }}
-        >
+      <div className="card copilot-chat-card">
+        <div className="copilot-chat-body">
           {messages.length === 0 && (
             <motion.div
               initial={{ opacity: 0, y: 16 }}
@@ -258,7 +253,7 @@ export default function CopilotPage() {
 
         {/* Inline suggestion chips during conversation */}
         {messages.length > 0 && (
-          <div style={{ padding: '8px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div className="copilot-quick-prompts-bar">
             <Zap size={12} color="var(--emerald-400)" />
             <span className="text-xs text-muted" style={{ flexShrink: 0 }}>Quick:</span>
             {QUICK_PROMPTS.slice(0, 4).map(p => (
@@ -275,7 +270,7 @@ export default function CopilotPage() {
         )}
 
         {/* Input */}
-        <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10 }}>
+        <div className="copilot-chat-input-bar">
           <input
             id="copilot-input"
             value={input}

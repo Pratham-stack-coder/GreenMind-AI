@@ -832,6 +832,49 @@ code, pre, .mono {
   display: none;
 }
 
+/* ── Notifications Panel & Drawer ───────────────────────────── */
+.notifications-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 259;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.notifications-drawer {
+  position: fixed;
+  top: var(--topbar-height, 64px);
+  right: 0;
+  bottom: 0;
+  width: min(380px, 100vw);
+  max-width: 100vw;
+  z-index: 260;
+  background: var(--bg-panel-solid);
+  border-left: 1px solid var(--border);
+  backdrop-filter: var(--blur-md);
+  -webkit-backdrop-filter: var(--blur-md);
+  box-shadow: var(--shadow-lg), -10px 0 30px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  overscroll-behavior-y: contain;
+}
+
+@media (max-width: 767px) {
+  .notifications-backdrop {
+    z-index: 299;
+  }
+  .notifications-drawer {
+    top: 0 !important;
+    bottom: 0 !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    width: min(360px, 92vw) !important;
+    z-index: 300 !important;
+    box-shadow: -15px 0 40px rgba(0, 0, 0, 0.6) !important;
+  }
+}
+
 /* ── Main Content ───────────────────────────────────────────── */
 .main-layout {
   display: flex;
@@ -960,6 +1003,37 @@ code, pre, .mono {
   }
   .hidden-md {
     display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar-main {
+    padding: 0 8px;
+    gap: 6px;
+  }
+  .topbar-left {
+    gap: 6px;
+  }
+  .topbar-right {
+    gap: 4px;
+  }
+  .topbar-status-btn {
+    padding: 4px 6px;
+  }
+  .status-text {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 380px) {
+  .brand-name {
+    display: none;
+  }
+  .topbar-status-btn .status-text {
+    display: none;
+  }
+  .topbar-status-btn {
+    padding: 6px;
   }
 }
 
@@ -1721,5 +1795,223 @@ textarea:focus-visible {
 [data-theme="light"] .glass {
   border-color: var(--border-strong);
   background: var(--bg-panel);
+}
+
+/* ── Modal Overlay & Responsive Sheet ───────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overscroll-behavior-y: contain;
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 720px;
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
+  background: var(--bg-panel-solid);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.7);
+  padding: 22px 20px;
+}
+
+.modal-footer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.modal-footer-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .modal-overlay {
+    padding: 10px 8px;
+    align-items: flex-end;
+  }
+  .modal-card {
+    max-height: 94dvh;
+    padding: 16px 14px;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+  .modal-footer-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .modal-footer-buttons {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .modal-footer-buttons > button {
+    flex: 1;
+    justify-content: center;
+  }
+}
+
+/* ── Recommendation Filter Bar Responsive ───────────────────── */
+.rec-filters-container {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.rec-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .rec-filters-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .rec-filter-group {
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    flex-wrap: nowrap;
+  }
+  .rec-filter-group::-webkit-scrollbar {
+    height: 3px;
+  }
+}
+
+/* ── Copilot Mobile Polish ──────────────────────────────────── */
+.copilot-chat-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  flex: 1;
+  padding: 0 !important;
+}
+
+.copilot-chat-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.copilot-chat-input-bar {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 10px;
+  background: var(--bg-panel);
+}
+
+.copilot-quick-prompts-bar {
+  padding: 8px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  overflow-x: auto;
+  white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 640px) {
+  .copilot-chat-body {
+    padding: 12px 10px 8px;
+    gap: 12px;
+  }
+  .copilot-chat-input-bar {
+    padding: 10px 10px;
+    gap: 8px;
+  }
+}
+
+/* ── Settings Backend Connection Responsive Row ─────────────── */
+.backend-url-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.backend-url-input {
+  flex: 1 1 320px;
+  min-width: 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text-primary);
+}
+
+@media (max-width: 640px) {
+  .backend-url-input {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+  .backend-url-row {
+    flex-direction: column;
+  }
+  .backend-url-row > button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ── Touch-Friendly Table Scroll Wrapper ────────────────────── */
+.table-scroll-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+}
+
+.table-scroll-container th,
+.table-scroll-container td {
+  white-space: nowrap;
+}
+
+/* ── App Error Banner Responsive ────────────────────────────── */
+.layout-api-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 24px 0;
+}
+
+@media (max-width: 640px) {
+  .layout-api-error {
+    margin: 10px 12px 0;
+    font-size: 11px;
+    padding: 8px 10px;
+  }
 }
 

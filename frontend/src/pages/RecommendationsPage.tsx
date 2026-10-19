@@ -118,34 +118,14 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
 
   return (
     <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1000,
-        background: 'rgba(0, 0, 0, 0.75)',
-        backdropFilter: 'blur(6px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '12px 10px',
-      }}
+      className="modal-overlay"
       onClick={onClose}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className="card"
-        style={{
-          width: '100%',
-          maxWidth: 680,
-          maxHeight: '92vh',
-          overflowY: 'auto',
-          background: 'var(--bg-panel-solid, #11141c)',
-          borderColor: 'var(--border-focus, rgba(16, 185, 129, 0.4))',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-          padding: '18px 16px',
-        }}
+        className="modal-card"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -381,7 +361,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
         )}
 
         {/* Modal Footer Controls */}
-        <div className="flex items-center justify-between pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="modal-footer-row">
           <label className="flex items-center gap-2" style={{ cursor: 'pointer', userSelect: 'none' }}>
             <input
               type="checkbox"
@@ -393,7 +373,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
             <span className="text-xs text-secondary">Non-destructive simulation mode</span>
           </label>
 
-          <div className="flex gap-2">
+          <div className="modal-footer-buttons">
             <button className="btn btn-secondary btn-sm" onClick={onClose}>
               Close
             </button>
@@ -764,7 +744,6 @@ export default function RecommendationsPage() {
   })
 
   const openSavings = openRecs.reduce((s, r) => s + r.estimated_monthly_savings_usd, 0)
-  const openCarbon = openRecs.reduce((s, r) => s + r.estimated_carbon_reduction_pct, 0)
   const criticalOpenCount = openRecs.filter((r) => r.priority === 'critical').length
 
   const handleResetSim = async () => {
@@ -971,14 +950,14 @@ export default function RecommendationsPage() {
       )}
 
       {/* Filter Tabs */}
-      <div className="flex gap-3 mb-4 flex-wrap items-center">
+      <div className="rec-filters-container">
         {/* Status Tab (All / Open / Applied) */}
-        <div className="flex items-center gap-1 p-1 rounded-lg" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)' }}>
+        <div className="rec-filter-group" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 8, padding: 4 }}>
           {statuses.map((st) => (
             <button
               key={st.id}
               className={`badge ${statusFilter === st.id ? 'badge-emerald' : 'badge-muted'}`}
-              style={{ cursor: 'pointer', padding: '4px 10px', fontSize: 12, textTransform: 'none' }}
+              style={{ cursor: 'pointer', padding: '5px 10px', fontSize: 12, textTransform: 'none' }}
               onClick={() => setStatusFilter(st.id)}
             >
               {st.label}
@@ -987,9 +966,9 @@ export default function RecommendationsPage() {
         </div>
 
         {/* Category Pills */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <Filter size={13} color="var(--text-muted)" />
-          <span className="text-xs text-muted">Category:</span>
+        <div className="rec-filter-group">
+          <Filter size={13} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+          <span className="text-xs text-muted" style={{ flexShrink: 0 }}>Category:</span>
           {categories.map((c) => (
             <button
               key={c}
@@ -1003,8 +982,8 @@ export default function RecommendationsPage() {
         </div>
 
         {/* Priority Pills */}
-        <div className="flex items-center gap-1.5 ml-auto flex-wrap">
-          <span className="text-xs text-muted">Priority:</span>
+        <div className="rec-filter-group">
+          <span className="text-xs text-muted" style={{ flexShrink: 0 }}>Priority:</span>
           {priorities.map((p) => (
             <button
               key={p}

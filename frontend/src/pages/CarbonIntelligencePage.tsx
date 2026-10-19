@@ -1,13 +1,8 @@
-import React, { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { motion } from 'framer-motion'
-import {
-  Leaf, Sun, Wind, Clock, ArrowDownRight, Globe,
-  Calendar, CheckCircle2, AlertCircle, BarChart2
-} from 'lucide-react'
+import { Leaf, Wind, Clock, Globe, CheckCircle2 } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, BarChart, Bar
+  ResponsiveContainer
 } from 'recharts'
 import { useAppStore } from '../store'
 import { fetchCarbonCurve, fetchCarbonAnalytics, fetchRegions } from '../api/client'
@@ -15,9 +10,9 @@ import type { CarbonPoint } from '../types'
 
 export default function CarbonIntelligencePage() {
   const { region, setRegion } = useAppStore()
-  const [days, setDays] = useState(7)
+  const days = 7
 
-  const { data: curveData, isLoading: curveLoading } = useQuery({
+  const { data: curveData } = useQuery({
     queryKey: ['carbonCurve', region],
     queryFn: () => fetchCarbonCurve(region),
   })

@@ -57,7 +57,7 @@ async def get_settings_status() -> dict[str, Any]:
     openai_configured = bool(llm_credentials.get("openai_api_key"))
     llm_status = "configured_unverified"
 
-    db_type = "postgresql" if settings.database_url.startswith("postgresql") else "sqlite"
+    db_type = "postgresql" if (settings.database_url or "").startswith("postgresql") else "sqlite"
     from ..database import _engine
 
     try:

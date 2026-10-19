@@ -39,11 +39,7 @@ export default function NotificationsPanel() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             onClick={() => setNotifPanelOpen(false)}
-            style={{
-              position: 'fixed', inset: 0, zIndex: 199,
-              background: 'rgba(0,0,0,0.4)',
-              backdropFilter: 'blur(2px)',
-            }}
+            className="notifications-backdrop"
           />
 
           {/* Panel */}
@@ -52,18 +48,7 @@ export default function NotificationsPanel() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: '100%', opacity: 0 }}
             transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
-            style={{
-              position: 'fixed',
-              top: 64, right: 0, bottom: 0,
-              width: 'min(360px, 100vw)',
-              maxWidth: '100vw',
-              zIndex: 200,
-              background: 'rgba(5,10,20,0.97)',
-              borderLeft: '1px solid var(--border)',
-              backdropFilter: 'blur(24px)',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
+            className="notifications-drawer"
           >
             {/* Header */}
             <div style={{

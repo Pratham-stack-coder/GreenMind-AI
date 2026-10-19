@@ -1,6 +1,6 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { ArrowUpRight, DollarSign, Leaf, Shield, Cpu, Activity, Clock } from 'lucide-react'
+import { DollarSign, Leaf, Shield, Cpu, Activity } from 'lucide-react'
 import type { RecommendationItem } from '../../types'
 
 interface RecommendationCardProps {

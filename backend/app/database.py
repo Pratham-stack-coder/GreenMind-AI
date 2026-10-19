@@ -249,6 +249,13 @@ class AuditLogRecord(Base):
 
 async def init_db() -> None:
     """Create tables and safely add per-user ownership to existing databases."""
+    if "sqlite" in DB_URL:
+        try:
+            async with _engine.begin() as conn:
+                await conn.execute(text("PRAGMA journal_mode=WAL;"))
+                await conn.execute(text("PRAGMA busy_timeout=5000;"))
+        except Exception:
+            pass
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(_ensure_owner_columns)
@@ -290,7 +297,6 @@ async def get_user_provider_credentials(owner_id: str) -> dict[str, dict[str, st
 
 async def store_user_provider_credentials(owner_id: str, provider: str, credentials: dict[str, str]) -> dict[str, str]:
     """Merge and persist credentials encrypted under the configured Fernet key."""
-    await init_db()
     async with _async_session_maker() as session:
         row = await session.get(UserProviderCredentialRecord, (owner_id, provider))
         existing = decrypt_credentials(row.encrypted_credentials) if row else {}

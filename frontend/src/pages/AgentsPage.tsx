@@ -101,7 +101,6 @@ function AgentTimeline({ isPending, doneAgents }: { isPending: boolean, doneAgen
           const isDone = doneAgents.includes(agentName)
           const isRunning = isPending && !isDone && doneAgents.length === idx
           const isPendingStep = !isDone && !isRunning
-          const color = agentColors[agentName] || 'muted'
           const shortName = agentName.replace('Agent', '')
 
           return (

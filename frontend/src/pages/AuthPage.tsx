@@ -159,7 +159,12 @@ export default function AuthPage() {
 export function AuthCallbackPage() {
   const { session, loading } = useAuth()
   const query = new URLSearchParams(window.location.search)
-  const errorDescription = query.get('error_description') || query.get('error')
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const errorDescription =
+    query.get('error_description') ||
+    query.get('error') ||
+    hashParams.get('error_description') ||
+    hashParams.get('error')
 
   if (session) return <Navigate to="/" replace />
 

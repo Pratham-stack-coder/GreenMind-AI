@@ -146,7 +146,7 @@ function DashboardLayout() {
         <TopBar />
         <NotificationsPanel />
         {apiError && (
-          <div className="auth-alert auth-alert-error" role="alert" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, margin: '12px 20px 0' }}>
+          <div className="auth-alert auth-alert-error layout-api-error" role="alert">
             <span><AlertTriangle size={14} aria-hidden="true" /> {apiError}</span>
             <button type="button" className="btn btn-secondary text-xs" onClick={() => setApiError(null)}>Dismiss</button>
           </div>

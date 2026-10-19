@@ -188,7 +188,7 @@ export default function DashboardPage() {
 
   // Prepare chart histories
   const rawEntries = Array.isArray(history?.entries) ? history.entries.slice(0, 24).reverse() : []
-  const chartData = rawEntries.map((e: CloudMetrics, i: number) => ({
+  const chartData = rawEntries.map((e: CloudMetrics) => ({
     time: e.timestamp ? new Date(e.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Unknown time',
     CPU: typeof e?.cpu === 'number' ? e.cpu : null,
     Memory: typeof e?.memory === 'number' ? e.memory : null,

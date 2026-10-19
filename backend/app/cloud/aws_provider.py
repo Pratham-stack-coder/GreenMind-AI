@@ -33,6 +33,14 @@ class AWSCloudProvider(BaseCloudProvider):
         is_live = not settings.demo_mode and self.collector.is_configured
         super().__init__(provider_name="aws", is_live=is_live)
 
+    @property
+    def is_configured(self) -> bool:
+        return self.collector.is_configured
+
+    @is_configured.setter
+    def is_configured(self, value: bool) -> None:
+        self.collector.is_configured = value
+
     def get_metrics(self, region: str) -> dict[str, Any]:
         """Fetch current telemetry metrics for AWS.
 

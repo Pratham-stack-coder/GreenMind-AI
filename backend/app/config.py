@@ -70,6 +70,15 @@ class Settings(BaseSettings):
         "https://green-mind-2shiqlt61-pratham-stack-coders-projects.vercel.app",
     ]
     cors_origins: str = ""  # Comma-separated domains for deployed environments
+    cors_origin_regex: str = (
+        r"^https?://(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|"
+        r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"
+        r"172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|"
+        r"192\.168\.\d{1,3}\.\d{1,3}|"
+        r"[a-zA-Z0-9\.\-]+\.local)"
+        r"(:\d+)?$"
+        r"|^https://.*\.vercel\.app$"
+    )
 
 
 
