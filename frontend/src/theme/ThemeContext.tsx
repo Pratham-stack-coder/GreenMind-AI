@@ -55,7 +55,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const setThemeMode = useCallback((mode: ThemeMode) => {
+  const setThemeMode = useCallback((_mode: ThemeMode) => {
     setThemeModeState('light')
     applyTheme()
   }, [])

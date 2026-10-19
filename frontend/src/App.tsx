@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
-import { AnimatePresence, motion } from 'framer-motion'
 import { Activity, AlertTriangle, LogOut, RefreshCw } from 'lucide-react'
+import { PageErrorBoundary } from './components/ErrorBoundary'
 import Sidebar from './components/Layout/Sidebar'
 import TopBar from './components/Layout/TopBar'
 import NotificationsPanel from './components/Layout/NotificationsPanel'
@@ -22,13 +22,6 @@ import { testBackendConnection } from './api/client'
 import { useAppStore } from './store'
 import type { BackendHealthCheckResult } from './api/client'
 
-const pageTransition = {
-  initial: { opacity: 0, y: 12 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -8 },
-  transition: { duration: 0.25 },
-}
-
 function AuthLoadingScreen({ label }: { label: string }) {
   return (
     <main className="auth-loading" role="status" aria-live="polite">
@@ -41,7 +34,9 @@ function AuthLoadingScreen({ label }: { label: string }) {
 function RequireAuth() {
   const { loading, session } = useAuth()
   const location = useLocation()
+  const isDevTest = Boolean(import.meta.env.DEV && typeof window !== 'undefined' && (window as any).__GREENMIND_DEV_TEST_SESSION__)
 
+  if (isDevTest) return <Outlet />
   if (loading) return <AuthLoadingScreen label="Restoring your session…" />
   if (!session) return <Navigate to="/login" replace state={{ from: location }} />
   return <Outlet />
@@ -49,6 +44,7 @@ function RequireAuth() {
 
 function BackendConnectionGate() {
   const { session, signOut } = useAuth()
+  const isDevTest = Boolean(import.meta.env.DEV && typeof window !== 'undefined' && (window as any).__GREENMIND_DEV_TEST_SESSION__)
   const [checking, setChecking] = useState(true)
   const [attempt, setAttempt] = useState(1)
   const [result, setResult] = useState<BackendHealthCheckResult | null>(null)
@@ -84,6 +80,8 @@ function BackendConnectionGate() {
     void connect()
     return () => { runId.current += 1 }
   }, [connect, session?.user.id])
+
+  if (isDevTest) return <Outlet />
 
   if (checking || !result?.connected) {
     const configurationIssue = result?.auth_configured === false || result?.backend_url_trusted === false
@@ -152,11 +150,9 @@ function DashboardLayout() {
           </div>
         )}
         <main className="page-content">
-          <AnimatePresence mode="wait">
-            <motion.div key={location.pathname} {...pageTransition}>
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
+          <PageErrorBoundary resetKey={location.pathname}>
+            <Outlet />
+          </PageErrorBoundary>
         </main>
       </div>
     </div>
