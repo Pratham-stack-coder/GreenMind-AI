@@ -25,63 +25,76 @@ def cost_analytics(days: int = Query(7, ge=1, le=90), provider: str = Query("aws
     """Cost breakdown over the past N days.
 
     DATA TRUTH:
-    - If provider is LIVE with Cost Explorer access: returns real billing data
-    - Otherwise: returns DEMO/ESTIMATED data clearly labeled
+    - If provider is LIVE with Cost Explorer access: returns real billing period total
+    - If billing data is UNAVAILABLE: reports total_usd=None and source="UNAVAILABLE"
+    - Hourly data points represent even allocation of the period total, marked ESTIMATED
     """
     now = datetime.now(timezone.utc)
-    points: list[CostDataPoint] = []
-    total = 0.0
-    by_provider = {"aws": 0.0, "azure": 0.0, "gcp": 0.0}
 
     if hasattr(provider, "default"):
         provider = provider.default
-    provider = str(provider or "aws")
+    provider = str(provider or "aws").strip().lower()
     if hasattr(region, "default"):
         region = region.default
-    region = str(region or "us-east-1")
+    region = str(region or "us-east").strip()
 
-    # Attempt to get real cost data from provider
-    p = get_provider(provider)
-    data_source = "DEMO"
-    estimation_method = None
-    confidence = 1.0
-    if p.is_live and hasattr(p, 'get_cost'):
-        cost_data = p.get_cost(region, days=days)
-        if cost_data:
-            data_source = cost_data.get("source", "ESTIMATED")
-            estimation_method = cost_data.get("estimation_method", "catalog_lookup" if data_source == "ESTIMATED" else None)
-            confidence = float(cost_data.get("confidence", 0.85 if data_source == "ESTIMATED" else 1.0))
+    provider_client = get_provider(provider)
+    cost_data = provider_client.get_cost(region, days=days)
+    data_source = cost_data.get("source", "DEMO")
+    raw_total = cost_data.get("total_usd")
+    if data_source == "UNAVAILABLE" or raw_total is None:
+        return CostAnalyticsResponse(
+            period_days=days,
+            total_usd=None,
+            data_points=[],
+            breakdown_by_provider={},
+            top_cost_drivers=[],
+            source="UNAVAILABLE",
+            estimation_method=None,
+            confidence=0.0,
+        )
+    total = max(0.0, float(raw_total))
+    confidence = float(cost_data.get("confidence", 1.0 if str(data_source).startswith("LIVE") else 0.85))
+    provider_method = cost_data.get("estimation_method")
+    if str(data_source).startswith("LIVE"):
+        estimation_method = "hourly_allocation_from_billing_period_total"
+    elif provider_method:
+        estimation_method = f"{provider_method}; hourly series evenly allocated"
+    else:
+        estimation_method = "demo_period_total_evenly_allocated"
 
-    # Build time-series data points (ESTIMATED from utilization model)
-    # Using deterministic math (not seeded random) for consistent DEMO data
-    for i in range(days * 24):
-        ts = now - timedelta(hours=days * 24 - i)
-        h = ts.hour
-        # Daily CPU pattern drives cost (deterministic)
-        cpu = 35 + 30 * math.sin((h - 7) / 24 * 2 * math.pi) ** 2
-        # Small deterministic variation based on hour modulo
-        variation = ((h * 7 + i * 3) % 17 - 8) * 0.001
-        cost = round(0.192 * (1 + cpu / 200) + variation, 4)
-        total += cost
-        by_provider[provider] = by_provider.get(provider, 0.0) + cost
+    # Providers expose a period total, not an hourly billing time series. Do not invent
+    # a fake utilization curve or mark allocated hourly values as directly observed.
+    hours = days * 24
+    hourly_allocation = total / hours if hours else 0.0
+    points: list[CostDataPoint] = []
+    for index in range(hours):
+        timestamp = now - timedelta(hours=hours - index - 1)
         points.append(CostDataPoint(
-            timestamp=ts.isoformat(),
-            cost_usd=cost,
+            timestamp=timestamp.isoformat(),
+            cost_usd=round(hourly_allocation, 6),
             provider=provider,
             region=region,
             category="compute",
-            source=data_source,  # type: ignore[arg-type]
+            source="ESTIMATED",
         ))
+
+    services = cost_data.get("top_services") or []
+    top_cost_drivers = [
+        str(item.get("service"))
+        for item in services
+        if isinstance(item, dict) and item.get("service")
+    ]
 
     return CostAnalyticsResponse(
         period_days=days,
         total_usd=round(total, 2),
         data_points=points,
-        breakdown_by_provider={k: round(v, 2) for k, v in by_provider.items()},
-        top_cost_drivers=["EC2 Compute", "Data Transfer", "EBS Storage"],
-        source=data_source,  # type: ignore[arg-type]
+        breakdown_by_provider={provider: round(total, 2)},
+        top_cost_drivers=top_cost_drivers,
+        source=data_source,
         estimation_method=estimation_method,
-        confidence=confidence,
+        confidence=max(0.0, min(1.0, confidence)),
     )
 
 
@@ -89,6 +102,7 @@ def cost_analytics(days: int = Query(7, ge=1, le=90), provider: str = Query("aws
 def carbon_analytics(
     days: int = Query(7, ge=1, le=90),
     region: str = Query("us-east"),
+    provider: str = Query("aws"),
 ):
     """Carbon emissions breakdown over the past N days with PUE and Scope 2/3 power modeling."""
     now = datetime.now(timezone.utc)
@@ -96,6 +110,7 @@ def carbon_analytics(
     total = 0.0
     by_region = {region: 0.0}
     green_hours = 0
+    norm_provider = str(provider or "aws").strip().lower()
 
     _THRESHOLD = 250  # gCO2/kWh — below = "green hour"
     curve = carbon.get_intensity_curve(region)
@@ -116,7 +131,7 @@ def carbon_analytics(
         points.append(CarbonDataPoint(
             timestamp=ts.isoformat(),
             carbon_gco2=round(carbon_val * 1000.0, 2),
-            provider="aws",
+            provider=norm_provider,
             region=region,
             intensity_gco2_per_kwh=ci,
             power_draw_watts=power_w,
@@ -130,6 +145,7 @@ def carbon_analytics(
     return CarbonAnalyticsResponse(
         period_days=days,
         total_gco2=round(total * 1000.0, 2),
+        assumptions="Estimated regional emissions for a reference m5.large workload at 45% CPU; not measured workload emissions.",
         data_points=points,
         breakdown_by_region={k: round(v * 1000.0, 2) for k, v in by_region.items()},
         green_hours_pct=green_pct,
@@ -161,7 +177,7 @@ def optimization_scores(
     from ..services.scoring import compute_optimization_scores
     from .recommendations import get_user_simulation_state
 
-    sim_state = get_user_simulation_state()
+    sim_state = get_user_simulation_state(provider=provider, region=region)
 
     p = get_provider(provider)
     if p.is_live:
@@ -185,7 +201,7 @@ def optimization_scores(
     )
 
     # If the user has active simulated optimizations, return projected simulated score
-    sim_state = get_user_simulation_state()
+    sim_state = get_user_simulation_state(provider=provider, region=region)
     if sim_state and sim_state.get("simulated_recommendations"):
         sim_metrics = sim_state.get("simulated_metrics")
         sim_baseline = sim_state.get("baseline_score")

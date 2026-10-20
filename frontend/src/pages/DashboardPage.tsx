@@ -102,7 +102,7 @@ export default function DashboardPage() {
   const handlePreviewRec = async (id: string, title: string) => {
     try {
       setApplyingId(id)
-      const res = await applyRecommendation(id, { dry_run: true })
+      const res = await applyRecommendation(id, { dry_run: true }, provider, region)
       const delta = res.score_delta != null ? res.score_delta : 0
       const deltaStr = delta > 0 ? `+${delta}` : `${delta}`
       addNotification({

@@ -329,25 +329,20 @@ class AzureCloudProvider(BaseCloudProvider):
         ]
 
     def get_cost(self, region: str, days: int = 7) -> dict[str, Any]:
-        """Fetch Azure Cost Management data or catalog estimate."""
-        total = round(0.184 * 24 * days, 2)
+        """Return demo costs or mark live billing unavailable until integrated."""
         if self.is_live:
             return {
                 "provider": "azure",
                 "region": region,
                 "period_days": days,
-                "total_usd": total,
+                "total_usd": None,
                 "currency": "USD",
-                "source": "ESTIMATED",
-                "estimation_method": "catalog_lookup",
-                "confidence": 0.85,
-                "top_services": [
-                    {"service": "Virtual Machines (Catalog)", "cost_usd": round(total * 0.70, 2), "source": "ESTIMATED"},
-                    {"service": "Storage Accounts (Catalog)", "cost_usd": round(total * 0.15, 2), "source": "ESTIMATED"},
-                    {"service": "Virtual Network (Catalog)", "cost_usd": round(total * 0.15, 2), "source": "ESTIMATED"},
-                ],
-                "note": "Cost estimated via Azure Retail Prices catalog lookup for discovered subscriptions/VMs.",
+                "source": "UNAVAILABLE",
+                "top_services": [],
+                "note": "Azure Cost Management billing data is not integrated.",
             }
+
+        total = round(0.184 * 24 * days, 2)
         return {
             "provider": "azure",
             "region": region,
@@ -363,18 +358,20 @@ class AzureCloudProvider(BaseCloudProvider):
         }
 
     def get_health(self, region: str) -> dict[str, Any]:
-        """Fetch Azure Resource Health indicators."""
+        """Report provider health as unavailable until real health checks are integrated."""
         return {
             "provider": "azure",
             "region": region,
-            "status": "HEALTHY",
-            "health_score": 90,
-            "active_alarms": 0,
-            "service_status": {
+            "status": "UNAVAILABLE" if self.is_live else "DEMO",
+            "health_score": None if self.is_live else 90,
+            "active_alarms": None if self.is_live else 0,
+            "source": "UNAVAILABLE" if self.is_live else "DEMO",
+            "service_status": {} if self.is_live else {
                 "Virtual Machines": "Available",
                 "Storage": "Available",
                 "Networking": "Available",
             },
+            "note": "Azure Resource Health and active alerts are not queried by GreenMind yet." if self.is_live else "Health data is heuristic-based.",
         }
 
     def get_account_info(self) -> dict[str, Any]:

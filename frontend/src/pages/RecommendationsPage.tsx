@@ -66,8 +66,8 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
   const [confirmInput, setConfirmInput] = useState('')
 
   const { data: explainData, isLoading: explainLoading } = useQuery({
-    queryKey: ['explain', rec.id],
-    queryFn: () => fetchExplain(rec.id),
+    queryKey: ['explain', rec.id, provider, region],
+    queryFn: () => fetchExplain(rec.id, provider, region),
   })
 
   const invalidateData = () => {
@@ -348,8 +348,11 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                             {ev.threshold || 'N/A'}
                           </td>
                           <td style={{ padding: '6px 8px', textAlign: 'right' }}>
-                            <span className={`badge ${ev.status === 'FLAGGED' ? 'badge-red' : 'badge-emerald'}`} style={{ fontSize: 10, padding: '2px 6px' }}>
-                              {ev.status || 'EVALUATED'}
+                            <span
+                              className={`badge ${ev.source === 'ERROR' ? 'badge-red' : ev.source === 'UNAVAILABLE' ? 'badge-muted' : 'badge-blue'}`}
+                              style={{ fontSize: 10, padding: '2px 6px' }}
+                            >
+                              {ev.source || ev.status || 'UNAVAILABLE'}
                             </span>
                           </td>
                         </tr>

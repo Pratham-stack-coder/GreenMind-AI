@@ -118,7 +118,6 @@ def _generate_live_metrics(provider: str, region: str, *, record: bool = True) -
         network=network,
         cost_usd_per_hour=cost,
         carbon_gco2_per_hour=carbon,
-        instance_count=random.choice([1, 1, 1, 2, 3]),
         source="DEMO",
         memory_source="DEMO",
         memory_note="Synthetic DEMO data — configure cloud credentials for live telemetry.",
@@ -132,6 +131,12 @@ def _provider_metrics_to_cloudmetrics(data: dict, provider: str, region: str) ->
     """Normalize a provider.get_metrics() dict to a CloudMetrics schema object."""
     raw_source = data.get("source", "DEMO")
     now_iso = datetime.now(timezone.utc).isoformat()
+    instance_count = data.get("instance_count")
+    instance_count_kwargs = (
+        {"instance_count": instance_count}
+        if isinstance(instance_count, int) and not isinstance(instance_count, bool) and instance_count >= 0
+        else {}
+    )
     return CloudMetrics(
         timestamp=data.get("timestamp", now_iso),
         provider=data.get("provider", provider),
@@ -139,6 +144,7 @@ def _provider_metrics_to_cloudmetrics(data: dict, provider: str, region: str) ->
         resource_id=data.get("resource_id"),
         account_id=data.get("account_id"),
         resource_type=data.get("resource_type", "instance"),
+        **instance_count_kwargs,
         cpu=float(data.get("cpu", 0.0)),
         memory=data.get("memory"),          # may be None (UNAVAILABLE)
         storage=data.get("storage"),        # may be None (UNAVAILABLE)
@@ -147,7 +153,6 @@ def _provider_metrics_to_cloudmetrics(data: dict, provider: str, region: str) ->
         network_out=data.get("network_out"),
         cost_usd_per_hour=float(data.get("cost_usd_per_hour", 0.0)),
         carbon_gco2_per_hour=float(data.get("carbon_gco2_per_hour", 0.0)),
-        instance_count=int(data.get("instance_count", 1)),
         status=data.get("status", "running"),
         source=raw_source,  # type: ignore[arg-type]
         cost_source=data.get("cost_source"),
@@ -258,19 +263,15 @@ async def telemetry_history(
     granularity: str = Query("5m", pattern="^(5m|15m|1h|1d)$", description="Aggregation granularity"),
     limit: int = Query(50, ge=1, le=500, description="Max history points"),
 ):
-    """Timestamped telemetry history with multi-cloud filtering and granularity support."""
-    entries_raw = await query_telemetry_history(limit * 6, provider=provider, region=region)
-    # Step down / sample by granularity
-    step = 1
-    if granularity == "15m":
-        step = 3
-    elif granularity == "1h":
-        step = 12
-    elif granularity == "1d":
-        step = 288
-
-    sampled = entries_raw[::step][:limit]
-    entries = [CloudMetrics(**e) for e in sampled]
+    """Timestamped telemetry history with one newest sample per elapsed time bucket."""
+    bucket_seconds = {"5m": 300, "15m": 900, "1h": 3600, "1d": 86400}[granularity]
+    entries_raw = await query_telemetry_history(
+        limit=limit,
+        provider=provider,
+        region=region,
+        bucket_seconds=bucket_seconds,
+    )
+    entries = [CloudMetrics(**entry) for entry in entries_raw[:limit]]
     dominant_source = entries[0].source if entries else "UNAVAILABLE"
 
     return TelemetryHistoryResponse(

@@ -226,45 +226,31 @@ class AWSCloudProvider(BaseCloudProvider):
         ]
 
     def get_cost(self, region: str, days: int = 7) -> dict[str, Any]:
-        """Fetch cost breakdown via AWS Cost Explorer if credentials allow."""
+        """Return regional AWS billing data, or an explicitly unavailable result."""
         if self.is_live:
-            cost_data = self.collector.collect_cost_explorer(days=days)
-            if cost_data is not None:
+            cost_data = self.collector.collect_cost_explorer(days=days, region=region)
+            if cost_data is None:
                 return {
                     "provider": "aws",
                     "region": region,
                     "period_days": days,
-                    "total_usd": cost_data["total_usd"],
+                    "total_usd": None,
                     "currency": "USD",
-                    "source": "LIVE_AWS",
-                    "top_services": cost_data.get("top_services", []),
-                    "note": "Cost data from AWS Cost Explorer API (ce:GetCostAndUsage).",
+                    "source": "UNAVAILABLE",
+                    "top_services": [],
+                    "note": "Regional AWS billing data is unavailable. Verify Cost Explorer access and region support.",
                 }
-            else:
-                # Fall back to catalog lookup based on instance type and region
-                catalog_rate = 0.096  # t3.medium / general compute avg
-                estimated_total = round(catalog_rate * 24 * days, 2)
-                return {
-                    "provider": "aws",
-                    "region": region,
-                    "period_days": days,
-                    "total_usd": estimated_total,
-                    "currency": "USD",
-                    "source": "ESTIMATED",
-                    "estimation_method": "catalog_lookup",
-                    "confidence": 0.85,
-                    "top_services": [
-                        {"service": "Amazon EC2 (Catalog)", "cost_usd": round(estimated_total * 0.70, 2), "source": "ESTIMATED"},
-                        {"service": "Amazon EBS (Catalog)", "cost_usd": round(estimated_total * 0.20, 2), "source": "ESTIMATED"},
-                        {"service": "Data Transfer (Catalog)", "cost_usd": round(estimated_total * 0.10, 2), "source": "ESTIMATED"},
-                    ],
-                    "note": (
-                        "Cost Explorer (ce:GetCostAndUsage) permission not granted to IAM principal. "
-                        "Cost estimated via AWS on-demand pricing catalog lookup."
-                    ),
-                }
+            return {
+                "provider": "aws",
+                "region": region,
+                "period_days": days,
+                "total_usd": cost_data["total_usd"],
+                "currency": "USD",
+                "source": "LIVE_AWS",
+                "top_services": cost_data.get("top_services", []),
+                "note": "Regional cost data from AWS Cost Explorer API (ce:GetCostAndUsage).",
+            }
 
-        # DEMO fallback
         total = round(0.192 * 24 * days, 2)
         return {
             "provider": "aws",
@@ -275,28 +261,27 @@ class AWSCloudProvider(BaseCloudProvider):
             "source": "DEMO",
             "top_services": [
                 {"service": "Amazon EC2", "cost_usd": round(total * 0.65, 2), "source": "DEMO"},
-                {"service": "Amazon EBS", "cost_usd": round(total * 0.18, 2), "source": "DEMO"},
-                {"service": "Data Transfer", "cost_usd": round(total * 0.12, 2), "source": "DEMO"},
-                {"service": "Amazon CloudWatch", "cost_usd": round(total * 0.05, 2), "source": "DEMO"},
+                {"service": "Amazon EBS", "cost_usd": round(total * 0.20, 2), "source": "DEMO"},
+                {"service": "Data Transfer", "cost_usd": round(total * 0.15, 2), "source": "DEMO"},
             ],
         }
 
     def get_health(self, region: str) -> dict[str, Any]:
-        """Fetch AWS infrastructure health indicators."""
+        """Report provider health as unavailable until real health checks are integrated."""
         return {
             "provider": "aws",
             "region": region,
-            "status": "HEALTHY",
-            "health_score": 92,
-            "active_alarms": 0,
-            "source": "LIVE_AWS" if self.is_live else "DEMO",
-            "service_status": {
+            "status": "UNAVAILABLE" if self.is_live else "DEMO",
+            "health_score": None if self.is_live else 92,
+            "active_alarms": None if self.is_live else 0,
+            "source": "UNAVAILABLE" if self.is_live else "DEMO",
+            "service_status": {} if self.is_live else {
                 "EC2": "Normal",
                 "EBS": "Normal",
                 "VPC": "Normal",
                 "CloudWatch": "Normal",
             },
-            "note": "Health data is heuristic-based. Real-time alarms require CloudWatch Alarms configuration.",
+            "note": "AWS health alarms and service status are not queried by GreenMind yet." if self.is_live else "Health data is heuristic-based. Real-time alarms require CloudWatch Alarms configuration.",
         }
 
     def get_account_info(self) -> dict[str, Any]:

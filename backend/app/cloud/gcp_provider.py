@@ -273,25 +273,20 @@ class GCPCloudProvider(BaseCloudProvider):
         ]
 
     def get_cost(self, region: str, days: int = 7) -> dict[str, Any]:
-        """Fetch GCP Cloud Billing data or catalog estimate."""
-        total = round(0.178 * 24 * days, 2)
+        """Return demo costs or mark live billing unavailable until integrated."""
         if self.is_live:
             return {
                 "provider": "gcp",
                 "region": region,
                 "period_days": days,
-                "total_usd": total,
+                "total_usd": None,
                 "currency": "USD",
-                "source": "ESTIMATED",
-                "estimation_method": "catalog_lookup",
-                "confidence": 0.85,
-                "top_services": [
-                    {"service": "Compute Engine (Catalog)", "cost_usd": round(total * 0.68, 2), "source": "ESTIMATED"},
-                    {"service": "Cloud Storage (Catalog)", "cost_usd": round(total * 0.16, 2), "source": "ESTIMATED"},
-                    {"service": "Networking & CDN (Catalog)", "cost_usd": round(total * 0.16, 2), "source": "ESTIMATED"},
-                ],
-                "note": "Cost estimated via Google Cloud compute pricing catalog lookup.",
+                "source": "UNAVAILABLE",
+                "top_services": [],
+                "note": "Google Cloud Billing data is not integrated.",
             }
+
+        total = round(0.178 * 24 * days, 2)
         return {
             "provider": "gcp",
             "region": region,
@@ -307,18 +302,20 @@ class GCPCloudProvider(BaseCloudProvider):
         }
 
     def get_health(self, region: str) -> dict[str, Any]:
-        """Fetch GCP infrastructure health indicators."""
+        """Report provider health as unavailable until real health checks are integrated."""
         return {
             "provider": "gcp",
             "region": region,
-            "status": "HEALTHY",
-            "health_score": 93,
-            "active_alarms": 0,
-            "service_status": {
+            "status": "UNAVAILABLE" if self.is_live else "DEMO",
+            "health_score": None if self.is_live else 93,
+            "active_alarms": None if self.is_live else 0,
+            "source": "UNAVAILABLE" if self.is_live else "DEMO",
+            "service_status": {} if self.is_live else {
                 "Compute Engine": "Normal",
                 "Cloud Storage": "Normal",
                 "VPC Network": "Normal",
             },
+            "note": "Google Cloud service health and alerting are not queried by GreenMind yet." if self.is_live else "Health data is heuristic-based.",
         }
 
     def get_account_info(self) -> dict[str, Any]:

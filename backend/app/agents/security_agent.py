@@ -15,34 +15,47 @@ def analyze(metrics: CloudMetrics, context: dict | None = None) -> dict:
     recs: list[RecommendationItem] = []
     score = 100
 
-    ctx = context or {}
-    region = metrics.region
-    provider = metrics.provider
+    ctx = context if isinstance(context, dict) else {}
+    supplied_checks: set[str] = set()
+
+    def observed_count(key: str) -> int | None:
+        value = ctx.get(key)
+        if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+            supplied_checks.add(key)
+            return value
+        return None
+
+    public_buckets = observed_count("public_storage_buckets")
+    unencrypted_volumes = observed_count("unencrypted_volumes")
+    admin_users = observed_count("admin_users_without_mfa")
+    raw_ports = ctx.get("open_security_group_ports")
+    open_ports: list[str] = []
+    if isinstance(raw_ports, (list, tuple, set)) and all(isinstance(port, str) for port in raw_ports):
+        supplied_checks.add("open_security_group_ports")
+        open_ports = list(raw_ports)
+    critical_open = [port for port in open_ports if "0.0.0.0/0" in port]
 
     # ── Public S3 / Blob storage exposure (demo heuristic) ───────────────────
     # In real mode this would call provider SDK to enumerate bucket ACLs
-    has_public_storage = ctx.get("public_storage_buckets", 0)
-    if has_public_storage:
+    if public_buckets is not None and public_buckets > 0:
         score -= 40
-        findings.append(f"{has_public_storage} public storage bucket(s) detected")
+        findings.append(f"{public_buckets} public storage bucket(s) detected")
         recs.append(RecommendationItem(
             id="sec-001",
             category="security",
             priority="critical",
             title="Public storage buckets detected — immediate remediation required",
-            description=f"{has_public_storage} bucket(s) are publicly accessible. "
+            description=f"{public_buckets} bucket(s) are publicly accessible. "
                         "Any sensitive data they contain is exposed to the internet.",
             impact_summary="Data breach risk — make buckets private immediately",
             estimated_monthly_savings_usd=0,
             effort="low",
             action="block_public_storage_access",
-            evidence=[f"Public buckets: {has_public_storage}"],
+            evidence=[f"Public buckets: {public_buckets}"],
             confidence=0.99,
         ))
 
-    # ── Open security groups (demo: flag if no context provided) ─────────────
-    open_ports = ctx.get("open_security_group_ports", ["0.0.0.0/0:22", "0.0.0.0/0:3389"])
-    critical_open = [p for p in open_ports if "0.0.0.0/0" in p]
+    # ── Open security groups ─────────────────────────────────────────────────
     if critical_open:
         score -= 25
         findings.append(f"Security group exposes {len(critical_open)} port(s) to 0.0.0.0/0")
@@ -62,8 +75,7 @@ def analyze(metrics: CloudMetrics, context: dict | None = None) -> dict:
         ))
 
     # ── Encryption at rest ────────────────────────────────────────────────────
-    unencrypted_volumes = ctx.get("unencrypted_volumes", 0)
-    if unencrypted_volumes:
+    if unencrypted_volumes is not None and unencrypted_volumes > 0:
         score -= 20
         findings.append(f"{unencrypted_volumes} unencrypted storage volume(s) found")
         recs.append(RecommendationItem(
@@ -82,8 +94,7 @@ def analyze(metrics: CloudMetrics, context: dict | None = None) -> dict:
         ))
 
     # ── IAM / RBAC over-permissions ───────────────────────────────────────────
-    admin_users = ctx.get("admin_users_without_mfa", 0)
-    if admin_users:
+    if admin_users is not None and admin_users > 0:
         score -= 20
         findings.append(f"{admin_users} admin user(s) without MFA")
         recs.append(RecommendationItem(
@@ -102,14 +113,22 @@ def analyze(metrics: CloudMetrics, context: dict | None = None) -> dict:
         ))
 
     # ── Demo default security finding ─────────────────────────────────────────
-    if not findings:
-        findings.append("No critical security issues detected in demo mode — "
-                        "connect live provider for full IAM/network audit")
-        score -= 5  # small penalty since we can't fully verify in demo
+    if not supplied_checks:
+        findings.append(
+            "Security posture data is unavailable; no security risks were inferred from telemetry."
+        )
+        status = "skipped"
+    elif not findings:
+        findings.append(
+            "No issues were found in supplied posture checks; other security checks remain unverified."
+        )
+        status = "completed"
+    else:
+        status = "completed"
 
     return {
         "agent": "SecurityAgent",
-        "status": "completed",
+        "status": status,
         "findings": findings,
         "recommendations": recs,
         "score": max(0, min(100, score)),

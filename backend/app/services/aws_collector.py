@@ -257,12 +257,8 @@ class AWSCollector:
             logger.warning(f"AWS Cost Explorer query failed (this is OK if no ce permission): {type(e).__name__}: {e}")
             return None
 
-    def collect_cost_explorer(self, days: int = 7) -> dict[str, Any] | None:
-        """Fetch N-day cost breakdown via Cost Explorer with service-level granularity.
-
-        Returns dict with total_usd and top_services, or None on any failure.
-        Requires ce:GetCostAndUsage with GROUP_BY Service.
-        """
+    def collect_cost_explorer(self, days: int = 7, region: str | None = None) -> dict[str, Any] | None:
+        """Fetch Cost Explorer totals for one region when a region is requested."""
         if not self._ce_client:
             return None
 
@@ -270,14 +266,28 @@ class AWSCollector:
         end = date.today()
         start = end - timedelta(days=days)
 
-        try:
-            resp = self._ce_client.get_cost_and_usage(
-                TimePeriod={"Start": str(start), "End": str(end)},
-                Granularity="MONTHLY",
-                Metrics=["AmortizedCost"],
-                GroupBy=[{"Type": "DIMENSION", "Key": "SERVICE"}],
-            )
+        request: dict[str, Any] = {
+            "TimePeriod": {"Start": str(start), "End": str(end)},
+            "Granularity": "MONTHLY",
+            "Metrics": ["AmortizedCost"],
+            "GroupBy": [{"Type": "DIMENSION", "Key": "SERVICE"}],
+        }
+        if region and region.strip():
+            aliases = {
+                "us-east": "us-east-1",
+                "us-west": "us-west-2",
+                "eu-west": "eu-west-1",
+                "ap-southeast": "ap-southeast-1",
+                "ca-central": "ca-central-1",
+                "in-north": "ap-south-1",
+            }
+            aws_region = aliases.get(region.strip().lower(), region.strip())
+            request["Filter"] = {
+                "Dimensions": {"Key": "REGION", "Values": [aws_region]}
+            }
 
+        try:
+            resp = self._ce_client.get_cost_and_usage(**request)
             total = 0.0
             top_services: list[dict[str, Any]] = []
             for period in resp.get("ResultsByTime", []):
@@ -285,13 +295,16 @@ class AWSCollector:
                     service_name = group["Keys"][0]
                     amount = float(group["Metrics"]["AmortizedCost"]["Amount"])
                     total += amount
-                    top_services.append({"service": service_name, "cost_usd": round(amount, 4), "source": "LIVE_AWS"})
+                    top_services.append({
+                        "service": service_name,
+                        "cost_usd": round(amount, 4),
+                        "source": "LIVE_AWS",
+                    })
 
-            # Sort by cost desc, keep top 10
-            top_services = sorted(top_services, key=lambda x: -x["cost_usd"])[:10]
+            top_services = sorted(top_services, key=lambda item: -item["cost_usd"])[:10]
             return {"total_usd": round(total, 4), "top_services": top_services}
-        except Exception as e:
-            logger.warning(f"AWS Cost Explorer breakdown failed: {type(e).__name__}: {e}")
+        except Exception as exc:
+            logger.warning("AWS Cost Explorer query failed (%s): %s", type(exc).__name__, exc)
             return None
 
 

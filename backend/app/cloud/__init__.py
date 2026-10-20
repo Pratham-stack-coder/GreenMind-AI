@@ -68,6 +68,9 @@ def get_provider(name: Any = "aws") -> BaseCloudProvider:
     if not isinstance(name, str):
         name = str(name) if name is not None else "aws"
     name_clean = name.lower().strip()
+    if name_clean not in {"aws", "azure", "gcp"}:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Unsupported cloud provider: {name_clean or '(empty)'}")
     user_id = get_current_user_id()
     key = (user_id, name_clean)
     if key not in _PROVIDERS:

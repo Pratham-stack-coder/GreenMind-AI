@@ -278,19 +278,21 @@ def _run_with_langgraph(metrics: CloudMetrics, context: dict) -> tuple[list[dict
         res = security_agent.analyze(m, state["context"])
         state["sec_result"] = res
         dur = round((time.perf_counter() - t0) * 1000, 2)
+        posture_fields = sorted({
+            "public_storage_buckets",
+            "open_security_group_ports",
+            "unencrypted_volumes",
+            "admin_users_without_mfa",
+        }.intersection(state["context"]))
         state["execution_trace"].append(
             AgentExecutionStep(
                 step_number=4,
                 agent="SecurityAgent",
-                status="completed",
+                status=res.get("status", "completed"),
                 execution_ms=dur,
-                thoughts=[
-                    "Inspected ingress security group rules across perimeter",
-                    "Evaluated EBS volume encryption at rest and IAM compliance",
-                    "Scanned for open SSH/RDP ports to 0.0.0.0/0",
-                ],
-                inputs_evaluated={"open_ports": state["context"].get("open_security_group_ports", [])},
-                key_finding=res.get("findings", ["Security audit complete"])[0] if res.get("findings") else "Security audited",
+                thoughts=res.get("findings", ["Security analysis completed"]),
+                inputs_evaluated={"available_posture_fields": posture_fields},
+                key_finding=res.get("findings", ["Security analysis completed"])[0],
                 recommendations_generated=len(res.get("recommendations", [])),
             ).model_dump()
         )
@@ -302,19 +304,25 @@ def _run_with_langgraph(metrics: CloudMetrics, context: dict) -> tuple[list[dict
         res = reliability_agent.analyze(m, state["context"])
         state["rel_result"] = res
         dur = round((time.perf_counter() - t0) * 1000, 2)
+        posture_fields = sorted({
+            "availability_zones",
+            "has_autoscaling",
+            "has_backup_policy",
+            "last_backup_age_hours",
+            "has_health_checks",
+        }.intersection(state["context"]))
         state["execution_trace"].append(
             AgentExecutionStep(
                 step_number=5,
                 agent="ReliabilityAgent",
-                status="completed",
+                status=res.get("status", "completed"),
                 execution_ms=dur,
-                thoughts=[
-                    "Audited Multi-AZ topology and failover readiness",
-                    f"Validated backup policy RPO and snapshot age ({state['context'].get('last_backup_age_hours', 24)}h)",
-                    "Verified ALB health check probe status across availability zones",
-                ],
-                inputs_evaluated={"azs": state["context"].get("availability_zones", 1), "has_ha": state["context"].get("has_autoscaling", False)},
-                key_finding=res.get("findings", ["Reliability checked"])[0] if res.get("findings") else "Reliability validated",
+                thoughts=res.get("findings", ["Reliability analysis completed"]),
+                inputs_evaluated={
+                    "instance_count": m.instance_count,
+                    "available_posture_fields": posture_fields,
+                },
+                key_finding=res.get("findings", ["Reliability analysis completed"])[0],
                 recommendations_generated=len(res.get("recommendations", [])),
             ).model_dump()
         )
@@ -431,7 +439,7 @@ def run(metrics: CloudMetrics, context: dict | None = None) -> AgentRunResponse:
         ))
 
     unified = _deduplicate_recs(all_recs)
-    scores = [a.score for a in agent_result_objs]
+    scores = [a.score for a in agent_result_objs if a.status == "completed"]
     overall = round(sum(scores) / len(scores)) if scores else 80
     summary = _generate_summary(agent_results, overall)
     conflicts = resolve_conflicts(metrics, agent_results)

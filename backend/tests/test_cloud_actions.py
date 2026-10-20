@@ -676,3 +676,65 @@ def test_audit_failure_blocks_reporting_success(monkeypatch):
         assert "audit record could not be saved" in exc.value.detail
     finally:
         _current_user_id.reset(token)
+
+
+def test_provider_and_region_isolation():
+    from app.auth import _current_user_id
+    from app.routers.recommendations import _user_state, _user_states
+    token = _current_user_id.set("tenant-isolation-test")
+    try:
+        aws_east = _user_state("aws", "us-east")
+        aws_west = _user_state("aws", "us-west")
+        azure_east = _user_state("azure", "eastus")
+
+        aws_east["dismissed"].add("rec-1")
+        assert "rec-1" not in aws_west["dismissed"]
+        assert "rec-1" not in azure_east["dismissed"]
+
+        aws_east["applied"]["rec-2"] = MagicMock()
+        assert "rec-2" not in aws_west["applied"]
+        assert "rec-2" not in azure_east["applied"]
+    finally:
+        _user_states.pop("tenant-isolation-test", None)
+        _current_user_id.reset(token)
+
+
+def test_security_and_reliability_agents_skip_when_posture_missing():
+    from app.agents.security_agent import security_agent
+    from app.agents.reliability_agent import reliability_agent
+    from app.schemas import CloudMetrics
+
+    empty_metrics = CloudMetrics(
+        provider="aws",
+        region="us-east-1",
+        cpu=15.0,
+        memory=30.0,
+        storage=20.0,
+        network=5.0,
+        cost_usd_per_hour=0.05,
+        carbon_gco2_per_hour=10.0,
+        source="DEMO",
+    )
+
+    sec_res = security_agent.analyze(empty_metrics)
+    assert sec_res.status == "skipped"
+    assert "unavailable" in sec_res.reasoning.lower()
+
+    rel_res = reliability_agent.analyze(empty_metrics)
+    assert rel_res.status == "skipped"
+    assert "unavailable" in rel_res.reasoning.lower()
+
+
+def test_live_cost_returns_unavailable_when_billing_unconfigured():
+    from app.cloud.aws_provider import AWSCloudProvider
+    provider = AWSCloudProvider(credentials={"aws_access_key_id": "test", "aws_secret_access_key": "test"})
+    # Mock is_live to True but collector has no cost explorer
+    provider._is_live = True
+    provider.collector = MagicMock()
+    provider.collector.collect_cost_explorer.return_value = None
+
+    cost = provider.get_cost("us-east-1")
+    assert cost["source"] == "UNAVAILABLE"
+    assert cost["total_usd"] is None
+    assert "unavailable" in cost["note"].lower()
+
