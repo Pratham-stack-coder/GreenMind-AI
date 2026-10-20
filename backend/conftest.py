@@ -10,9 +10,19 @@ import pytest
 
 # Test credentials are encrypted with an ephemeral, non-production key.
 os.environ.setdefault("CREDENTIAL_ENCRYPTION_KEY", "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA=")
+os.environ.setdefault("SUPABASE_URL", "https://test-project.supabase.co")
 
 # Ensure the backend/ directory is on sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+
+@pytest.fixture(scope="session", autouse=True)
+def initialize_test_database():
+    """Ensure test database and all tables are initialized for the test suite."""
+    import asyncio
+    from app.database import init_db
+
+    asyncio.run(init_db())
 
 
 @pytest.fixture(autouse=True)

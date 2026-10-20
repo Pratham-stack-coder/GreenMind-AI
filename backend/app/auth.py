@@ -136,25 +136,31 @@ async def verify_supabase_access_token(
     """Verify a Supabase JWT signature, issuer, audience, and expiry."""
     settings = config or get_settings()
     supabase_url = settings.supabase_url.strip().rstrip("/")
-    if not supabase_url:
-        raise HTTPException(
-            status_code=503,
-            detail="Backend authentication is not configured. Set SUPABASE_URL on the backend.",
-        )
-
     pub_key = settings.supabase_publishable_key.strip()
 
     try:
         algorithm = jwt.get_unverified_header(token).get("alg")
     except jwt.PyJWTError as exc:
         # If unverified header parsing fails, try authoritative Supabase API before rejecting
-        if pub_key:
-            return await _verify_token_via_supabase_api(token, supabase_url, pub_key)
+        if pub_key and supabase_url:
+            try:
+                return await _verify_token_via_supabase_api(token, supabase_url, pub_key)
+            except HTTPException as sub_exc:
+                if sub_exc.status_code == 401:
+                    raise sub_exc
+            except Exception:
+                pass
         raise HTTPException(
             status_code=401,
             detail="Invalid access token.",
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
+
+    if not supabase_url:
+        raise HTTPException(
+            status_code=503,
+            detail="Backend authentication is not configured. Set SUPABASE_URL on the backend.",
+        )
 
     if algorithm == "HS256":
         return await _verify_token_via_supabase_api(

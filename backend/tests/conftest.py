@@ -6,6 +6,15 @@ import pytest
 from cryptography.fernet import Fernet
 
 
+@pytest.fixture(scope="session", autouse=True)
+def initialize_test_database():
+    """Ensure test database and all tables are initialized for the test suite."""
+    import asyncio
+    from app.database import init_db
+
+    asyncio.run(init_db())
+
+
 @pytest.fixture(autouse=True)
 def authenticated_test_user(monkeypatch):
     """Give API tests a fresh auth identity and encryption key without Supabase."""
