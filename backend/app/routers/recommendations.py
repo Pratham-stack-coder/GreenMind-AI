@@ -91,8 +91,8 @@ def _simulate_metrics_for_recommendations(
         action = (rec.action or "").lower().strip()
         category = (rec.category or "").lower().strip()
 
-        if action in ("terminate_idle", "terminate") or "terminate" in action:
-            # Terminate idle node
+        if action in ("stop_idle", "terminate_idle", "terminate") or "terminate" in action or "stop_idle" in action:
+            # Stop idle node (capacity removed from active pool)
             count = max(1, count - 1)
             cost = max(0.01, round(cost - (rec.estimated_monthly_savings_usd / 720.0), 4))
             if cpu < 20.0:
@@ -243,7 +243,6 @@ async def _execute_apply(
         operator_notes=operator_notes,
         provider=provider,
         region=region,
-        new_score=projected_score,
         baseline_score=baseline_score,
         projected_score=projected_score,
         score_delta=score_delta,
@@ -268,7 +267,10 @@ async def _execute_apply(
         if rec.id in state["dismissed"]:
             state["dismissed"].remove(rec.id)
         state["applied"][rec.id] = resp
-        state["score"] = projected_score
+        if resp.score_verified and resp.new_score is not None:
+            state["score"] = resp.new_score
+            state["baseline_score"] = resp.new_score
+        # When score is unverified, preserve baseline score rather than claiming projected score
         state["simulated_metrics"] = None
 
     return resp

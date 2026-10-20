@@ -108,6 +108,8 @@ export interface ApplyResponse {
   region?: string
   previous_state?: string
   current_state?: string
+  score_verified?: boolean
+  actual_operation?: string
   new_score?: number
   baseline_score?: number
   projected_score?: number

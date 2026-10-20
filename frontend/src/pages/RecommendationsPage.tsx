@@ -662,6 +662,11 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                     <div>
                       <span className="font-semibold text-primary">Target: </span>
                       <code className="text-emerald font-mono">{applyResult.resource_id}</code>
+                      {applyResult.actual_operation && (
+                        <span className="ml-2 text-muted font-mono" style={{ fontSize: 10 }}>
+                          (Op: {applyResult.actual_operation})
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 font-mono">
                       <span className="badge badge-muted">{applyResult.previous_state}</span>
@@ -675,28 +680,50 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                 {(applyResult.baseline_score !== undefined || applyResult.new_score !== undefined || applyResult.projected_score !== undefined) && (
                   <div
                     className="p-2.5 rounded mb-3 flex items-center justify-between flex-wrap gap-2"
-                    style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}
+                    style={{
+                      background: applyResult.score_verified ? '#F0FDF4' : '#FFFBEB',
+                      border: `1px solid ${applyResult.score_verified ? '#BBF7D0' : '#FDE68A'}`
+                    }}
                   >
                     <div>
-                      <div className="text-xs font-semibold text-emerald">
-                        {applyResult.verified ? 'Verified Optimization Score Recalculation' : 'Projected Score Impact'}
+                      <div
+                        className="text-xs font-semibold flex items-center gap-1.5"
+                        style={{ color: applyResult.score_verified ? 'var(--emerald-600)' : '#B45309' }}
+                      >
+                        {applyResult.score_verified ? (
+                          <>
+                            <CheckCircle2 size={12} />
+                            Verified Optimization Score Recalculation
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangle size={12} />
+                            Projected Score Impact (Post-Action Score Unverified - Pending Fresh Telemetry)
+                          </>
+                        )}
                       </div>
-                      <div className="text-xs text-secondary">
-                        Baseline: {applyResult.baseline_score ?? 70}/100 → {applyResult.verified ? 'Verified Score' : 'Projected'}:{' '}
-                        {applyResult.new_score ?? applyResult.projected_score ?? 70}/100
+                      <div className="text-xs text-secondary mt-0.5">
+                        Baseline: {applyResult.baseline_score ?? 70}/100 → {applyResult.score_verified ? 'Verified Score' : 'Projected'}:{' '}
+                        {applyResult.score_verified
+                          ? (applyResult.new_score ?? 70)
+                          : (applyResult.projected_score ?? applyResult.new_score ?? 70)}/100
                       </div>
                     </div>
                     <span
                       className={`badge ${
-                        (applyResult.score_delta ?? 0) > 0
-                          ? 'badge-emerald'
-                          : (applyResult.score_delta ?? 0) < 0
-                          ? 'badge-red'
-                          : 'badge-muted'
+                        applyResult.score_verified
+                          ? (applyResult.score_delta ?? 0) > 0
+                            ? 'badge-emerald'
+                            : (applyResult.score_delta ?? 0) < 0
+                            ? 'badge-red'
+                            : 'badge-muted'
+                          : 'badge-amber'
                       }`}
                       style={{ fontSize: 11 }}
                     >
-                      {(applyResult.score_delta ?? 0) > 0 ? `+${applyResult.score_delta}` : applyResult.score_delta} pts
+                      {applyResult.score_verified
+                        ? ((applyResult.score_delta ?? 0) > 0 ? `+${applyResult.score_delta} pts` : `${applyResult.score_delta} pts`)
+                        : `~+${(applyResult.projected_score ?? 70) - (applyResult.baseline_score ?? 70)} pts (projected)`}
                     </span>
                   </div>
                 )}

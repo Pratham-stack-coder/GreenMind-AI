@@ -41,13 +41,13 @@ def analyze(metrics: CloudMetrics, context: dict | None = None) -> dict:
             id="cost-001",
             category="cost",
             priority="high",
-            title="Terminate or hibernate idle instances",
+            title="Stop or hibernate idle instances",
             description=f"CPU utilization is {cpu:.0f}% and memory is {mem_str}. "
-                        "These instances are likely idle and incurring unnecessary cost.",
+                        "Safely stopping idle instances preserves EBS storage and eliminates compute costs.",
             impact_summary=f"~${cost * 24 * 30:.0f}/month wasted on idle compute",
             estimated_monthly_savings_usd=round(cost * 24 * 30 * 0.9, 2),
             effort="low",
-            action="terminate_idle",
+            action="stop_idle",
             evidence=[f"Current CPU: {cpu:.1f}%", mem_evidence],
             confidence=0.92 if memory is not None else 0.75,
         ))

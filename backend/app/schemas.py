@@ -187,6 +187,8 @@ class ApplyResponse(BaseModel):
     region: str | None = None
     previous_state: str | None = None
     current_state: str | None = None
+    score_verified: bool = False
+    actual_operation: str | None = None
     new_score: int | None = None
     baseline_score: int | None = None
     projected_score: int | None = None

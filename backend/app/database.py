@@ -590,12 +590,27 @@ async def persist_audit_log(
     steps_taken: list[str],
     dry_run: bool = False,
     operator_notes: str | None = None,
+    actual_operation: str | None = None,
+    previous_state: str | None = None,
+    resulting_state: str | None = None,
+    verification_status: str | None = None,
+    error: str | None = None,
     **kwargs: Any,
 ) -> None:
     """Persist an applied/rollback remediation action to the audit table."""
-    owner_id = get_current_user_id()
-    if not owner_id:
-        return
+    owner_id = get_current_user_id() or "system"
+
+    # Preserve complete audit metadata in notes
+    notes_parts: list[str] = []
+    if actual_operation or previous_state or resulting_state or verification_status:
+        meta_summary = f"[Op: {actual_operation or 'n/a'} | State: {previous_state or 'n/a'} -> {resulting_state or 'n/a'} | Verif: {verification_status or 'n/a'}]"
+        notes_parts.append(meta_summary)
+    if error:
+        notes_parts.append(f"[Error: {error}]")
+    if operator_notes:
+        notes_parts.append(operator_notes)
+    combined_notes = " ".join(notes_parts).strip() or None
+
     try:
         async with _async_session_maker() as session:
             log = AuditLogRecord(
@@ -608,12 +623,13 @@ async def persist_audit_log(
                 monthly_savings_usd=monthly_savings,
                 carbon_reduction_pct=carbon_reduction,
                 new_score=new_score,
-                operator_notes=operator_notes,
+                operator_notes=combined_notes,
                 steps_taken_json=json.dumps(steps_taken),
                 timestamp=datetime.now(timezone.utc).isoformat(),
             )
             session.add(log)
             await session.commit()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.error("Failed to persist audit log record for %s: %s", rec_id, exc)
+        raise
 
