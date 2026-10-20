@@ -161,7 +161,12 @@ class RecommendationsResponse(BaseModel):
 class ApplyRequest(BaseModel):
     dry_run: bool = False
     simulate: bool = False
+    confirm_live: bool = False
+    resource_id: str | None = None
+    target_instance_type: str | None = None
     operator_notes: str | None = None
+    provider: str | None = None
+    region: str | None = None
 
 
 class ApplyResponse(BaseModel):
@@ -173,8 +178,15 @@ class ApplyResponse(BaseModel):
     estimated_monthly_savings_usd: float = 0.0
     estimated_carbon_reduction_pct: float = 0.0
     applied_at: str
-    steps_taken: list[str] = []
+    steps_taken: list[str] = Field(default_factory=list)
     dry_run: bool = False
+    verified: bool = False
+    verification_status: str | None = None
+    resource_id: str | None = None
+    provider: str | None = None
+    region: str | None = None
+    previous_state: str | None = None
+    current_state: str | None = None
     new_score: int | None = None
     baseline_score: int | None = None
     projected_score: int | None = None

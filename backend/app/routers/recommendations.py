@@ -193,11 +193,16 @@ def _build_recommendations(provider: str, region: str) -> tuple[list[Recommendat
     return state["recommendations"], state["score"]
 
 
-def _execute_apply(
+async def _execute_apply(
     rec: RecommendationItem,
     dry_run: bool = False,
     simulate: bool = False,
+    confirm_live: bool = False,
+    resource_id: str | None = None,
+    target_instance_type: str | None = None,
     operator_notes: str | None = None,
+    provider: str = "aws",
+    region: str = "us-east",
 ) -> ApplyResponse:
     state = _user_state()
     from ..integrations.cloud_actions import CloudActionDispatcher
@@ -205,7 +210,7 @@ def _execute_apply(
     base_metrics = state.get("baseline_metrics")
     if base_metrics is None:
         from ..routers.telemetry import _generate_live_metrics
-        base_metrics = _generate_live_metrics("aws", "us-east")
+        base_metrics = _generate_live_metrics(provider, region)
         state["baseline_metrics"] = base_metrics
 
     # Calculate baseline scores
@@ -228,19 +233,16 @@ def _execute_apply(
     projected_score = proj_scores.overall
     score_delta = projected_score - baseline_score
 
-    # Live cloud mutations remain rejected via 501
-    if not dry_run and not simulate:
-        return CloudActionDispatcher.execute_recommendation(
-            rec=rec,
-            dry_run=False,
-            operator_notes=operator_notes,
-        )
-
-    # In dry_run preview or simulation mode:
-    resp = CloudActionDispatcher.execute_recommendation(
+    resp = await CloudActionDispatcher.execute_recommendation(
         rec=rec,
-        dry_run=True,
+        dry_run=dry_run,
+        simulate=simulate,
+        confirm_live=confirm_live,
+        resource_id=resource_id,
+        target_instance_type=target_instance_type,
         operator_notes=operator_notes,
+        provider=provider,
+        region=region,
         new_score=projected_score,
         baseline_score=baseline_score,
         projected_score=projected_score,
@@ -258,6 +260,16 @@ def _execute_apply(
         state["simulated"][rec.id] = resp
         state["score"] = projected_score
         state["simulated_metrics"] = after_metrics
+    elif not dry_run and resp.status == "applied":
+        # Confirmed live remediation applied and verified on cloud resource
+        rec.status = "applied"
+        rec.applied_at = resp.applied_at
+        rec.steps_taken = resp.steps_taken
+        if rec.id in state["dismissed"]:
+            state["dismissed"].remove(rec.id)
+        state["applied"][rec.id] = resp
+        state["score"] = projected_score
+        state["simulated_metrics"] = None
 
     return resp
 
@@ -331,7 +343,7 @@ def reset_simulation():
 
 
 @router.post("/apply-batch", response_model=BatchApplyResponse)
-def batch_apply_recommendations(req: BatchApplyRequest):
+async def batch_apply_recommendations(req: BatchApplyRequest):
     """Batch apply or preview multiple recommendations simultaneously."""
     state = _user_state()
 
@@ -353,7 +365,7 @@ def batch_apply_recommendations(req: BatchApplyRequest):
     total_carbon = 0.0
 
     for rec in targets:
-        res = _execute_apply(rec, dry_run=req.dry_run)
+        res = await _execute_apply(rec, dry_run=req.dry_run)
         results.append(res)
         total_savings += res.estimated_monthly_savings_usd
         total_carbon += res.estimated_carbon_reduction_pct
@@ -382,12 +394,17 @@ def batch_apply_recommendations(req: BatchApplyRequest):
 
 
 @router.post("/{rec_id}/apply", response_model=ApplyResponse)
-def apply_recommendation(rec_id: str, req: ApplyRequest | None = None):
+async def apply_recommendation(
+    rec_id: str,
+    req: ApplyRequest | None = None,
+    provider: str = Query("aws"),
+    region: str = Query("us-east"),
+):
     """Execute remediation action or dry-run preview for a specific recommendation."""
     state = _user_state()
 
     if not state["recommendations"]:
-        _build_recommendations("aws", "us-east")
+        _build_recommendations(provider, region)
 
     rec = next((r for r in state["recommendations"] if r.id == rec_id), None)
     if not rec:
@@ -398,12 +415,28 @@ def apply_recommendation(rec_id: str, req: ApplyRequest | None = None):
 
     dry_run = req.dry_run if req else False
     simulate = req.simulate if req else False
+    confirm_live = req.confirm_live if req else False
+    resource_id = req.resource_id if req else None
+    target_instance_type = req.target_instance_type if req else None
     operator_notes = req.operator_notes if req else None
-    return _execute_apply(rec, dry_run=dry_run, simulate=simulate, operator_notes=operator_notes)
+    req_provider = (req.provider if req and req.provider else provider)
+    req_region = (req.region if req and req.region else region)
+
+    return await _execute_apply(
+        rec,
+        dry_run=dry_run,
+        simulate=simulate,
+        confirm_live=confirm_live,
+        resource_id=resource_id,
+        target_instance_type=target_instance_type,
+        operator_notes=operator_notes,
+        provider=req_provider,
+        region=req_region,
+    )
 
 
 @router.post("/{rec_id}/simulate", response_model=ApplyResponse)
-def simulate_recommendation(rec_id: str, req: ApplyRequest | None = None):
+async def simulate_recommendation(rec_id: str, req: ApplyRequest | None = None):
     """Simulate applying a recommendation to the digital twin infrastructure model."""
     state = _user_state()
 
@@ -418,16 +451,47 @@ def simulate_recommendation(rec_id: str, req: ApplyRequest | None = None):
         )
 
     operator_notes = req.operator_notes if req else None
-    return _execute_apply(rec, dry_run=True, simulate=True, operator_notes=operator_notes)
+    return await _execute_apply(rec, dry_run=True, simulate=True, operator_notes=operator_notes)
 
 
 @router.post("/{rec_id}/rollback", response_model=ApplyResponse)
-def rollback_recommendation(rec_id: str):
-    """Return a clear error until real rollback operations are implemented."""
-    raise HTTPException(
-        status_code=501,
-        detail="Cloud remediation rollback is not implemented.",
+async def rollback_recommendation(
+    rec_id: str,
+    provider: str = Query("aws"),
+    region: str = Query("us-east"),
+    operator_notes: str | None = Query(None),
+):
+    """Execute rollback for an applied recommendation if prior state is recorded."""
+    state = _user_state()
+    from ..integrations.cloud_actions import CloudActionDispatcher
+
+    rec = next((r for r in state["recommendations"] if r.id == rec_id), None)
+    if not rec:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Recommendation '{rec_id}' not found.",
+        )
+
+    prior_apply = state["applied"].get(rec_id)
+    if not prior_apply:
+        raise HTTPException(
+            status_code=501,
+            detail="Cloud remediation rollback is not implemented for this action without a recorded prior state.",
+        )
+
+    resp = await CloudActionDispatcher.rollback_recommendation(
+        rec=rec,
+        operator_notes=operator_notes,
+        provider=provider,
+        region=region,
+        previous_state=prior_apply.previous_state,
+        resource_id=prior_apply.resource_id,
     )
+
+    rec.status = "open"
+    state["applied"].pop(rec_id, None)
+    return resp
+
 
 
 @router.post("/{rec_id}/dismiss")

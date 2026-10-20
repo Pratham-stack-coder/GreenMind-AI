@@ -101,6 +101,13 @@ export interface ApplyResponse {
   applied_at: string
   steps_taken: string[]
   dry_run?: boolean
+  verified?: boolean
+  verification_status?: string
+  resource_id?: string
+  provider?: string
+  region?: string
+  previous_state?: string
+  current_state?: string
   new_score?: number
   baseline_score?: number
   projected_score?: number

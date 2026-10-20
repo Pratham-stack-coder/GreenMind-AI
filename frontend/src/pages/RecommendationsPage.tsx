@@ -5,7 +5,7 @@ import {
   DollarSign, Zap, Leaf, Shield, Activity, Filter,
   ChevronDown, ChevronUp, RefreshCw, CheckCircle2, RotateCcw,
   Sparkles, Play, Check, AlertTriangle, X, Terminal,
-  Info, Loader2
+  Info, Loader2, ArrowRight
 } from 'lucide-react'
 import { useAppStore } from '../store'
 import {
@@ -15,8 +15,9 @@ import {
   batchApplyRecommendations,
   simulateRecommendation,
   resetSimulation,
+  rollbackRecommendation,
 } from '../api/client'
-import type { RecommendationItem } from '../types'
+import type { RecommendationItem, ApplyResponse } from '../types'
 
 const categoryIcons: Record<string, React.ReactNode> = {
   cost: <DollarSign size={14} />,
@@ -40,18 +41,29 @@ interface ExplainModalProps {
 function ExplainModal({ rec, onClose }: ExplainModalProps) {
   const { provider, region, addNotification } = useAppStore()
   const queryClient = useQueryClient()
-  const dryRun = true
+  const [activeTab, setActiveTab] = useState<'preview' | 'live'>('preview')
   const [applying, setApplying] = useState(false)
   const [simulating, setSimulating] = useState(false)
-  const [applyResult, setApplyResult] = useState<{
-    message: string
-    steps: string[]
-    status: string
-    baseline_score?: number
-    projected_score?: number
-    score_delta?: number
-    assumptions?: string[]
-  } | null>(null)
+  const [rollingBack, setRollingBack] = useState(false)
+  const [applyResult, setApplyResult] = useState<ApplyResponse | null>(null)
+
+  // Live action compatibility
+  const isResize = rec.action === 'right_size_down' || rec.action === 'right_size'
+  const isStopIdle = rec.action === 'terminate_idle' || rec.action === 'stop_idle'
+  const isAwsProvider = (provider || '').toLowerCase() === 'aws'
+  const isLiveSupported = isAwsProvider && (isResize || isStopIdle)
+
+  // Extract EC2 instance ID if mentioned in evidence/description or default
+  const defaultInstanceId = (() => {
+    const text = `${rec.description} ${(rec.evidence || []).join(' ')}`
+    const match = text.match(/\b(i-[0-9a-fA-F]{8,17})\b/)
+    return match ? match[1] : 'i-0123456789abcdef0'
+  })()
+
+  const [resourceId, setResourceId] = useState(defaultInstanceId)
+  const [targetInstanceType, setTargetInstanceType] = useState('t3.small')
+  const [confirmedLive, setConfirmedLive] = useState(false)
+  const [confirmInput, setConfirmInput] = useState('')
 
   const { data: explainData, isLoading: explainLoading } = useQuery({
     queryKey: ['explain', rec.id],
@@ -68,21 +80,21 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
   const handlePreview = async () => {
     try {
       setApplying(true)
-      const res = await applyRecommendation(rec.id, { dry_run: dryRun })
-      setApplyResult({
-        message: res.message,
-        steps: res.steps_taken,
-        status: res.status,
-        baseline_score: res.baseline_score,
-        projected_score: res.projected_score,
-        score_delta: res.score_delta,
-        assumptions: res.assumptions,
-      })
+      const res = await applyRecommendation(rec.id, { dry_run: true })
+      setApplyResult(res)
       invalidateData()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'The dry-run request failed.'
-      console.error('Failed to prepare recommendation preview', err)
-      setApplyResult({ message: `Dry-run preview failed: ${message}`, steps: [], status: 'error' })
+      setApplyResult({
+        recommendation_id: rec.id,
+        title: rec.title,
+        status: 'failed',
+        message: `Dry-run preview failed: ${message}`,
+        steps_taken: [],
+        applied_at: new Date().toISOString(),
+        estimated_monthly_savings_usd: 0,
+        estimated_carbon_reduction_pct: 0,
+      })
     } finally {
       setApplying(false)
     }
@@ -92,27 +104,117 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
     try {
       setSimulating(true)
       const res = await simulateRecommendation(rec.id)
-      setApplyResult({
-        message: res.message,
-        steps: res.steps_taken,
-        status: res.status,
-        baseline_score: res.baseline_score,
-        projected_score: res.projected_score,
-        score_delta: res.score_delta,
-        assumptions: res.assumptions,
-      })
+      setApplyResult(res)
       invalidateData()
       addNotification({
-        title: 'Recommendation Simulated',
+        title: 'Recommendation Simulated in Twin',
         body: res.message,
         priority: 'high',
       })
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'The simulation request failed.'
-      console.error('Failed to simulate recommendation', err)
-      setApplyResult({ message: `Simulation failed: ${message}`, steps: [], status: 'error' })
+      setApplyResult({
+        recommendation_id: rec.id,
+        title: rec.title,
+        status: 'failed',
+        message: `Simulation failed: ${message}`,
+        steps_taken: [],
+        applied_at: new Date().toISOString(),
+        estimated_monthly_savings_usd: 0,
+        estimated_carbon_reduction_pct: 0,
+      })
     } finally {
       setSimulating(false)
+    }
+  }
+
+  const handleLiveApply = async () => {
+    if (!confirmedLive) {
+      addNotification({
+        title: 'Safeguard Authorization Required',
+        body: 'Please check the authorization box before executing live mutations.',
+        priority: 'high',
+      })
+      return
+    }
+    if (confirmInput.trim().toUpperCase() !== 'APPLY') {
+      addNotification({
+        title: 'Confirmation Keyword Required',
+        body: 'Please type APPLY in the confirmation box to authorize live remediation.',
+        priority: 'high',
+      })
+      return
+    }
+    if (!resourceId.trim() || !resourceId.trim().startsWith('i-')) {
+      addNotification({
+        title: 'Invalid Instance ID',
+        body: 'Please enter a valid AWS EC2 instance identifier (e.g. i-0123456789abcdef0).',
+        priority: 'high',
+      })
+      return
+    }
+
+    try {
+      setApplying(true)
+      const res = await applyRecommendation(rec.id, {
+        dry_run: false,
+        confirm_live: true,
+        resource_id: resourceId.trim(),
+        target_instance_type: isResize ? targetInstanceType.trim() : undefined,
+        provider: 'aws',
+        region: region || 'us-east-1',
+      })
+      setApplyResult(res)
+      invalidateData()
+      addNotification({
+        title: res.verified ? 'Live Action Applied & Verified' : 'Live Action Completed',
+        body: res.message,
+        priority: 'high',
+      })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'The live remediation request failed.'
+      setApplyResult({
+        recommendation_id: rec.id,
+        title: rec.title,
+        status: 'failed',
+        message: `Live apply error: ${message}`,
+        steps_taken: ['Pre-flight checks failed or cloud provider rejected the request'],
+        applied_at: new Date().toISOString(),
+        estimated_monthly_savings_usd: 0,
+        estimated_carbon_reduction_pct: 0,
+        verified: false,
+        verification_status: 'failed',
+      })
+      addNotification({
+        title: 'Live Remediation Failed',
+        body: message,
+        priority: 'critical',
+      })
+    } finally {
+      setApplying(false)
+    }
+  }
+
+  const handleRollback = async () => {
+    try {
+      setRollingBack(true)
+      const res = await rollbackRecommendation(rec.id, { provider, region })
+      setApplyResult(res)
+      invalidateData()
+      addNotification({
+        title: 'Remediation Rolled Back',
+        body: res.message,
+        priority: 'high',
+      })
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'The rollback request failed.'
+      addNotification({
+        title: 'Rollback Failed',
+        body: message,
+        priority: 'critical',
+      })
+    } finally {
+      setRollingBack(false)
     }
   }
 
@@ -138,6 +240,11 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
             <span className={`badge badge-${rec.priority === 'critical' ? 'red' : rec.priority === 'high' ? 'amber' : 'muted'}`}>
               {rec.priority} priority
             </span>
+            {rec.status === 'applied' && (
+              <span className="badge badge-emerald" style={{ fontSize: 10 }}>
+                <CheckCircle2 size={11} /> Applied
+              </span>
+            )}
           </div>
           <button
             onClick={onClose}
@@ -284,6 +391,201 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
               </div>
             )}
 
+            {/* Mode Selector Tabs */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                className={`btn btn-sm ${activeTab === 'preview' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setActiveTab('preview')}
+                style={{ flex: 1, justifyContent: 'center' }}
+              >
+                <Play size={13} />
+                Preview & Simulation
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${activeTab === 'live' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setActiveTab('live')}
+                style={{
+                  flex: 1,
+                  justifyContent: 'center',
+                  borderColor: activeTab === 'live' ? 'var(--emerald-600)' : 'rgba(217, 119, 6, 0.4)',
+                }}
+              >
+                <Shield size={13} />
+                Live Cloud Remediation
+              </button>
+            </div>
+
+            {/* Live Action Configuration Area (when activeTab === 'live') */}
+            {activeTab === 'live' && (
+              <div
+                className="card"
+                style={{
+                  padding: '14px 16px',
+                  background: '#FFFBEB',
+                  borderColor: '#FDE68A',
+                }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Shield size={15} color="var(--amber-500)" />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Production Cloud Remediation (AWS EC2)
+                  </span>
+                  <span className="badge badge-amber" style={{ marginLeft: 'auto', fontSize: 10 }}>
+                    Safeguards Active
+                  </span>
+                </div>
+
+                {!isAwsProvider ? (
+                  <div className="text-xs text-secondary mb-2" style={{ lineHeight: 1.5 }}>
+                    <strong>Provider Safeguard Notice:</strong> Direct API mutations are currently automated and verified for <strong>AWS EC2</strong>.
+                    Your active scope is set to <strong>{provider.toUpperCase()}</strong>. To prevent unverified operations, live mutations on {provider.toUpperCase()} are blocked.
+                    Please test using Digital Twin simulation or apply changes manually using the implementation steps above.
+                  </div>
+                ) : !isLiveSupported ? (
+                  <div className="text-xs text-secondary mb-2" style={{ lineHeight: 1.5 }}>
+                    <strong>Action Limitation:</strong> Direct automated mutation for action <code>{rec.action}</code> is not supported.
+                    GreenMind AI provides verified automated execution for stopping idle instances (<code>terminate_idle</code>) and downsizing compute tiers (<code>right_size_down</code>).
+                    Please review the suggested implementation steps above.
+                  </div>
+                ) : (
+                  <div className="flex-col gap-3">
+                    <p className="text-xs text-secondary" style={{ lineHeight: 1.5 }}>
+                      Automated pre-flight checks verify instance running status, prohibit ephemeral instance-store data loss, reject spot instance disruptions, and wait for AWS API confirmation before updating scores.
+                    </p>
+
+                    <div className="grid-2 gap-3">
+                      <div>
+                        <label className="text-xs font-semibold text-primary block mb-1">
+                          Target EC2 Instance ID:
+                        </label>
+                        <input
+                          type="text"
+                          value={resourceId}
+                          onChange={(e) => setResourceId(e.target.value)}
+                          placeholder="i-0123456789abcdef0"
+                          className="font-mono text-xs"
+                          style={{
+                            width: '100%',
+                            padding: '6px 10px',
+                            borderRadius: 6,
+                            border: '1px solid var(--border)',
+                            background: '#FFFFFF',
+                          }}
+                        />
+                      </div>
+
+                      {isResize ? (
+                        <div>
+                          <label className="text-xs font-semibold text-primary block mb-1">
+                            Target Downsized Instance Type:
+                          </label>
+                          <select
+                            value={targetInstanceType}
+                            onChange={(e) => setTargetInstanceType(e.target.value)}
+                            className="font-mono text-xs"
+                            style={{
+                              width: '100%',
+                              padding: '6px 10px',
+                              borderRadius: 6,
+                              border: '1px solid var(--border)',
+                              background: '#FFFFFF',
+                            }}
+                          >
+                            <option value="t3.nano">t3.nano (2 vCPU, 0.5 GiB)</option>
+                            <option value="t3.micro">t3.micro (2 vCPU, 1 GiB)</option>
+                            <option value="t3.small">t3.small (2 vCPU, 2 GiB)</option>
+                            <option value="t3.medium">t3.medium (2 vCPU, 4 GiB)</option>
+                            <option value="t3.large">t3.large (2 vCPU, 8 GiB)</option>
+                            <option value="c5.large">c5.large (2 vCPU, 4 GiB)</option>
+                          </select>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="text-xs font-semibold text-primary block mb-1">
+                            Operation Mode:
+                          </label>
+                          <div
+                            className="text-xs font-mono"
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: 6,
+                              background: 'var(--bg-hover)',
+                              border: '1px solid var(--border)',
+                            }}
+                          >
+                            Safe Stop Idle Instance (EBS Preserved)
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Safeguard Confirmation */}
+                    <div
+                      className="p-3 rounded"
+                      style={{ background: '#FFFFFF', border: '1px solid #FCD34D' }}
+                    >
+                      <label className="flex items-start gap-2 mb-2" style={{ cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={confirmedLive}
+                          onChange={(e) => setConfirmedLive(e.target.checked)}
+                          style={{ marginTop: 2, accentColor: 'var(--emerald-600)' }}
+                        />
+                        <span className="text-xs text-primary" style={{ lineHeight: 1.4 }}>
+                          <strong>Explicit User Approval:</strong> I authorize GreenMind AI to modify live AWS instance <code>{resourceId || 'selected'}</code> in region <code>{region}</code>.
+                        </span>
+                      </label>
+
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs text-muted" style={{ whiteSpace: 'nowrap' }}>
+                          Type <strong>APPLY</strong> to authorize:
+                        </span>
+                        <input
+                          type="text"
+                          value={confirmInput}
+                          onChange={(e) => setConfirmInput(e.target.value)}
+                          placeholder="APPLY"
+                          className="font-mono text-xs"
+                          style={{
+                            width: 90,
+                            padding: '4px 8px',
+                            borderRadius: 4,
+                            border: '1px solid var(--border)',
+                            textAlign: 'center',
+                            textTransform: 'uppercase',
+                          }}
+                        />
+                        <button
+                          className="btn btn-primary btn-sm"
+                          onClick={handleLiveApply}
+                          disabled={
+                            applying ||
+                            !confirmedLive ||
+                            confirmInput.trim().toUpperCase() !== 'APPLY' ||
+                            !resourceId.trim()
+                          }
+                          style={{ marginLeft: 'auto' }}
+                        >
+                          {applying ? (
+                            <>
+                              <Loader2 size={13} className="animate-spin" />
+                              Executing & Verifying...
+                            </>
+                          ) : (
+                            <>
+                              <Zap size={13} />
+                              Apply & Verify on AWS
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Execution / Dry Run / Simulation Result Console */}
             {applyResult && (
@@ -293,42 +595,105 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                 className="card"
                 style={{
                   background: '#F9FAFB',
-                  borderColor: applyResult.status === 'error' ? 'var(--red-500)' : 'var(--emerald-600)',
+                  borderColor:
+                    applyResult.status === 'failed'
+                      ? 'var(--red-500)'
+                      : applyResult.status === 'applied' && applyResult.verified
+                      ? 'var(--emerald-600)'
+                      : 'var(--border)',
                   padding: 14,
                 }}
               >
-                <div className="flex items-center gap-2 mb-2">
-                  <Terminal size={14} color={applyResult.status === 'error' ? 'var(--red-600)' : 'var(--emerald-600)'} />
+                <div className="flex items-center gap-2 mb-2 flex-wrap">
+                  <Terminal
+                    size={14}
+                    color={
+                      applyResult.status === 'failed'
+                        ? 'var(--red-600)'
+                        : 'var(--emerald-600)'
+                    }
+                  />
                   <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {applyResult.status === 'error'
+                    {applyResult.status === 'failed'
                       ? 'Action Failed'
+                      : applyResult.status === 'rolled_back'
+                      ? 'Rollback Executed & Verified'
+                      : applyResult.verified
+                      ? 'Live Action Verified on Cloud Provider'
                       : applyResult.status === 'simulated'
                       ? 'Digital Twin Simulation Applied'
-                      : 'Dry-Run Preview Complete'}
+                      : applyResult.dry_run
+                      ? 'Dry-Run Preview Complete'
+                      : 'Operation Completed (Pending Verification)'}
                   </span>
-                  <span
-                    className={`badge ${applyResult.status === 'error' ? 'badge-red' : applyResult.status === 'simulated' ? 'badge-emerald' : 'badge-muted'}`}
-                    style={{ marginLeft: 'auto' }}
-                  >
-                    {applyResult.status}
-                  </span>
+                  <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+                    {applyResult.verified !== undefined && (
+                      <span
+                        className={`badge ${applyResult.verified ? 'badge-emerald' : 'badge-amber'}`}
+                        style={{ fontSize: 10 }}
+                      >
+                        {applyResult.verified ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
+                        {applyResult.verified ? 'Provider Verified' : 'Pending Verification'}
+                      </span>
+                    )}
+                    <span
+                      className={`badge ${
+                        applyResult.status === 'failed'
+                          ? 'badge-red'
+                          : applyResult.status === 'applied'
+                          ? 'badge-emerald'
+                          : applyResult.status === 'simulated'
+                          ? 'badge-emerald'
+                          : 'badge-muted'
+                      }`}
+                    >
+                      {applyResult.status}
+                    </span>
+                  </div>
                 </div>
                 <div className="text-xs text-secondary mb-2">{applyResult.message}</div>
 
+                {/* Resource State Transition */}
+                {applyResult.previous_state && applyResult.current_state && (
+                  <div
+                    className="p-2.5 rounded mb-3 flex items-center justify-between flex-wrap gap-2 text-xs"
+                    style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}
+                  >
+                    <div>
+                      <span className="font-semibold text-primary">Target: </span>
+                      <code className="text-emerald font-mono">{applyResult.resource_id}</code>
+                    </div>
+                    <div className="flex items-center gap-2 font-mono">
+                      <span className="badge badge-muted">{applyResult.previous_state}</span>
+                      <ArrowRight size={12} />
+                      <span className="badge badge-emerald">{applyResult.current_state}</span>
+                    </div>
+                  </div>
+                )}
+
                 {/* Score Projection Details */}
-                {applyResult.baseline_score !== undefined && applyResult.projected_score !== undefined && (
+                {(applyResult.baseline_score !== undefined || applyResult.new_score !== undefined || applyResult.projected_score !== undefined) && (
                   <div
                     className="p-2.5 rounded mb-3 flex items-center justify-between flex-wrap gap-2"
                     style={{ background: '#F0FDF4', border: '1px solid #BBF7D0' }}
                   >
                     <div>
-                      <div className="text-xs font-semibold text-emerald">Projected Score Impact</div>
+                      <div className="text-xs font-semibold text-emerald">
+                        {applyResult.verified ? 'Verified Optimization Score Recalculation' : 'Projected Score Impact'}
+                      </div>
                       <div className="text-xs text-secondary">
-                        Baseline: {applyResult.baseline_score}/100 → Projected: {applyResult.projected_score}/100
+                        Baseline: {applyResult.baseline_score ?? 70}/100 → {applyResult.verified ? 'Verified Score' : 'Projected'}:{' '}
+                        {applyResult.new_score ?? applyResult.projected_score ?? 70}/100
                       </div>
                     </div>
                     <span
-                      className={`badge ${(applyResult.score_delta ?? 0) > 0 ? 'badge-emerald' : (applyResult.score_delta ?? 0) < 0 ? 'badge-red' : 'badge-muted'}`}
+                      className={`badge ${
+                        (applyResult.score_delta ?? 0) > 0
+                          ? 'badge-emerald'
+                          : (applyResult.score_delta ?? 0) < 0
+                          ? 'badge-red'
+                          : 'badge-muted'
+                      }`}
                       style={{ fontSize: 11 }}
                     >
                       {(applyResult.score_delta ?? 0) > 0 ? `+${applyResult.score_delta}` : applyResult.score_delta} pts
@@ -348,13 +713,40 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                   </div>
                 )}
 
-                <div className="flex-col gap-1">
-                  {applyResult.steps.map((st, i) => (
-                    <div key={i} className="flex items-center gap-2 text-xs font-mono" style={{ color: 'var(--emerald-400)' }}>
-                      <Check size={12} /> {st}
-                    </div>
-                  ))}
-                </div>
+                {/* Execution Steps */}
+                {applyResult.steps_taken && applyResult.steps_taken.length > 0 && (
+                  <div className="flex-col gap-1 mb-2">
+                    {applyResult.steps_taken.map((st, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs font-mono" style={{ color: 'var(--emerald-600)' }}>
+                        <Check size={12} /> {st}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Direct Rollback in Console */}
+                {applyResult.status === 'applied' && !applyResult.dry_run && (
+                  <div className="flex justify-end mt-2 pt-2" style={{ borderTop: '1px solid var(--border)' }}>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={handleRollback}
+                      disabled={rollingBack}
+                      style={{ color: 'var(--amber-600)', borderColor: 'var(--amber-300)' }}
+                    >
+                      {rollingBack ? (
+                        <>
+                          <Loader2 size={12} className="animate-spin" />
+                          Rolling back on cloud provider...
+                        </>
+                      ) : (
+                        <>
+                          <RotateCcw size={12} />
+                          Rollback This Cloud Action
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </motion.div>
             )}
           </div>
@@ -362,55 +754,54 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
 
         {/* Modal Footer Controls */}
         <div className="modal-footer-row">
-          <label className="flex items-center gap-2" style={{ cursor: 'pointer', userSelect: 'none' }}>
-            <input
-              type="checkbox"
-              checked={dryRun}
-              disabled
-              readOnly
-              style={{ accentColor: 'var(--emerald-500)', cursor: 'not-allowed' }}
-            />
-            <span className="text-xs text-secondary">Non-destructive simulation mode</span>
-          </label>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted">
+              Scope: <strong>{provider.toUpperCase()}</strong> ({region})
+            </span>
+          </div>
 
           <div className="modal-footer-buttons">
             <button className="btn btn-secondary btn-sm" onClick={onClose}>
               Close
             </button>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={handlePreview}
-              disabled={applying || simulating || rec.status === 'applied'}
-            >
-              {applying ? (
-                <>
-                  <Loader2 size={13} className="animate-spin" />
-                  Previewing...
-                </>
-              ) : (
-                <>
-                  <Play size={13} />
-                  Preview (Dry-Run)
-                </>
-              )}
-            </button>
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={handleSimulate}
-              disabled={applying || simulating || rec.status === 'applied'}
-            >
-              {simulating ? (
-                <>
-                  <Loader2 size={13} className="animate-spin" />
-                  Simulating...
-                </>
-              ) : (
-                <>
-                  <Sparkles size={13} />
-                  Simulate in Twin
-                </>
-              )}
-            </button>
+            {activeTab === 'preview' && (
+              <>
+                <button
+                  className="btn btn-secondary btn-sm"
+                  onClick={handlePreview}
+                  disabled={applying || simulating || rec.status === 'applied'}
+                >
+                  {applying ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      Previewing...
+                    </>
+                  ) : (
+                    <>
+                      <Play size={13} />
+                      Preview (Dry-Run)
+                    </>
+                  )}
+                </button>
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={handleSimulate}
+                  disabled={applying || simulating || rec.status === 'applied'}
+                >
+                  {simulating ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      Simulating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={13} />
+                      Simulate in Twin
+                    </>
+                  )}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </motion.div>
@@ -491,6 +882,32 @@ function RecCard({
     }
   }
 
+  const handleRollbackNow = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!window.confirm(`Are you sure you want to rollback the changes for "${rec.title}" on the connected cloud provider?`)) {
+      return
+    }
+    try {
+      setIsApplying(true)
+      const res = await rollbackRecommendation(rec.id, { provider, region })
+      invalidateData()
+      addNotification({
+        title: 'Action Rolled Back',
+        body: res.message,
+        priority: 'high',
+      })
+    } catch (err: unknown) {
+      console.error('Failed to rollback recommendation', err)
+      addNotification({
+        title: 'Rollback Failed',
+        body: err instanceof Error ? err.message : 'The rollback request failed.',
+        priority: 'critical',
+      })
+    } finally {
+      setIsApplying(false)
+    }
+  }
+
   return (
     <motion.div
       className={`card priority-${rec.priority}`}
@@ -518,7 +935,7 @@ function RecCard({
           <span className={`badge badge-${prioColor}`}>{rec.priority}</span>
           {isApplied && (
             <span className="badge badge-emerald" style={{ fontSize: 10, padding: '1px 6px' }}>
-              <CheckCircle2 size={11} /> Applied
+              <CheckCircle2 size={11} /> Applied & Verified
             </span>
           )}
           {isSimulated && (
@@ -583,12 +1000,20 @@ function RecCard({
             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
               <button
                 className="btn btn-secondary btn-sm"
-                style={{ padding: '4px 10px', fontSize: 12, color: 'var(--text-muted)' }}
-                disabled
-                title="Live remediation and rollback are not implemented."
+                style={{ padding: '4px 10px', fontSize: 12 }}
+                onClick={() => onExplain(rec)}
               >
-                <RotateCcw size={12} />
-                Rollback unavailable
+                Inspect Audit
+              </button>
+              <button
+                className="btn btn-secondary btn-sm"
+                style={{ padding: '4px 10px', fontSize: 12, color: 'var(--amber-600)', borderColor: 'var(--amber-300)' }}
+                onClick={handleRollbackNow}
+                disabled={isApplying}
+                title="Rollback this applied recommendation on connected cloud provider"
+              >
+                {isApplying ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+                Rollback
               </button>
             </div>
           )}

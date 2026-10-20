@@ -590,6 +590,7 @@ async def persist_audit_log(
     steps_taken: list[str],
     dry_run: bool = False,
     operator_notes: str | None = None,
+    **kwargs: Any,
 ) -> None:
     """Persist an applied/rollback remediation action to the audit table."""
     owner_id = get_current_user_id()
@@ -615,3 +616,4 @@ async def persist_audit_log(
             await session.commit()
     except Exception:
         pass
+

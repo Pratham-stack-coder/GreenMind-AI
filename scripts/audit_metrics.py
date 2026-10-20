@@ -1,3 +1,5 @@
+"""Script to audit and verify ML forecasting metrics against temporal persistence baselines."""
+
 import json
 import warnings
 from pathlib import Path

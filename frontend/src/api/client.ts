@@ -443,7 +443,16 @@ export const fetchExplain = (id: string): Promise<ExplainResponse> =>
 
 export const applyRecommendation = (
   id: string,
-  options?: { dry_run?: boolean; simulate?: boolean; operator_notes?: string }
+  options?: {
+    dry_run?: boolean
+    simulate?: boolean
+    confirm_live?: boolean
+    resource_id?: string
+    target_instance_type?: string
+    operator_notes?: string
+    provider?: string
+    region?: string
+  }
 ): Promise<ApplyResponse> =>
   api.post(`/recommendations/${id}/apply`, options || {})
     .then(r => r.data)
@@ -459,8 +468,11 @@ export const resetSimulation = (): Promise<{ status: string; message: string; ba
   api.post('/recommendations/reset-simulation')
     .then(r => r.data)
 
-export const rollbackRecommendation = (id: string): Promise<ApplyResponse> =>
-  api.post(`/recommendations/${id}/rollback`)
+export const rollbackRecommendation = (
+  id: string,
+  params?: { provider?: string; region?: string; operator_notes?: string }
+): Promise<ApplyResponse> =>
+  api.post(`/recommendations/${id}/rollback`, null, { params })
     .then(r => r.data)
 
 export const dismissRecommendation = (id: string): Promise<{ status: string; recommendation_id: string }> =>
