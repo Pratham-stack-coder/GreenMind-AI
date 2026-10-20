@@ -54,9 +54,17 @@ class BaseCloudProvider(ABC):
 
     def __init__(self, provider_name: str, is_live: bool = False):
         self.provider_name = provider_name
-        self.is_live = is_live
+        self._is_live = bool(is_live)
         self.is_configured = False
         self._last_test_result: dict[str, Any] | None = None
+
+    @property
+    def is_live(self) -> bool:
+        return getattr(self, "_is_live", False)
+
+    @is_live.setter
+    def is_live(self, value: bool) -> None:
+        self._is_live = bool(value)
 
     @abstractmethod
     def get_metrics(self, region: str) -> dict[str, Any]:

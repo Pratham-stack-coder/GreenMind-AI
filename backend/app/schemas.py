@@ -201,6 +201,8 @@ class BatchApplyRequest(BaseModel):
     priority: str | None = None
     recommendation_ids: list[str] | None = None
     dry_run: bool = False
+    provider: str | None = None
+    region: str | None = None
 
 
 class BatchApplyResponse(BaseModel):

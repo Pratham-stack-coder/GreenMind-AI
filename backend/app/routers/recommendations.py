@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -30,6 +31,7 @@ router = APIRouter(prefix="/recommendations", tags=["Recommendations"])
 
 # Keep each user's recommendation state separate for each cloud scope.
 _user_states: dict[str, dict[tuple[str, str], dict[str, Any]]] = {}
+_STATE_LOCK = threading.Lock()
 
 
 def _user_state(provider: str = "aws", region: str = "us-east") -> dict[str, Any]:
@@ -38,39 +40,43 @@ def _user_state(provider: str = "aws", region: str = "us-east") -> dict[str, Any
         raise HTTPException(status_code=401, detail="An authenticated user is required.")
 
     scope = (str(provider or "aws").strip().lower(), str(region or "us-east").strip().lower())
-    user_scopes = _user_states.setdefault(user_id, {})
-    return user_scopes.setdefault(scope, {
-        "recommendations": [],
-        "score": 80,
-        "baseline_score": 80,
-        "generated": "",
-        "applied": {},
-        "simulated": {},
-        "dismissed": set(),
-        "baseline_metrics": None,
-        "simulated_metrics": None,
-        "metrics": None,
-    })
+    with _STATE_LOCK:
+        user_scopes = _user_states.setdefault(user_id, {})
+        return user_scopes.setdefault(scope, {
+            "recommendations": [],
+            "score": 80,
+            "baseline_score": 80,
+            "generated": "",
+            "applied": {},
+            "simulated": {},
+            "dismissed": set(),
+            "baseline_metrics": None,
+            "simulated_metrics": None,
+            "metrics": None,
+        })
 
 
 def get_user_simulation_state(user_id: str | None = None, provider: str = "aws", region: str = "us-east") -> dict[str, Any] | None:
     """Read simulated state for the authenticated user, accessible by analytics router."""
     if not user_id:
         user_id = get_current_user_id()
-    if not user_id or user_id not in _user_states:
+    if not user_id:
         return None
     scope = (str(provider or "aws").strip().lower(), str(region or "us-east").strip().lower())
-    user_scopes = _user_states[user_id]
-    st = user_scopes.get(scope)
-    if not st or not st.get("simulated"):
-        return None
-    return {
-        "simulated_recommendations": st["simulated"],
-        "simulated_metrics": st.get("simulated_metrics"),
-        "baseline_metrics": st.get("baseline_metrics"),
-        "baseline_score": st.get("baseline_score", st.get("score")),
-        "score": st.get("score"),
-    }
+    with _STATE_LOCK:
+        if user_id not in _user_states:
+            return None
+        user_scopes = _user_states[user_id]
+        st = user_scopes.get(scope)
+        if not st or not st.get("simulated"):
+            return None
+        return {
+            "simulated_recommendations": dict(st["simulated"]),
+            "simulated_metrics": st.get("simulated_metrics"),
+            "baseline_metrics": st.get("baseline_metrics"),
+            "baseline_score": st.get("baseline_score", st.get("score")),
+            "score": st.get("score"),
+        }
 
 
 def _simulate_metrics_for_recommendations(
@@ -437,10 +443,12 @@ async def batch_apply_recommendations(
     region: str = Query("us-east"),
 ):
     """Batch apply or preview multiple recommendations simultaneously."""
-    state = _user_state(provider, region)
+    eff_provider = (req.provider or provider).strip().lower()
+    eff_region = (req.region or region).strip().lower()
+    state = _user_state(eff_provider, eff_region)
 
     if not state["recommendations"]:
-        _build_recommendations(provider, region)
+        _build_recommendations(eff_provider, eff_region)
 
     targets = [r for r in state["recommendations"] if r.status not in ("applied", "simulated")]
 
@@ -460,8 +468,8 @@ async def batch_apply_recommendations(
         res = await _execute_apply(
             rec,
             dry_run=req.dry_run,
-            provider=provider,
-            region=region,
+            provider=eff_provider,
+            region=eff_region,
         )
         results.append(res)
         total_savings += res.estimated_monthly_savings_usd
@@ -482,7 +490,7 @@ async def batch_apply_recommendations(
         batch_new_score = state["score"]
 
     return BatchApplyResponse(
-        applied_count=sum(result.status == "applied" for result in results),
+        applied_count=len(results) if req.dry_run else sum(result.status == "applied" for result in results),
         total_monthly_savings_usd=round(total_savings, 2),
         total_carbon_reduction_pct=round(total_carbon, 2),
         results=results,

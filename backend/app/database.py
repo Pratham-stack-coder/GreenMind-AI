@@ -779,22 +779,36 @@ async def persist_recommendation_state(
         await session.commit()
 
 
-async def query_audit_log(provider: str, region: str, limit: int = 100) -> list[dict[str, Any]]:
+async def query_audit_log(
+    provider: str,
+    region: str,
+    limit: int = 100,
+    include_simulated: bool = False,
+    statuses: list[str] | None = None,
+) -> list[dict[str, Any]]:
     """Return audit events for the signed-in user and selected cloud scope."""
     owner_id = get_current_user_id()
     if not owner_id:
         return []
     await init_db()
+
+    target_statuses = statuses if statuses is not None else (
+        ["applied", "rolled_back", "simulated", "failed"] if include_simulated else ["applied", "rolled_back"]
+    )
+
+    filters = [
+        AuditLogRecord.owner_id == owner_id,
+        AuditLogRecord.provider == provider.strip().lower(),
+        AuditLogRecord.region == region.strip().lower(),
+        AuditLogRecord.status.in_(target_statuses),
+    ]
+    if not include_simulated and statuses is None:
+        filters.append(AuditLogRecord.dry_run.is_(False))
+
     async with _async_session_maker() as session:
         result = await session.execute(
             select(AuditLogRecord)
-            .where(
-                AuditLogRecord.owner_id == owner_id,
-                AuditLogRecord.provider == provider.strip().lower(),
-                AuditLogRecord.region == region.strip().lower(),
-                AuditLogRecord.dry_run.is_(False),
-                AuditLogRecord.status.in_(["applied", "rolled_back"]),
-            )
+            .where(*filters)
             .order_by(AuditLogRecord.id.desc())
             .limit(max(1, min(limit, 500)))
         )
@@ -815,6 +829,7 @@ async def query_audit_log(provider: str, region: str, limit: int = 100) -> list[
                 "steps_taken": steps if isinstance(steps, list) else [],
                 "dry_run": row.dry_run,
                 "new_score": row.new_score,
+                "error": row.operator_notes,
             })
         return entries
 

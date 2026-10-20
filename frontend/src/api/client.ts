@@ -453,20 +453,32 @@ export const applyRecommendation = (
     provider?: string
     region?: string
   },
-  provider = 'aws',
-  region = 'us-east'
-): Promise<ApplyResponse> =>
-  api.post(`/recommendations/${id}/apply`, options || {}, { params: { provider, region } })
-    .then(r => r.data)
+  provider?: string,
+  region?: string
+): Promise<ApplyResponse> => {
+  const effProvider = options?.provider || provider || 'aws'
+  const effRegion = options?.region || region || 'us-east'
+  return api.post(
+    `/recommendations/${id}/apply`,
+    { ...options, provider: effProvider, region: effRegion },
+    { params: { provider: effProvider, region: effRegion } }
+  ).then(r => r.data)
+}
 
 export const simulateRecommendation = (
   id: string,
-  options?: { operator_notes?: string },
+  options?: { operator_notes?: string; provider?: string; region?: string },
   provider = 'aws',
   region = 'us-east'
-): Promise<ApplyResponse> =>
-  api.post(`/recommendations/${id}/simulate`, options || {}, { params: { provider, region } })
-    .then(r => r.data)
+): Promise<ApplyResponse> => {
+  const effProvider = options?.provider || provider || 'aws'
+  const effRegion = options?.region || region || 'us-east'
+  return api.post(
+    `/recommendations/${id}/simulate`,
+    options || {},
+    { params: { provider: effProvider, region: effRegion } }
+  ).then(r => r.data)
+}
 
 export const resetSimulation = (provider = 'aws', region = 'us-east'): Promise<{ status: string; message: string; baseline_score: number; current_score: number }> =>
   api.post('/recommendations/reset-simulation', null, { params: { provider, region } })
@@ -484,12 +496,18 @@ export const dismissRecommendation = (id: string, provider = 'aws', region = 'us
     .then(r => r.data)
 
 export const batchApplyRecommendations = (
-  payload?: { category?: string; priority?: string; recommendation_ids?: string[]; dry_run?: boolean },
+  payload?: { category?: string; priority?: string; recommendation_ids?: string[]; dry_run?: boolean; provider?: string; region?: string },
   provider = 'aws',
   region = 'us-east'
-): Promise<BatchApplyResponse> =>
-  api.post('/recommendations/apply-batch', payload || {}, { params: { provider, region } })
-    .then(r => r.data)
+): Promise<BatchApplyResponse> => {
+  const effProvider = payload?.provider || provider || 'aws'
+  const effRegion = payload?.region || region || 'us-east'
+  return api.post(
+    '/recommendations/apply-batch',
+    { ...payload, provider: effProvider, region: effRegion },
+    { params: { provider: effProvider, region: effRegion } }
+  ).then(r => r.data)
+}
 
 export const fetchAppliedRecommendations = (provider = 'aws', region = 'us-east'): Promise<ApplyResponse[]> =>
   api.get('/recommendations/applied', { params: { provider, region } })

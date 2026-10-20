@@ -32,6 +32,8 @@ const categoryColors: Record<string, string> = {
   security: 'red', reliability: 'indigo',
 }
 
+const EC2_INSTANCE_ID_REGEX = /^i-[0-9a-fA-F]{8,17}$/
+
 // ── Explain & Apply Modal ───────────────────────────────────────────────────
 interface ExplainModalProps {
   rec: RecommendationItem
@@ -80,7 +82,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
   const handlePreview = async () => {
     try {
       setApplying(true)
-      const res = await applyRecommendation(rec.id, { dry_run: true })
+      const res = await applyRecommendation(rec.id, { dry_run: true, provider, region }, provider, region)
       setApplyResult(res)
       invalidateData()
     } catch (err: unknown) {
@@ -103,7 +105,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
   const handleSimulate = async () => {
     try {
       setSimulating(true)
-      const res = await simulateRecommendation(rec.id)
+      const res = await simulateRecommendation(rec.id, undefined, provider, region)
       setApplyResult(res)
       invalidateData()
       addNotification({
@@ -145,10 +147,10 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
       })
       return
     }
-    if (!resourceId.trim() || !resourceId.trim().startsWith('i-')) {
+    if (!resourceId.trim() || !EC2_INSTANCE_ID_REGEX.test(resourceId.trim())) {
       addNotification({
-        title: 'Invalid Instance ID',
-        body: 'Please enter a valid AWS EC2 instance identifier (e.g. i-0123456789abcdef0).',
+        title: 'Invalid Instance ID Format',
+        body: 'Please enter a valid AWS EC2 instance identifier matching format ^i-[0-9a-fA-F]{8,17}$ (e.g. i-0123456789abcdef0).',
         priority: 'high',
       })
       return
@@ -400,6 +402,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                 type="button"
                 className={`btn btn-sm ${activeTab === 'preview' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setActiveTab('preview')}
+                disabled={applying || simulating || rollingBack}
                 style={{ flex: 1, justifyContent: 'center' }}
               >
                 <Play size={13} />
@@ -409,6 +412,7 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                 type="button"
                 className={`btn btn-sm ${activeTab === 'live' ? 'btn-primary' : 'btn-secondary'}`}
                 onClick={() => setActiveTab('live')}
+                disabled={applying || simulating || rollingBack}
                 style={{
                   flex: 1,
                   justifyContent: 'center',
@@ -468,15 +472,25 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                           value={resourceId}
                           onChange={(e) => setResourceId(e.target.value)}
                           placeholder="i-0123456789abcdef0"
+                          disabled={applying || rollingBack}
                           className="font-mono text-xs"
                           style={{
                             width: '100%',
                             padding: '6px 10px',
                             borderRadius: 6,
-                            border: '1px solid var(--border)',
+                            border: `1px solid ${
+                              resourceId.trim() && !EC2_INSTANCE_ID_REGEX.test(resourceId.trim())
+                                ? 'var(--red-500)'
+                                : 'var(--border)'
+                            }`,
                             background: '#FFFFFF',
                           }}
                         />
+                        {resourceId.trim() && !EC2_INSTANCE_ID_REGEX.test(resourceId.trim()) && (
+                          <div style={{ fontSize: 11, color: 'var(--red-500)', marginTop: 4 }}>
+                            {'Instance ID must match AWS pattern ^i-[0-9a-f]{8,17}$ (e.g., i-0123456789abcdef0)'}
+                          </div>
+                        )}
                       </div>
 
                       {isResize ? (
@@ -565,9 +579,11 @@ function ExplainModal({ rec, onClose }: ExplainModalProps) {
                           onClick={handleLiveApply}
                           disabled={
                             applying ||
+                            rollingBack ||
                             !confirmedLive ||
                             confirmInput.trim().toUpperCase() !== 'APPLY' ||
-                            !resourceId.trim()
+                            !resourceId.trim() ||
+                            !EC2_INSTANCE_ID_REGEX.test(resourceId.trim())
                           }
                           style={{ marginLeft: 'auto' }}
                         >
@@ -870,7 +886,7 @@ function RecCard({
     e.stopPropagation()
     try {
       setIsApplying(true)
-      const res = await applyRecommendation(rec.id, { dry_run: true })
+      const res = await applyRecommendation(rec.id, { dry_run: true, provider, region }, provider, region)
       invalidateData()
       addNotification({
         title: 'Dry-Run Preview Ready',
@@ -893,7 +909,7 @@ function RecCard({
     e.stopPropagation()
     try {
       setIsSimulating(true)
-      const res = await simulateRecommendation(rec.id)
+      const res = await simulateRecommendation(rec.id, undefined, provider, region)
       invalidateData()
       addNotification({
         title: 'Simulated in Digital Twin',
@@ -1204,7 +1220,7 @@ export default function RecommendationsPage() {
   const handleResetSim = async () => {
     try {
       setIsResettingSim(true)
-      await resetSimulation()
+      await resetSimulation(provider, region)
       refreshAll()
       addNotification({
         title: 'Simulation Reset',
@@ -1221,7 +1237,7 @@ export default function RecommendationsPage() {
   const handleBatchApply = async (priority?: string) => {
     try {
       setIsBatchApplying(true)
-      const res = await batchApplyRecommendations({ priority, dry_run: true })
+      const res = await batchApplyRecommendations({ priority, dry_run: true, provider, region }, provider, region)
       addNotification({
         title: 'Dry-Run Previews Ready',
         body: `Prepared ${res.results.length} previews. No cloud resources were changed.`,

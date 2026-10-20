@@ -54,6 +54,8 @@ class CloudActionDispatcher:
         now_str = datetime.now(timezone.utc).isoformat()
         proj = projected_score if projected_score is not None else new_score
         delta_str = f" ({score_delta:+d} pts)" if score_delta is not None and score_delta != 0 else ""
+        normalized_provider = (provider or getattr(rec, "provider", "aws") or "aws").strip().lower()
+        region = (region or getattr(rec, "region", "us-east") or "us-east").strip()
 
         # ── 1. Dry-run preview or Digital Twin simulation ────────────────────────
         if dry_run or simulate:
@@ -79,6 +81,8 @@ class CloudActionDispatcher:
                     operator_notes=operator_notes,
                     actual_operation=actual_op,
                     verification_status="simulated",
+                    provider=normalized_provider,
+                    region=region,
                 )
             except Exception as exc:
                 logger.warning(f"Failed to persist dry-run audit log: {exc}")
@@ -201,6 +205,8 @@ class CloudActionDispatcher:
                     actual_operation=actual_op,
                     verification_status="failed",
                     error=str(exc),
+                    provider=normalized_provider,
+                    region=region,
                 )
             except Exception:
                 pass
@@ -224,6 +230,8 @@ class CloudActionDispatcher:
                     actual_operation=actual_op,
                     verification_status="failed",
                     error=str(exc),
+                    provider=normalized_provider,
+                    region=region,
                 )
             except Exception:
                 pass
@@ -285,6 +293,8 @@ class CloudActionDispatcher:
                 previous_state=result.get("previous_state"),
                 resulting_state=result.get("current_state"),
                 verification_status=result.get("verification_status", "verified"),
+                provider=normalized_provider,
+                region=region,
             )
         except Exception as exc:
             logger.error(f"Failed to persist audit log: {exc}")
@@ -333,6 +343,7 @@ class CloudActionDispatcher:
         Must be called from a worker thread via asyncio.to_thread.
         """
         import boto3
+        from botocore.exceptions import ClientError, WaiterError
 
         region_aliases = {
             "us-east": "us-east-1",
@@ -394,9 +405,18 @@ class CloudActionDispatcher:
 
         # ── Action A: Stop Idle Instance (Safe, Non-Destructive Stopping) ────────
         if action in ("terminate_idle", "stop_idle"):
-            ec2.stop_instances(InstanceIds=[resource_id])
-            waiter = ec2.get_waiter("instance_stopped")
-            waiter.wait(InstanceIds=[resource_id], WaiterConfig={"Delay": 5, "MaxAttempts": 24})
+            try:
+                ec2.stop_instances(InstanceIds=[resource_id])
+                waiter = ec2.get_waiter("instance_stopped")
+                waiter.wait(InstanceIds=[resource_id], WaiterConfig={"Delay": 5, "MaxAttempts": 24})
+            except WaiterError as exc:
+                raise CloudActionFailure(
+                    f"Timed out waiting for instance {resource_id} to reach 'stopped' state: {exc}"
+                ) from exc
+            except ClientError as exc:
+                raise CloudActionFailure(
+                    f"AWS client error while stopping instance {resource_id}: {exc}"
+                ) from exc
             steps.append(f"Safely stopped EC2 instance {resource_id}; EBS data preserved (instance stopped, not terminated).")
 
             # Post-action verification
@@ -465,8 +485,17 @@ class CloudActionDispatcher:
             )
 
         # Stop -> Modify -> Restart with Waiters & Automated Recovery
-        ec2.stop_instances(InstanceIds=[resource_id])
-        ec2.get_waiter("instance_stopped").wait(InstanceIds=[resource_id], WaiterConfig={"Delay": 5, "MaxAttempts": 24})
+        try:
+            ec2.stop_instances(InstanceIds=[resource_id])
+            ec2.get_waiter("instance_stopped").wait(InstanceIds=[resource_id], WaiterConfig={"Delay": 5, "MaxAttempts": 24})
+        except WaiterError as exc:
+            raise CloudActionFailure(
+                f"Timed out waiting for instance {resource_id} to stop before resize: {exc}"
+            ) from exc
+        except ClientError as exc:
+            raise CloudActionFailure(
+                f"AWS client error while stopping instance {resource_id} for resize: {exc}"
+            ) from exc
         steps.append(f"Stopped {resource_id} before changing its instance type.")
 
         try:
@@ -596,6 +625,8 @@ class CloudActionDispatcher:
                     actual_operation="rollback",
                     verification_status="failed",
                     error=str(exc),
+                    provider=normalized_provider,
+                    region=region,
                 )
             except Exception:
                 pass
@@ -616,6 +647,8 @@ class CloudActionDispatcher:
                     actual_operation="rollback",
                     verification_status="failed",
                     error=str(exc),
+                    provider=normalized_provider,
+                    region=region,
                 )
             except Exception:
                 pass
@@ -640,6 +673,8 @@ class CloudActionDispatcher:
                 previous_state=result.get("previous_state"),
                 resulting_state=result.get("current_state"),
                 verification_status="verified",
+                provider=normalized_provider,
+                region=region,
             )
         except Exception as exc:
             logger.error(f"Failed to persist rollback audit log: {exc}")
@@ -687,6 +722,7 @@ class CloudActionDispatcher:
         Validates resource existence and state before making modifications.
         """
         import boto3
+        from botocore.exceptions import ClientError, WaiterError
 
         region_aliases = {
             "us-east": "us-east-1",
@@ -743,9 +779,18 @@ class CloudActionDispatcher:
                     detail=f"Cannot rollback: instance {resource_id} must be 'stopped' to restart; current state is '{current_state}'.",
                 )
 
-            ec2.start_instances(InstanceIds=[resource_id])
-            waiter = ec2.get_waiter("instance_running")
-            waiter.wait(InstanceIds=[resource_id], WaiterConfig={"Delay": 5, "MaxAttempts": 24})
+            try:
+                ec2.start_instances(InstanceIds=[resource_id])
+                waiter = ec2.get_waiter("instance_running")
+                waiter.wait(InstanceIds=[resource_id], WaiterConfig={"Delay": 5, "MaxAttempts": 24})
+            except WaiterError as exc:
+                raise CloudActionFailure(
+                    f"Timed out waiting for instance {resource_id} to reach 'running' state during rollback: {exc}"
+                ) from exc
+            except ClientError as exc:
+                raise CloudActionFailure(
+                    f"AWS client error restarting instance {resource_id} during rollback: {exc}"
+                ) from exc
 
             # Verify post-rollback state
             verify_res = ec2.describe_instances(InstanceIds=[resource_id]).get("Reservations", [])

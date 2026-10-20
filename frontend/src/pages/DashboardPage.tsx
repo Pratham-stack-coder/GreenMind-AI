@@ -128,7 +128,7 @@ export default function DashboardPage() {
   const handleSimulateRec = async (id: string, title: string) => {
     try {
       setSimulatingId(id)
-      const res = await simulateRecommendation(id)
+      const res = await simulateRecommendation(id, undefined, provider, region)
       const delta = res.score_delta != null ? res.score_delta : 0
       const deltaStr = delta > 0 ? `+${delta}` : `${delta}`
       addNotification({
@@ -154,7 +154,7 @@ export default function DashboardPage() {
   const handleResetSimulation = async () => {
     try {
       setIsResetting(true)
-      await resetSimulation()
+      await resetSimulation(provider, region)
       addNotification({
         title: 'Simulation reset',
         body: 'All simulated optimizations have been cleared and returned to baseline telemetry.',

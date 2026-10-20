@@ -700,11 +700,11 @@ def test_provider_and_region_isolation():
 
 
 def test_security_and_reliability_agents_skip_when_posture_missing():
-    from app.agents.security_agent import security_agent
-    from app.agents.reliability_agent import reliability_agent
+    from app.agents import security_agent, reliability_agent
     from app.schemas import CloudMetrics
 
     empty_metrics = CloudMetrics(
+        timestamp="2026-10-21T00:00:00Z",
         provider="aws",
         region="us-east-1",
         cpu=15.0,
@@ -717,12 +717,12 @@ def test_security_and_reliability_agents_skip_when_posture_missing():
     )
 
     sec_res = security_agent.analyze(empty_metrics)
-    assert sec_res.status == "skipped"
-    assert "unavailable" in sec_res.reasoning.lower()
+    assert sec_res["status"] == "skipped"
+    assert "unavailable" in sec_res["findings"][0].lower()
 
     rel_res = reliability_agent.analyze(empty_metrics)
-    assert rel_res.status == "skipped"
-    assert "unavailable" in rel_res.reasoning.lower()
+    assert rel_res["status"] == "skipped"
+    assert "unavailable" in rel_res["findings"][0].lower()
 
 
 def test_live_cost_returns_unavailable_when_billing_unconfigured():
@@ -737,4 +737,227 @@ def test_live_cost_returns_unavailable_when_billing_unconfigured():
     assert cost["source"] == "UNAVAILABLE"
     assert cost["total_usd"] is None
     assert "unavailable" in cost["note"].lower()
+
+
+@pytest.mark.asyncio
+async def test_audit_persistence_preserves_provider_and_region(monkeypatch):
+    from app.auth import _current_user_id
+    from app.database import query_audit_log
+    from app.integrations.cloud_actions import CloudActionDispatcher
+    from app.schemas import RecommendationItem
+
+    token = _current_user_id.set("audit-region-user")
+    try:
+        rec = RecommendationItem(
+            id="audit-region-rec-1",
+            title="Stop idle in Ireland",
+            category="cost",
+            priority="high",
+            description="Testing audit log region isolation",
+            impact_summary="Test impact",
+            estimated_monthly_savings_usd=50.0,
+            estimated_carbon_reduction_pct=10.0,
+            effort="low",
+            action="stop_idle",
+            resource_id="i-0123456789abcdef0",
+        )
+        res = await CloudActionDispatcher.execute_recommendation(
+            rec=rec,
+            dry_run=True,
+            provider="aws",
+            region="eu-west-1",
+        )
+        assert res.status == "simulated"
+
+        # Query Ireland audit log (include_simulated=True since dry_run=True records simulated actions)
+        eu_logs = await query_audit_log(provider="aws", region="eu-west-1", include_simulated=True)
+        assert any(e["recommendation_id"] == "audit-region-rec-1" for e in eu_logs)
+
+        # Query US East audit log - must NOT contain Ireland log
+        us_logs = await query_audit_log(provider="aws", region="us-east-1", include_simulated=True)
+        assert not any(e["recommendation_id"] == "audit-region-rec-1" for e in us_logs)
+    finally:
+        _current_user_id.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_stop_idle_waiter_timeout_raises_502_and_persists_failed_audit(monkeypatch):
+    from app.auth import _current_user_id
+    from app.config import get_settings
+    from app.database import query_audit_log
+    from app.integrations.cloud_actions import CloudActionDispatcher
+    from app.schemas import RecommendationItem
+    from botocore.exceptions import WaiterError
+
+    monkeypatch.setattr(get_settings(), "demo_mode", False)
+    token = _current_user_id.set("waiter-timeout-user")
+
+    class MockEC2Client:
+        def describe_instances(self, **kwargs):
+            return {"Reservations": [{"Instances": [{
+                "InstanceId": "i-0987654321fedcba0",
+                "State": {"Name": "running"},
+                "InstanceLifecycle": "normal",
+                "RootDeviceType": "ebs",
+                "BlockDeviceMappings": [{"Ebs": {}}],
+            }]}]}
+
+        def stop_instances(self, **kwargs):
+            return {}
+
+        def get_waiter(self, name):
+            class TimeoutWaiter:
+                def wait(self, **kwargs):
+                    raise WaiterError(name, "Max attempts exceeded", {"State": "stopping"})
+            return TimeoutWaiter()
+
+    class MockSession:
+        def client(self, service_name, **kwargs):
+            return MockEC2Client()
+
+    monkeypatch.setattr("boto3.Session", lambda **kwargs: MockSession())
+    monkeypatch.setattr(
+        "app.integrations.cloud_actions.get_user_credentials",
+        lambda provider: {
+            "aws_access_key_id": "test-key",
+            "aws_secret_access_key": "test-secret",
+        },
+    )
+
+    try:
+        rec = RecommendationItem(
+            id="waiter-timeout-rec-1",
+            title="Stop idle instance with timeout",
+            category="cost",
+            priority="high",
+            description="Testing waiter timeout handling",
+            impact_summary="Test impact",
+            estimated_monthly_savings_usd=40.0,
+            estimated_carbon_reduction_pct=5.0,
+            effort="low",
+            action="stop_idle",
+        )
+        with pytest.raises(HTTPException) as exc_info:
+            await CloudActionDispatcher.execute_recommendation(
+                rec=rec,
+                confirm_live=True,
+                resource_id="i-0987654321fedcba0",
+                provider="aws",
+                region="us-east-1",
+            )
+        assert exc_info.value.status_code == 502
+        assert "Timed out waiting for instance" in exc_info.value.detail
+
+        # Check failed audit log entry
+        logs = await query_audit_log(provider="aws", region="us-east-1", statuses=["failed"])
+        failed_entries = [e for e in logs if e["recommendation_id"] == "waiter-timeout-rec-1"]
+        assert len(failed_entries) > 0
+        assert failed_entries[0]["status"] == "failed"
+    finally:
+        _current_user_id.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_rollback_waiter_timeout_raises_502_and_persists_failed_audit(monkeypatch):
+    from app.auth import _current_user_id
+    from app.config import get_settings
+    from app.database import query_audit_log
+    from app.integrations.cloud_actions import CloudActionDispatcher
+    from app.schemas import RecommendationItem
+    from botocore.exceptions import WaiterError
+
+    monkeypatch.setattr(get_settings(), "demo_mode", False)
+    token = _current_user_id.set("rollback-timeout-user")
+
+    class MockEC2Client:
+        def describe_instances(self, **kwargs):
+            return {"Reservations": [{"Instances": [{
+                "InstanceId": "i-0987654321fedcba0",
+                "State": {"Name": "stopped"},
+            }]}]}
+
+        def start_instances(self, **kwargs):
+            return {}
+
+        def get_waiter(self, name):
+            class TimeoutWaiter:
+                def wait(self, **kwargs):
+                    raise WaiterError(name, "Max attempts exceeded", {"State": "pending"})
+            return TimeoutWaiter()
+
+    class MockSession:
+        def client(self, service_name, **kwargs):
+            return MockEC2Client()
+
+    monkeypatch.setattr("boto3.Session", lambda **kwargs: MockSession())
+    monkeypatch.setattr(
+        "app.integrations.cloud_actions.get_user_credentials",
+        lambda provider: {
+            "aws_access_key_id": "test-key",
+            "aws_secret_access_key": "test-secret",
+        },
+    )
+
+    try:
+        rec = RecommendationItem(
+            id="rollback-timeout-rec-1",
+            title="Rollback instance with timeout",
+            category="cost",
+            priority="high",
+            description="Testing rollback waiter timeout handling",
+            impact_summary="Test impact",
+            estimated_monthly_savings_usd=0.0,
+            estimated_carbon_reduction_pct=0.0,
+            effort="low",
+            action="stop_idle",
+        )
+        with pytest.raises(HTTPException) as exc_info:
+            await CloudActionDispatcher.rollback_recommendation(
+                rec=rec,
+                provider="aws",
+                region="us-east-1",
+                previous_state="running",
+                resource_id="i-0987654321fedcba0",
+            )
+        assert exc_info.value.status_code == 502
+        assert "Timed out waiting for instance" in exc_info.value.detail
+
+        # Check failed audit log entry
+        logs = await query_audit_log(provider="aws", region="us-east-1", statuses=["failed"])
+        failed_entries = [e for e in logs if e["recommendation_id"] == "rollback-timeout-rec-1"]
+        assert len(failed_entries) > 0
+        assert failed_entries[0]["status"] == "failed"
+    finally:
+        _current_user_id.reset(token)
+
+
+@pytest.mark.asyncio
+async def test_batch_apply_scopes_to_provider_and_region():
+    from app.auth import _current_user_id
+    from app.routers.recommendations import batch_apply_recommendations, _user_state
+    from app.schemas import BatchApplyRequest
+
+    token = _current_user_id.set("batch-test-user-456")
+    try:
+        # Batch apply with body provider and region
+        req = BatchApplyRequest(
+            dry_run=True,
+            provider="gcp",
+            region="europe-west1",
+        )
+        res = await batch_apply_recommendations(req=req, provider="aws", region="us-east")
+        assert res.applied_count > 0
+        for r in res.results:
+            assert r.dry_run is True
+
+        # Verify GCP state was modified, AWS was untouched
+        gcp_state = _user_state("gcp", "europe-west1")
+        assert len(gcp_state["recommendations"]) > 0
+
+        aws_state = _user_state("aws", "us-east")
+        # In AWS state, recommendations have not been batch applied
+        for r in aws_state["recommendations"]:
+            assert r.status != "applied"
+    finally:
+        _current_user_id.reset(token)
 

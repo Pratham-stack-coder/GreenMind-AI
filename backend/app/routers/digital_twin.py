@@ -185,22 +185,24 @@ def simulate(req: SimulationRequest):
     try:
         import asyncio
         from ..database import persist_simulation_entry
+        coro = persist_simulation_entry(
+            sim_id=sim_id,
+            changes={"changes": [c.model_dump() for c in req.changes]},
+            before=before.model_dump(),
+            after=after.model_dump(),
+            delta=delta,
+            risk_score=0.15 if delta["monthly_cost_pct"] <= 0 else 0.40,
+            recommendation=rec_text,
+            confidence=confidence,
+        )
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(
-                persist_simulation_entry(
-                    sim_id=sim_id,
-                    changes={"changes": [c.model_dump() for c in req.changes]},
-                    before=before.model_dump(),
-                    after=after.model_dump(),
-                    delta=delta,
-                    risk_score=0.15 if delta["monthly_cost_pct"] <= 0 else 0.40,
-                    recommendation=rec_text,
-                    confidence=confidence,
-                )
-            )
+            loop.create_task(coro)
         except RuntimeError:
-            pass
+            try:
+                asyncio.run(coro)
+            except RuntimeError:
+                pass
     except Exception:
         pass
 

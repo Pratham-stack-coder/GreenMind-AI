@@ -6,6 +6,7 @@ as well as status introspection and provider re-initialization.
 
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 from .base_provider import BaseCloudProvider, NormalizedCloudMetric
@@ -16,6 +17,7 @@ from ..auth import get_current_user_id
 
 _PROVIDERS: dict[tuple[str | None, str], BaseCloudProvider] = {}
 _USER_CREDENTIALS: dict[tuple[str, str], dict[str, str]] = {}
+_CREDENTIALS_LOCK = threading.Lock()
 
 
 def update_provider_credentials(name: str, credentials: dict[str, str]) -> None:
@@ -25,8 +27,9 @@ def update_provider_credentials(name: str, credentials: dict[str, str]) -> None:
         raise RuntimeError("Provider credentials require an authenticated user.")
     provider_name = name.lower().strip()
     key = (user_id, provider_name)
-    _USER_CREDENTIALS[key] = {**_USER_CREDENTIALS.get(key, {}), **credentials}
-    _PROVIDERS.pop((user_id, provider_name), None)
+    with _CREDENTIALS_LOCK:
+        _USER_CREDENTIALS[key] = {**_USER_CREDENTIALS.get(key, {}), **credentials}
+        _PROVIDERS.pop((user_id, provider_name), None)
 
 
 def clear_provider_credentials(name: str) -> None:
@@ -36,21 +39,23 @@ def clear_provider_credentials(name: str) -> None:
         raise RuntimeError("Provider credentials require an authenticated user.")
     provider_name = name.lower().strip()
     key = (user_id, provider_name)
-    _USER_CREDENTIALS.pop(key, None)
-    _PROVIDERS.pop((user_id, provider_name), None)
+    with _CREDENTIALS_LOCK:
+        _USER_CREDENTIALS.pop(key, None)
+        _PROVIDERS.pop((user_id, provider_name), None)
 
 
 def sync_user_provider_credentials(user_id: str, credentials: dict[str, dict[str, str]]) -> None:
     """Refresh this user's provider credentials and invalidate changed clients."""
-    for provider_name in ("aws", "azure", "gcp", "llm", "openai", "gemini"):
-        key = (user_id, provider_name)
-        value = credentials.get(provider_name, {})
-        if _USER_CREDENTIALS.get(key, {}) != value:
-            if value:
-                _USER_CREDENTIALS[key] = dict(value)
-            else:
-                _USER_CREDENTIALS.pop(key, None)
-            _PROVIDERS.pop(key, None)
+    with _CREDENTIALS_LOCK:
+        for provider_name in ("aws", "azure", "gcp", "llm", "openai", "gemini"):
+            key = (user_id, provider_name)
+            value = credentials.get(provider_name, {})
+            if _USER_CREDENTIALS.get(key, {}) != value:
+                if value:
+                    _USER_CREDENTIALS[key] = dict(value)
+                else:
+                    _USER_CREDENTIALS.pop(key, None)
+                _PROVIDERS.pop(key, None)
 
 
 def get_user_credentials(name: str) -> dict[str, str]:
@@ -58,7 +63,8 @@ def get_user_credentials(name: str) -> dict[str, str]:
     user_id = get_current_user_id()
     if not user_id:
         return {}
-    return dict(_USER_CREDENTIALS.get((user_id, name.lower().strip()), {}))
+    with _CREDENTIALS_LOCK:
+        return dict(_USER_CREDENTIALS.get((user_id, name.lower().strip()), {}))
 
 
 def get_provider(name: Any = "aws") -> BaseCloudProvider:
@@ -73,28 +79,31 @@ def get_provider(name: Any = "aws") -> BaseCloudProvider:
         raise HTTPException(status_code=400, detail=f"Unsupported cloud provider: {name_clean or '(empty)'}")
     user_id = get_current_user_id()
     key = (user_id, name_clean)
-    if key not in _PROVIDERS:
-        credentials = _USER_CREDENTIALS.get((user_id, name_clean), {}) if user_id else None
-        if name_clean == "azure":
-            _PROVIDERS[key] = AzureCloudProvider(credentials=credentials)
-        elif name_clean == "gcp":
-            _PROVIDERS[key] = GCPCloudProvider(credentials=credentials)
-        else:
-            _PROVIDERS[key] = AWSCloudProvider(credentials=credentials)
-    return _PROVIDERS[key]
+    with _CREDENTIALS_LOCK:
+        if key not in _PROVIDERS:
+            credentials = _USER_CREDENTIALS.get((user_id, name_clean), {}) if user_id else None
+            if name_clean == "azure":
+                _PROVIDERS[key] = AzureCloudProvider(credentials=credentials)
+            elif name_clean == "gcp":
+                _PROVIDERS[key] = GCPCloudProvider(credentials=credentials)
+            else:
+                _PROVIDERS[key] = AWSCloudProvider(credentials=credentials)
+        return _PROVIDERS[key]
 
 
 def reset_provider(name: str) -> None:
     """Reset the active user's provider instance."""
     name_clean = name.lower().strip()
     key = (get_current_user_id(), name_clean)
-    _PROVIDERS.pop(key, None)
+    with _CREDENTIALS_LOCK:
+        _PROVIDERS.pop(key, None)
 
 
 def reset_all_providers() -> None:
     """Clear all provider instances and in-memory user credentials."""
-    _PROVIDERS.clear()
-    _USER_CREDENTIALS.clear()
+    with _CREDENTIALS_LOCK:
+        _PROVIDERS.clear()
+        _USER_CREDENTIALS.clear()
 
 
 def get_all_providers_status() -> dict[str, Any]:

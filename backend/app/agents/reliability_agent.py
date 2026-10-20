@@ -30,6 +30,18 @@ def analyze(metrics: CloudMetrics, context: dict | None = None) -> dict:
         for val in (availability_zones, has_autoscaling, has_backup_policy, backup_age, has_health_checks)
     )
 
+    if not valid_posture:
+        return {
+            "agent": "ReliabilityAgent",
+            "status": "skipped",
+            "findings": [
+                "Reliability posture data is unavailable; topology, backup, scaling, and health checks were not inferred."
+            ],
+            "recommendations": [],
+            "score": 100,
+            "analyzed_at": datetime.now(timezone.utc).isoformat(),
+        }
+
     # ── Single point of failure / Topology ────────────────────────────────────
     single_instance = metrics.instance_count is not None and metrics.instance_count == 1
     single_az = isinstance(availability_zones, int) and availability_zones == 1

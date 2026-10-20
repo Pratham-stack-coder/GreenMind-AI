@@ -363,8 +363,8 @@ class AzureCloudProvider(BaseCloudProvider):
             "provider": "azure",
             "region": region,
             "status": "UNAVAILABLE" if self.is_live else "DEMO",
-            "health_score": None if self.is_live else 90,
-            "active_alarms": None if self.is_live else 0,
+            "health_score": None,
+            "active_alarms": None,
             "source": "UNAVAILABLE" if self.is_live else "DEMO",
             "service_status": {} if self.is_live else {
                 "Virtual Machines": "Available",

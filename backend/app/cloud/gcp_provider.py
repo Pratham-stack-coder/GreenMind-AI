@@ -307,8 +307,8 @@ class GCPCloudProvider(BaseCloudProvider):
             "provider": "gcp",
             "region": region,
             "status": "UNAVAILABLE" if self.is_live else "DEMO",
-            "health_score": None if self.is_live else 93,
-            "active_alarms": None if self.is_live else 0,
+            "health_score": None,
+            "active_alarms": None,
             "source": "UNAVAILABLE" if self.is_live else "DEMO",
             "service_status": {} if self.is_live else {
                 "Compute Engine": "Normal",
