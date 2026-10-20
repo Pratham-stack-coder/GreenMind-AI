@@ -2,9 +2,10 @@ name: CI Pipeline
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, "improve/**", "feature/**", "fix/**" ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, "improve/**" ]
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -15,6 +16,7 @@ jobs:
     name: Backend & ML Tests
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
 
@@ -42,6 +44,8 @@ jobs:
         env:
           DEMO_MODE: "true"
           PYTHONPATH: backend
+          CREDENTIAL_ENCRYPTION_KEY: "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="
+          SUPABASE_URL: "https://test-project.supabase.co"
         run: |
           pytest backend/tests -v --durations=10
 
