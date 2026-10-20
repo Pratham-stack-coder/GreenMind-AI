@@ -33,7 +33,7 @@
    - Add targeted regression tests for all newly addressed edge cases.
    - Verify Python 3.11 / 3.12 compatibility and frontend lint/build.
 
-6. **Task 6: Push Verified Commits to GitHub** [ACTIVE]
+6. **Task 6: Push Verified Commits to GitHub** [COMPLETED & ONGOING]
    - Commit all incremental, verified improvements and push branch `improve/overnight-quality-security` to remote.
 
 ---
@@ -57,7 +57,7 @@
   5. Scoped all frontend simulation and preview calls to active provider and region.
 
 ### [Cycle 3] - Digital Twin Tenant Isolation, Simulation History, and Analytics Region Normalization
-- **Status**: Completed & Verified
+- **Status**: Completed & Committed (`e1f9133`, pushed to GitHub)
 - **Issues Addressed**:
   1. **Digital Twin Scoping & History Persistence**:
      - Added `provider` and `region` columns to `SimulationRecord` with safe migration in `_ensure_owner_columns` in `backend/app/database.py`.
@@ -73,10 +73,13 @@
      - Normalized `provider` and `region` across `/analytics/cost`, `/analytics/carbon`, and `/analytics/score`, eliminating the inconsistent `"us-east-1"` fallback in `/analytics/score`.
   4. **Batch Apply DB State Rehydration**:
      - Updated `batch_apply_recommendations` in `backend/app/routers/recommendations.py` to rehydrate persisted recommendation states via `load_recommendation_states(eff_provider, eff_region)`, preventing re-application of already applied or dismissed recommendations across process restarts.
-  5. **Regression Tests Added**:
-     - `test_simulate_hours_validation` in `backend/tests/test_digital_twin.py`
-     - `test_scenario_validation` in `backend/tests/test_digital_twin.py`
-     - `test_simulation_history_tenant_and_region_isolation` in `backend/tests/test_digital_twin.py`
+
+### [Cycle 4] - Root Route Compatibility Mapping and Integration Testing
+- **Status**: Completed & Verified
+- **Issues Addressed**:
+  1. Added root mapping endpoints in `backend/app/main.py` for `/digital-twin/scenario` and `/digital-twin/history`, ensuring enterprise clients accessing root endpoints enjoy the same parity as `/api/v1` routes.
+  2. Added TestClient API integration tests in `backend/tests/test_digital_twin.py` verifying that both `/api/v1/digital-twin/scenario` and root `/digital-twin/scenario` respond with 200 and valid simulation payloads.
+  3. Total test suite expanded to 134 passed tests (0 failed).
 
 ---
 
@@ -84,20 +87,20 @@
 
 | Test Suite | Command | Result | Notes |
 | :--- | :--- | :--- | :--- |
-| **Backend Pytest Suite** | `.\.venv\Scripts\pytest backend/tests/` | **133 passed, 0 failed** in 11.70s | All 133 tests passing across 14 test modules |
-| **Digital Twin Unit** | `.\.venv\Scripts\pytest backend/tests/test_digital_twin.py` | **9 passed, 0 failed** in 1.76s | Covers scenarios, request migration, bounds validation, and tenant isolation |
+| **Backend Pytest Suite** | `.\.venv\Scripts\pytest backend/tests/` | **134 passed, 0 failed** in 10.73s | All 134 tests passing across 14 test modules |
+| **Digital Twin Unit & API** | `.\.venv\Scripts\pytest backend/tests/test_digital_twin.py` | **10 passed, 0 failed** in 1.49s | Covers scenarios, request migration, bounds validation, tenant isolation, and API integration |
 | **Cloud Actions Unit** | `.\.venv\Scripts\pytest backend/tests/test_cloud_actions.py` | **25 passed, 0 failed** in 2.31s | Validates EC2 actions, rollback, audit scoping, waiter timeouts |
-| **Frontend TypeScript Build** | `npm run build` (in `frontend/`) | **Passed** (`vite build` in 4.57s, 0 TS errors) | Validated `dist/` bundle generation |
+| **Frontend TypeScript Build** | `npm run build` (in `frontend/`) | **Passed** (`vite build` in 4.21s, 0 TS errors) | Validated `dist/` bundle generation |
 | **Frontend ESLint** | `npm run lint` (in `frontend/`) | **Passed** (0 errors) | Strict ESLint check on `frontend/src` |
 
 ---
 
 ## Known Risks & Remaining Issues
 1. **Live Provider Testing**: Cloud mutation operations are tested against high-fidelity mocks and simulated environments. Testing against live AWS accounts requires active user-supplied credentials with constrained IAM permissions (`ec2:DescribeInstances`, `ec2:StopInstances`, `ec2:StartInstances`, `ec2:ModifyInstanceAttribute`).
-2. **Digital Twin Memory Caching**: Digital Twin state is currently in-memory per user session with database backing. For multi-replica backend production setups, persistent Redis or PostgreSQL backing for simulation states will be required if sessions are not sticky.
+2. **Digital Twin Memory Caching**: Digital Twin state is in-memory per user session with database backing. For multi-replica backend production setups, persistent Redis or PostgreSQL backing for simulation states will be required if sessions are not sticky.
 
 ---
 
-## Next Recommended Task
-- **Task 6: Push Verified Commits to GitHub**
-  - Commit all tested changes to `improve/overnight-quality-security` and push to remote GitHub repository.
+## Next Steps
+- Continue ongoing autonomous monitoring, reliability verification, and documentation updates across the repository.
+- Ensure all commits remain pushed to `improve/overnight-quality-security`.

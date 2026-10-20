@@ -61,6 +61,10 @@ from .schemas import (
     SimulationRequest,
     SimulationResult,
 )
+from .digital_twin.schemas import (
+    ScenarioSimulationResult,
+    SimulationScenarioRequest,
+)
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -408,6 +412,22 @@ def post_agents_run(req: AgentRunRequest):
 def post_digital_twin_simulate(req: SimulationRequest):
     """Simulate infrastructure changes."""
     return digital_twin.simulate(req)
+
+
+@app.post("/digital-twin/scenario", response_model=ScenarioSimulationResult, tags=["Digital Twin"], dependencies=protected)
+def post_digital_twin_scenario(req: SimulationScenarioRequest):
+    """Run a high-level scenario simulation (RIGHT_SIZE, SCALE_UP, SCALE_DOWN, CONSOLIDATE)."""
+    return digital_twin.simulate_scenario(req)
+
+
+@app.get("/digital-twin/history", tags=["Digital Twin"], dependencies=protected)
+async def get_digital_twin_history(
+    limit: int = Query(50, ge=1, le=200),
+    provider: str | None = Query(None),
+    region: str | None = Query(None),
+):
+    """Retrieve Digital Twin simulation history strictly scoped to the authenticated user."""
+    return await digital_twin.get_simulation_history(limit=limit, provider=provider, region=region)
 
 
 # ── AI Copilot ────────────────────────────────────────────────────────────────

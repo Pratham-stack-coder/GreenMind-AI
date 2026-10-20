@@ -200,3 +200,59 @@ async def test_simulation_history_tenant_and_region_isolation():
     finally:
         _current_user_id.reset(user_a_token)
 
+
+def test_digital_twin_scenario_api_integration():
+    """Verify /api/v1/digital-twin/scenario and root /digital-twin/scenario return valid simulation payloads."""
+    from starlette.testclient import TestClient
+    from app.main import app
+
+    client = TestClient(app)
+    # Using mock token that provides authenticated user
+    from app.auth import _current_user_id
+    token = _current_user_id.set("client-test-user-333")
+    try:
+        # Mock dependency to allow test client requests
+        from app.auth import require_authenticated_user
+        app.dependency_overrides[require_authenticated_user] = lambda: {"sub": "client-test-user-333"}
+
+        res = client.post(
+            "/api/v1/digital-twin/scenario",
+            json={
+                "scenario": "RIGHT_SIZE",
+                "current_state": {
+                    "cpu": 60.0,
+                    "memory": 50.0,
+                    "cost": 1.0,
+                    "carbon": 80.0,
+                    "instance_count": 2,
+                },
+            },
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["scenario"] == "RIGHT_SIZE"
+        assert data["is_simulated"] is True
+        assert data["estimated_saving"] > 0
+
+        # Test root endpoint
+        root_res = client.post(
+            "/digital-twin/scenario",
+            json={
+                "scenario": "SCALE_UP",
+                "current_state": {
+                    "cpu": 80.0,
+                    "memory": 70.0,
+                    "cost": 2.0,
+                    "carbon": 100.0,
+                    "instance_count": 2,
+                },
+            },
+        )
+        assert root_res.status_code == 200
+        root_data = root_res.json()
+        assert root_data["scenario"] == "SCALE_UP"
+    finally:
+        app.dependency_overrides.pop(require_authenticated_user, None)
+        _current_user_id.reset(token)
+
+
