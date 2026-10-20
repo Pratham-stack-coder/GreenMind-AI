@@ -36,7 +36,7 @@ def cost_analytics(days: int = Query(7, ge=1, le=90), provider: str = Query("aws
     provider = str(provider or "aws").strip().lower()
     if hasattr(region, "default"):
         region = region.default
-    region = str(region or "us-east").strip()
+    region = str(region or "us-east").strip().lower()
 
     provider_client = get_provider(provider)
     cost_data = provider_client.get_cost(region, days=days)
@@ -108,13 +108,14 @@ def carbon_analytics(
     now = datetime.now(timezone.utc)
     points: list[CarbonDataPoint] = []
     total = 0.0
-    by_region = {region: 0.0}
-    green_hours = 0
     norm_provider = str(provider or "aws").strip().lower()
+    norm_region = str(region or "us-east").strip().lower()
+    by_region = {norm_region: 0.0}
+    green_hours = 0
 
     _THRESHOLD = 250  # gCO2/kWh — below = "green hour"
-    curve = carbon.get_intensity_curve(region)
-    pue = carbon.get_pue(region)
+    curve = carbon.get_intensity_curve(norm_region)
+    pue = carbon.get_pue(norm_region)
 
     for i in range(days * 24):
         ts = now - timedelta(hours=days * 24 - i)
@@ -169,10 +170,10 @@ def optimization_scores(
     """
     if hasattr(provider, "default"):
         provider = provider.default
-    provider = str(provider or "aws")
+    provider = str(provider or "aws").strip().lower()
     if hasattr(region, "default"):
         region = region.default
-    region = str(region or "us-east-1")
+    region = str(region or "us-east").strip().lower()
 
     from ..services.scoring import compute_optimization_scores
     from .recommendations import get_user_simulation_state

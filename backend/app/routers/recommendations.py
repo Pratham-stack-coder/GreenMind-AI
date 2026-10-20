@@ -450,6 +450,32 @@ async def batch_apply_recommendations(
     if not state["recommendations"]:
         _build_recommendations(eff_provider, eff_region)
 
+    from ..database import load_recommendation_states
+    persisted = await load_recommendation_states(eff_provider, eff_region)
+    for rec in state["recommendations"]:
+        saved = persisted.get(rec.id)
+        if saved and saved["status"] in {"applied", "dismissed"}:
+            rec.status = saved["status"]
+            if saved["status"] == "applied" and rec.id not in state["applied"]:
+                state["applied"][rec.id] = ApplyResponse(
+                    recommendation_id=rec.id,
+                    title=rec.title,
+                    status="applied",
+                    message="Recorded action status: applied.",
+                    estimated_monthly_savings_usd=rec.estimated_monthly_savings_usd,
+                    estimated_carbon_reduction_pct=rec.estimated_carbon_reduction_pct,
+                    applied_at=saved.get("applied_at") or "",
+                    steps_taken=saved.get("steps_taken") or [],
+                    dry_run=False,
+                    verified=True,
+                    verification_status="verified",
+                    score_verified=False,
+                    provider=eff_provider,
+                    region=eff_region,
+                )
+            elif saved["status"] == "dismissed":
+                state["dismissed"].add(rec.id)
+
     targets = [r for r in state["recommendations"] if r.status not in ("applied", "simulated")]
 
     if req.category and req.category != "all":

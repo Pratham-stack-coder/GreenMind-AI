@@ -216,6 +216,8 @@ class SimulationRecord(Base):
 
     id = Column(String(64), primary_key=True)
     owner_id = Column(String(255), nullable=True)
+    provider = Column(String(32), index=True, default="aws")
+    region = Column(String(32), index=True, default="us-east")
     changes_json = Column(Text)
     before_json = Column(Text)
     after_json = Column(Text)
@@ -297,6 +299,13 @@ def _ensure_owner_columns(sync_conn) -> None:
             if "region" not in columns:
                 sync_conn.execute(text("ALTER TABLE audit_log_records ADD COLUMN region VARCHAR(32) DEFAULT 'us-east'"))
                 sync_conn.execute(text("CREATE INDEX IF NOT EXISTS ix_audit_log_records_region ON audit_log_records (region)"))
+        if table == "simulation_results":
+            if "provider" not in columns:
+                sync_conn.execute(text("ALTER TABLE simulation_results ADD COLUMN provider VARCHAR(32) DEFAULT 'aws'"))
+                sync_conn.execute(text("CREATE INDEX IF NOT EXISTS ix_simulation_results_provider ON simulation_results (provider)"))
+            if "region" not in columns:
+                sync_conn.execute(text("ALTER TABLE simulation_results ADD COLUMN region VARCHAR(32) DEFAULT 'us-east'"))
+                sync_conn.execute(text("CREATE INDEX IF NOT EXISTS ix_simulation_results_region ON simulation_results (region)"))
 
 
 async def get_db():
@@ -630,16 +639,21 @@ async def persist_simulation_entry(
     risk_score: float,
     recommendation: str,
     confidence: float = 0.8,
+    owner_id: str | None = None,
+    provider: str = "aws",
+    region: str = "us-east",
 ) -> None:
-    """Persist Digital Twin simulation result to database."""
-    owner_id = get_current_user_id()
-    if not owner_id:
+    """Persist Digital Twin simulation result to database with owner and regional scope."""
+    owner = owner_id or get_current_user_id()
+    if not owner:
         return
     try:
         async with _async_session_maker() as session:
             rec = SimulationRecord(
-                owner_id=owner_id,
+                owner_id=owner,
                 id=sim_id,
+                provider=str(provider or "aws").strip().lower(),
+                region=str(region or "us-east").strip().lower(),
                 changes_json=json.dumps(changes),
                 before_json=json.dumps(before),
                 after_json=json.dumps(after),
@@ -650,8 +664,48 @@ async def persist_simulation_entry(
             )
             session.add(rec)
             await session.commit()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning(f"Failed to persist simulation entry: {exc}")
+
+
+async def query_simulation_history(
+    limit: int = 50,
+    provider: str | None = None,
+    region: str | None = None,
+) -> list[dict[str, Any]]:
+    """Retrieve simulation history strictly scoped to the authenticated user and optional cloud scope."""
+    owner_id = get_current_user_id()
+    if not owner_id:
+        return []
+    try:
+        async with _async_session_maker() as session:
+            stmt = select(SimulationRecord).where(SimulationRecord.owner_id == owner_id)
+            if provider and isinstance(provider, str):
+                stmt = stmt.where(SimulationRecord.provider == provider.strip().lower())
+            if region and isinstance(region, str):
+                stmt = stmt.where(SimulationRecord.region == region.strip().lower())
+            stmt = stmt.order_by(SimulationRecord.created_at.desc()).limit(max(1, min(limit, 200)))
+            res = await session.execute(stmt)
+            records = res.scalars().all()
+            return [
+                {
+                    "simulation_id": r.id,
+                    "provider": r.provider,
+                    "region": r.region,
+                    "changes": json.loads(r.changes_json or "{}"),
+                    "before": json.loads(r.before_json or "{}"),
+                    "after": json.loads(r.after_json or "{}"),
+                    "delta": json.loads(r.delta_json or "{}"),
+                    "risk_score": r.risk_score,
+                    "recommendation": r.recommendation,
+                    "confidence": r.confidence,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                }
+                for r in records
+            ]
+    except Exception as exc:
+        logger.warning(f"Error querying simulation history: {exc}")
+        return []
 
 
 async def persist_audit_log(

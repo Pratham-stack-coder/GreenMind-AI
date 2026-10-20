@@ -5,9 +5,10 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Query
 
 from .. import carbon
+from ..auth import get_current_user_id
 from ..decision_engine import INSTANCE_COSTS
 from ..digital_twin.schemas import ScenarioSimulationResult, SimulationScenarioRequest
 from ..schemas import SimulationMetrics, SimulationRequest, SimulationResult
@@ -98,14 +99,25 @@ def simulate(req: SimulationRequest):
     - Output source is always strictly SIMULATED
     - Baseline source reflects true metric source (LIVE or DEMO)
     """
+    if req.simulation_hours < 1.0 or req.simulation_hours > 720.0:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid simulation_hours ({req.simulation_hours}). Value must be between 1.0 and 720.0 (30 days).",
+        )
+
     m = req.baseline_metrics
     current_instance = "m5.xlarge"  # demo default
-    count = m.instance_count
-    region = m.region
+    count = max(1, m.instance_count)
+    region = (m.region or "us-east").strip().lower()
+    provider = getattr(m, "provider", "aws") or "aws"
+    owner_id = get_current_user_id()
     warnings: list[str] = []
 
+    cpu = max(0.0, min(100.0, float(m.cpu)))
+    memory = max(0.0, min(100.0, float(m.memory))) if m.memory is not None else None
+
     # Before state
-    before = _compute_metrics(m.cpu, m.memory, current_instance, count, region, req.simulation_hours)
+    before = _compute_metrics(cpu, memory, current_instance, count, region, req.simulation_hours)
 
     # Apply changes
     sim_instance = current_instance
@@ -134,15 +146,15 @@ def simulate(req: SimulationRequest):
     # After state
     if sim_count == 0:
         after = SimulationMetrics(
-            cpu=0, memory=0 if m.memory is not None else None, cost_usd_per_hour=0, carbon_gco2_per_hour=0,
+            cpu=0, memory=0 if memory is not None else None, cost_usd_per_hour=0, carbon_gco2_per_hour=0,
             monthly_cost_usd=0, monthly_carbon_kgco2=0,
             source="SIMULATED",
         )
     else:
         # Estimate cpu/memory shift from resize
         cpu_factor = _INSTANCE_KWH.get(sim_instance, 0.35) / _INSTANCE_KWH.get(current_instance, 0.35)
-        new_cpu = round(min(98, m.cpu / cpu_factor), 1)
-        new_mem = round(min(95, m.memory * 0.9), 1) if m.memory is not None else None
+        new_cpu = round(min(98.0, max(0.0, cpu / cpu_factor)), 1)
+        new_mem = round(min(95.0, max(0.0, memory * 0.9)), 1) if memory is not None else None
         after = _compute_metrics(new_cpu, new_mem, sim_instance, sim_count, sim_region, req.simulation_hours)
 
     def pct(a, b):
@@ -181,7 +193,7 @@ def simulate(req: SimulationRequest):
     sim_id = str(uuid.uuid4())[:8]
     rec_text = " ".join(parts)
 
-    # Persist simulation to database asynchronously
+    # Persist simulation to database asynchronously with authenticated tenant and regional scope
     try:
         import asyncio
         from ..database import persist_simulation_entry
@@ -194,6 +206,9 @@ def simulate(req: SimulationRequest):
             risk_score=0.15 if delta["monthly_cost_pct"] <= 0 else 0.40,
             recommendation=rec_text,
             confidence=confidence,
+            owner_id=owner_id,
+            provider=provider,
+            region=region,
         )
         try:
             loop = asyncio.get_running_loop()
@@ -223,4 +238,22 @@ def simulate(req: SimulationRequest):
 def simulate_scenario(req: SimulationScenarioRequest):
     """Run a high-level scenario simulation (RIGHT_SIZE, SCALE_UP, SCALE_DOWN, CONSOLIDATE)."""
     from ..digital_twin import simulator as dt_simulator
-    return dt_simulator.run_simulation(req)
+    try:
+        return dt_simulator.run_simulation(req)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/history")
+async def get_simulation_history(
+    limit: int = Query(50, ge=1, le=200),
+    provider: str | None = Query(None),
+    region: str | None = Query(None),
+):
+    """Retrieve Digital Twin simulation history strictly scoped to the authenticated user."""
+    from ..database import query_simulation_history
+    eff_limit = limit if isinstance(limit, int) else (getattr(limit, "default", 50) or 50)
+    eff_provider = provider if isinstance(provider, str) or provider is None else getattr(provider, "default", None)
+    eff_region = region if isinstance(region, str) or region is None else getattr(region, "default", None)
+    return await query_simulation_history(limit=eff_limit, provider=eff_provider, region=eff_region)
+

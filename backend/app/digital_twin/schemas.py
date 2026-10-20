@@ -25,6 +25,7 @@ class SimulationScenarioRequest(BaseModel):
     target_instance_type: str | None = None
     target_region: str | None = None
     scale_factor: float = 1.0
+    provider: str = "aws"
     region: str = "us-east"
     simulation_hours: float = 24.0
 
