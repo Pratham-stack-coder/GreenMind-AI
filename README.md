@@ -296,7 +296,6 @@ Copy the template configuration:
 ```bash
 cp .env.example .env
 ```
-
 Backend configuration is loaded from environment variables:
 - `SUPABASE_URL` (required for authenticated API requests)
 - `CREDENTIAL_ENCRYPTION_KEY` (required before users can save cloud credentials in Settings; generate once with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` and keep it stable)
