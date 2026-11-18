@@ -713,6 +713,7 @@ def test_security_and_reliability_agents_skip_when_posture_missing():
         cost_usd_per_hour=0.05,
         carbon_gco2_per_hour=10.0,
         timestamp="2026-10-20T00:00:00Z",
+        instance_count=2,  # Avoid the schema single-instance default in this posture test.
         source="DEMO",
     )
 
