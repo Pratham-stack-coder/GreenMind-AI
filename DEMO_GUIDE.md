@@ -1,33 +1,33 @@
-# 🌿 GreenMind AI — Final Project Demonstration & Defense Guide
+# 🌿 GreenMind AI — Demo and Defense Guide
 
-> **Project Title**: GreenMind AI — Autonomous Green Cloud Operating System  
-> **Domain**: Cloud Computing, Sustainable FinOps, Machine Learning, Multi-Agent Systems  
+> **Project**: GreenMind AI — Cloud Optimization Prototype  
+> **Domain**: Cloud telemetry, forecasting, FinOps and sustainability  
 > **Repository**: [github.com/Pratham-stack-coder/GreenMind-AI](https://github.com/Pratham-stack-coder/GreenMind-AI)
+>
+> **Maturity and evidence:** This is an early-stage prototype. Demo telemetry and model evaluation data are synthetic; benchmark values below are not real workload results. Live provider reads require user credentials. Live mutations are limited to explicitly confirmed AWS EC2 stop and downsizing actions when `DEMO_MODE=false`; Azure and GCP remediation is not implemented.
 
 ---
 
 ## 🎯 1. Executive Summary & Problem Statement
 
-Cloud data centers account for ~2% of global electricity consumption, generating over 100 million metric tons of CO₂ annually while companies waste 30-35% of cloud spend on over-provisioned and idle resources.
+Cloud cost and electricity use are common infrastructure concerns. GreenMind AI is a prototype for exploring telemetry, forecasts and infrastructure scenarios; this guide distinguishes generated demo outputs from provider data.
 
-Traditional cloud monitoring tools (e.g., Datadog, AWS CloudWatch) are **passive**: they show historical graphs after the money and carbon are already spent.
-
-**GreenMind AI** is an **active, autonomous operating system** that:
+**GreenMind AI** currently demonstrates these prototype capabilities:
 1. **Forecasts demand 60 minutes ahead** across 5 dimensions using Gradient Boosting ML models.
-2. **Orchestrates 5 specialized intelligence agents** with a transparent conflict resolution reconciler.
+2. **Runs 5 rule-based specialist agents** with a transparent conflict resolution reconciler.
 3. **Provides an Infrastructure Digital Twin** that simulates what-if scenarios (Right-Sizing, Scaling, Region Migration) before altering systems.
 4. **Delivers an Explainable AI Copilot** grounded in real telemetry with 8 platform tools.
-5. **Enforces a Safe Remediation Policy**: non-destructive dry-run validation and audit logging to protect production workloads.
+5. **Provides previews and guarded live actions**: dry-run and simulation paths are non-mutating. Supported AWS EC2 stop and downsizing actions require explicit confirmation, are disabled in `DEMO_MODE`, and are not automatic. Azure and GCP mutation is not implemented.
 
 ---
 
 ## ⚖️ 2. Demo Mode vs. Live Cloud Comparison
 
-GreenMind AI is engineered with dual-mode operational transparency:
+The repository has demo and live modes. Demo values are labeled; live features vary by provider:
 
 | Dimension | 🟢 Demo Mode (Zero Credentials) | 🔑 Live Cloud Mode |
 | :--- | :--- | :--- |
-| **Setup Barrier** | Zero setup — runs 100% offline out-of-the-box | Requires cloud provider IAM credentials |
+| **Setup Barrier** | Runs locally with synthetic telemetry after dependencies are installed; no cloud credentials are needed | Requires provider credentials and working provider APIs |
 | **Telemetry Source** | Diurnal synthetic load generator with regional grid carbon curves | Real AWS CloudWatch, Azure Monitor, or GCP Monitoring REST APIs |
 | **CPU Telemetry** | Realistic fluctuating load (15%–90%) | Live EC2 `CPUUtilization` metric |
 | **Memory / Storage** | Realistic memory curves (30%–80%) | OS-level metrics require CloudWatch Agent (`CWAgent`) / Azure Monitor Agent |
@@ -36,11 +36,13 @@ GreenMind AI is engineered with dual-mode operational transparency:
 | **Multi-Agent Engine** | Full 5-agent LangGraph orchestrator + conflict resolution | Full 5-agent LangGraph orchestrator + conflict resolution |
 | **Digital Twin** | Real mathematical physics/carbon formulas | Real mathematical physics/carbon formulas |
 | **AI Copilot** | Built-in deterministic reasoning over 8 live tools | LLM reasoning (OpenAI/Gemini) + tool execution |
-| **Remediation Safety** | Dry-run simulation & audit logging | Non-destructive simulation & audit logging (avoids destructive cloud errors) |
+| **Live actions** | Dry-run and simulation only; no provider mutation | AWS EC2 stop or downsizing only, after explicit confirmation and with `DEMO_MODE=false`; Azure/GCP mutation is unsupported |
 
 ---
 
-## 🎬 3. Step-by-Step Live Demonstration Script
+All demo telemetry, health scores, savings estimates, and carbon outputs are illustrative. A `DEMO` or `SIMULATED` source is not a live measurement.
+
+## 🎬 3. Step-by-Step Demonstration Script
 
 ### Act 1: Overview Cockpit (The Single Pane of Glass)
 1. Open `http://localhost:5173`.

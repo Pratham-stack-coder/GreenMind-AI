@@ -700,8 +700,7 @@ def test_provider_and_region_isolation():
 
 
 def test_security_and_reliability_agents_skip_when_posture_missing():
-    from app.agents.security_agent import security_agent
-    from app.agents.reliability_agent import reliability_agent
+    from app.agents import security_agent, reliability_agent
     from app.schemas import CloudMetrics
 
     empty_metrics = CloudMetrics(
@@ -717,19 +716,19 @@ def test_security_and_reliability_agents_skip_when_posture_missing():
     )
 
     sec_res = security_agent.analyze(empty_metrics)
-    assert sec_res.status == "skipped"
-    assert "unavailable" in sec_res.reasoning.lower()
+    assert sec_res["status"] == "skipped"
+    assert any("unavailable" in item.lower() for item in sec_res["findings"])
 
     rel_res = reliability_agent.analyze(empty_metrics)
-    assert rel_res.status == "skipped"
-    assert "unavailable" in rel_res.reasoning.lower()
+    assert rel_res["status"] == "skipped"
+    assert any("unavailable" in item.lower() for item in rel_res["findings"])
 
 
 def test_live_cost_returns_unavailable_when_billing_unconfigured():
     from app.cloud.aws_provider import AWSCloudProvider
     provider = AWSCloudProvider(credentials={"aws_access_key_id": "test", "aws_secret_access_key": "test"})
     # Mock is_live to True but collector has no cost explorer
-    provider._is_live = True
+    provider.is_live = True
     provider.collector = MagicMock()
     provider.collector.collect_cost_explorer.return_value = None
 

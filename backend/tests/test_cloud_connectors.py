@@ -9,6 +9,15 @@ from app.cloud.azure_provider import AzureCloudProvider
 from app.cloud.gcp_provider import GCPCloudProvider
 
 
+def _assert_heuristic_demo_health(health):
+    assert health["status"] == "DEMO"
+    assert health["source"] == "DEMO"
+    assert isinstance(health["health_score"], (int, float))
+    assert 0 <= health["health_score"] <= 100
+    assert isinstance(health["active_alarms"], int) and health["active_alarms"] >= 0
+    assert "heuristic" in health["note"].lower()
+
+
 def test_provider_factory():
     """Verify provider factory returns appropriate provider instances."""
     aws = get_provider("aws")
@@ -43,10 +52,7 @@ def test_aws_provider_demo_fallback():
     assert len(cost["top_services"]) > 0
 
     health = provider.get_health("us-east-1")
-    assert health["status"] == "DEMO"
-    assert health["source"] == "DEMO"
-    assert health["health_score"] is None
-    assert health["active_alarms"] is None
+    _assert_heuristic_demo_health(health)
 
 
 def test_azure_provider_demo_fallback():
@@ -67,10 +73,7 @@ def test_azure_provider_demo_fallback():
     assert cost["total_usd"] > 0
 
     health = provider.get_health("eastus")
-    assert health["status"] == "DEMO"
-    assert health["source"] == "DEMO"
-    assert health["health_score"] is None
-    assert health["active_alarms"] is None
+    _assert_heuristic_demo_health(health)
 
 
 def test_gcp_provider_demo_fallback():
@@ -91,10 +94,7 @@ def test_gcp_provider_demo_fallback():
     assert cost["total_usd"] > 0
 
     health = provider.get_health("us-central1")
-    assert health["status"] == "DEMO"
-    assert health["source"] == "DEMO"
-    assert health["health_score"] is None
-    assert health["active_alarms"] is None
+    _assert_heuristic_demo_health(health)
 
 
 def test_azure_provider_live_mock():
