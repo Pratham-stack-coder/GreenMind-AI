@@ -82,7 +82,7 @@
 
 ## Project maturity and validation limits
 
-GreenMind AI is an early-stage prototype. Automated tests exercise local code and mocks; they do not establish production readiness or measured user outcomes. The committed forecasting metrics are generated from synthetic telemetry, not real cloud workloads. The carbon target in the ML dataset is a proxy based on a fixed power assumption and synthetic regional intensity curves, not metered emissions. Live telemetry requires configured provider credentials, and posture scores may be estimated or unavailable where live checks are not implemented.
+GreenMind AI is an early-stage prototype. Automated tests exercise local code and mocks; they do not establish production readiness or measured user outcomes. The committed forecasting metrics are generated from synthetic telemetry, not real cloud workloads. The carbon target in the ML dataset is a proxy based on a fixed power assumption and synthetic regional intensity curves, not metered emissions. PR #7's source audit also records unvalidated runtime behavior: `forecast_multi_step` advances in 5-minute recursive steps although the models use one-hour targets, and carbon proxy values feed back into an input representing grid intensity. This recursive path and feature mapping are not covered by the reported holdout metrics. Live telemetry requires configured provider credentials, and posture scores may be estimated or unavailable where live checks are not implemented.
 
 Live infrastructure mutation is limited to supported AWS EC2 stop and downsizing actions, requires explicit confirmation, and is disabled in `DEMO_MODE`. Azure and GCP mutation paths are not implemented. Review [SECURITY.md](SECURITY.md) before configuring credentials.
 
@@ -140,7 +140,7 @@ graph TD
 
 ## 🔮 Machine Learning Pipeline
 
-The ML pipeline forecasts cloud demand across 5 dimensions 60 minutes into the future without data leakage (chronological split):
+The five forecasting models use a chronological train/test split and targets four synthetic 15-minute steps (one hour) ahead. This describes the training and holdout horizon; it does not validate recursive runtime forecasts:
 
 ### Synthetic dataset evaluation (holdout set; not real-world validation)
 

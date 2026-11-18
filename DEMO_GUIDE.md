@@ -13,7 +13,7 @@
 Cloud cost and electricity use are common infrastructure concerns. GreenMind AI is a prototype for exploring telemetry, forecasts and infrastructure scenarios; this guide distinguishes generated demo outputs from provider data.
 
 **GreenMind AI** currently demonstrates these prototype capabilities:
-1. **Forecasts demand 60 minutes ahead** across 5 dimensions using Gradient Boosting ML models.
+1. **Uses five Gradient Boosting models** trained against one-hour targets across five dimensions. The application's separate 5-minute recursive forecast path remains unvalidated (see Act 2 caveat).
 2. **Runs 5 rule-based specialist agents** with a transparent conflict resolution reconciler.
 3. **Provides an Infrastructure Digital Twin** that estimates what-if scenarios (Right-Sizing, Scaling, Region Migration) without changing live infrastructure.
 4. **Provides an Explainable AI Copilot** with 8 platform tools, using live provider telemetry when available and labeled demo data otherwise.
@@ -52,8 +52,8 @@ All demo telemetry, health scores, savings estimates, and carbon outputs are ill
 
 ### Act 2: Multi-Metric ML Forecasting
 1. Navigate to **Predictions** (`/predictions`).
-2. Show the **60-minute forecast curves** for CPU, Memory, Network, Cost, and Carbon.
-3. If showing model metrics, label them as a holdout evaluation on the deterministic synthetic dataset (60 days of 15-minute samples), not a live-cloud benchmark:
+2. Show the Predictions output for CPU, Memory, Network, Cost, and Carbon as prototype projections. The generated targets are one hour ahead, but `forecast_multi_step` recursively advances in 5-minute steps; the relationship between that runtime path and the training horizon is unvalidated. The carbon proxy is also fed back into an input representing grid intensity, and that mapping has not been validated.
+3. If showing model metrics, label them as a holdout evaluation on the deterministic synthetic dataset (60 days of 15-minute samples), not a live-cloud benchmark. These metrics do not validate the recursive runtime path:
    - Synthetic CPU MAE = **3.809%**.
    - Synthetic CPU $R^2$ = **0.855**.
    - Explain the chronological split and that live workload accuracy has not been validated.
