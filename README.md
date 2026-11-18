@@ -1,6 +1,6 @@
-# 🌿 GreenMind AI — Autonomous Green Cloud Operating System
+# 🌿 GreenMind AI — Cloud Optimization Prototype
 
-[![FastAPI](https://img.shields.io/badge/Backend-FastAPI%20v2.0-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
+[![FastAPI](https://img.shields.io/badge/Backend-FastAPI%200.115-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/Frontend-React%2018%20%2B%20TypeScript-61DAFB?style=flat&logo=react)](https://react.dev)
 [![Vite](https://img.shields.io/badge/Bundler-Vite%205-646CFF?style=flat&logo=vite)](https://vitejs.dev)
 [![scikit-learn](https://img.shields.io/badge/ML-scikit--learn%20GBR-F7931E?style=flat&logo=scikit-learn)](https://scikit-learn.org)
@@ -8,9 +8,9 @@
 [![Docker](https://img.shields.io/badge/Container-Docker%20Compose-2496ED?style=flat&logo=docker)](https://www.docker.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-> **GreenMind AI** is an enterprise-grade Autonomous Green Cloud Operating System designed to monitor, forecast, and optimize multi-cloud infrastructure across **AWS**, **Azure**, and **GCP**.
+> **GreenMind AI** is an early-stage open-source prototype for exploring cloud telemetry, forecasting, and cost/carbon-aware recommendations across **AWS**, **Azure**, and **GCP**.
 >
-> By uniting **5-metric Machine Learning forecasting**, a **LangGraph-driven multi-agent AI system** with transparent conflict resolution, an infrastructure **Digital Twin simulator**, and an **Explainable AI Copilot**, GreenMind AI empowers engineering and FinOps/GreenOps teams to cut cloud costs and Scope 2 carbon emissions simultaneously.
+> The repository includes synthetic demo telemetry, provider-specific read paths, five gradient-boosted forecasting models trained on generated data, specialist agents coordinated by LangGraph, a non-destructive Digital Twin simulator, and a Copilot that uses telemetry and analysis tools. Optional live actions are limited to explicitly confirmed AWS EC2 stop and downsizing operations; Azure and GCP mutations are not implemented.
 
 ---
 
@@ -34,18 +34,18 @@
   - **AWS**: CloudWatch EC2 metrics via `boto3` ([aws_collector.py](backend/app/services/aws_collector.py)). Real connection test using `sts:GetCallerIdentity` and `cloudwatch:ListMetrics`. Minimum IAM: `ec2:DescribeInstances`, `cloudwatch:GetMetricData`, `cloudwatch:ListMetrics`.
   - **Azure**: Direct Azure Monitor REST API client with OAuth2 client-credential token acquisition and subscription status validation ([azure_provider.py](backend/app/cloud/azure_provider.py)). Minimum Role: `Monitoring Reader`.
   - **GCP**: Google Cloud Monitoring v3 client with official `google.oauth2.service_account` JWT authentication and metric descriptor validation ([gcp_provider.py](backend/app/cloud/gcp_provider.py)). Minimum Roles: `roles/monitoring.viewer`, `roles/compute.viewer`.
-  - **Zero-Config Demo Mode**: Automatic, high-fidelity fallback when credentials are absent without fabricating live status.
+  - **Zero-Config Demo Mode**: Automatic synthetic-data fallback when credentials are absent without fabricating live status.
 - **Interactive Multi-Cloud Settings & Security Cockpit** ([SettingsPage.tsx](frontend/src/pages/SettingsPage.tsx)):
   - Real runtime connection testing with detailed caller feedback (e.g. IAM ARN, Subscription Name).
   - Runtime credential configuration and one-click Disconnect to Demo mode.
   - Per-user cloud credentials are encrypted in the backend database with `CREDENTIAL_ENCRYPTION_KEY`; plaintext secrets are not returned by API responses.
-- **Enterprise Dark React Cockpit (All 11 Dedicated Pages)**:
+- **React cockpit (11 pages)**:
   1. `Overview Dashboard` ([DashboardPage.tsx](frontend/src/pages/DashboardPage.tsx)): provider telemetry cards and history charts with live, demo, unavailable, and error source labels.
   2. `Cloud Resources` ([CloudResourcesPage.tsx](frontend/src/pages/CloudResourcesPage.tsx)): Searchable provider inventory with right-sizing flags and explicit unavailable status when the inventory request fails.
   3. `Predictions` ([PredictionsPage.tsx](frontend/src/pages/PredictionsPage.tsx)): 60-minute multi-metric forecasting and model evaluation telemetry.
   4. `Cost Optimization` ([CostOptimizationPage.tsx](frontend/src/pages/CostOptimizationPage.tsx)): Spend curve, underutilization detection, and instant scenario simulator.
   5. `Carbon Intelligence` ([CarbonIntelligencePage.tsx](frontend/src/pages/CarbonIntelligencePage.tsx)): 24-hour grid carbon intensity curve, regional clean energy ranking, and time-shift scheduler.
-  6. `AI Recommendations` ([RecommendationsPage.tsx](frontend/src/pages/RecommendationsPage.tsx)): Recommendation ledger with Explain and dry-run preview. Live apply and rollback are not implemented.
+  6. `AI Recommendations` ([RecommendationsPage.tsx](frontend/src/pages/RecommendationsPage.tsx)): Recommendation ledger with explanations, dry-run previews, and a guarded live AWS EC2 apply/rollback path for supported actions.
   7. `Multi-Agent AI` ([AgentsPage.tsx](frontend/src/pages/AgentsPage.tsx)): Visual orchestration flow, domain scores, and transparent conflict resolution matrix.
   8. `Digital Twin` ([DigitalTwinPage.tsx](frontend/src/pages/DigitalTwinPage.tsx)): Interactive simulation workbench for all 5 scenarios (including Region Migration).
   9. `AI Copilot` ([CopilotPage.tsx](frontend/src/pages/CopilotPage.tsx)): Natural language interface grounded in current backend telemetry and analysis tools.
@@ -55,7 +55,7 @@
   - **Render & Vercel Connection Guide** ([DEPLOYMENT.md](DEPLOYMENT.md)): Complete step-by-step walkthrough to deploy and connect Render.com backend with Vercel.com frontend.
   - **Render Backend Blueprint** (`render.yaml`): Render auto-deploys the backend from `main`, binds to dynamic `$PORT`, and checks `/health`.
   - **Vercel Frontend Configuration** (`vercel.json` and `frontend/vercel.json`): SPA routing with client-side history rewrites and dynamic `VITE_API_BASE_URL` support.
-- **5-Metric ML Forecasting Pipeline**: Separate Gradient Boosting models for CPU, Memory, Network, Cost, and Carbon. Chronological train/test split without data leakage. Real MAE, RMSE, and R² scores recorded and exported.
+- **5-Metric ML Forecasting Pipeline**: Separate Gradient Boosting models for CPU, Memory, Network, Cost, and Carbon. Chronological train/test split; computed MAE, RMSE, and R² metrics are recorded for the synthetic dataset.
 - **Explainable AI (XAI)**: Every recommendation provides What Detected, Why It Matters, Evidence, Recommendation, Expected Impact, and real ML Feature Importance (`feature_importance.json`).
 - **LangGraph Multi-Agent Architecture with Conflict Resolution**: 5 specialized agents (Cost, Performance, Sustainability, Security, Reliability) with explicit transparent conflict resolution (`resolve_conflicts()`).
 - **Digital Twin Simulation Engine**: Non-destructive simulator evaluating Before vs After for `RIGHT_SIZE`, `SCALE_UP`, `SCALE_DOWN`, `CONSOLIDATE`, and `REGION_MIGRATION`. Labeled `SIMULATED / ESTIMATED`.
@@ -75,10 +75,16 @@
 ---
 
 ### 🔮 PLANNED
-- **Direct Cloud Remediations**: Not implemented. Recommendation apply and rollback requests return HTTP 501; dry-run previews do not modify resources.
+- **Azure and GCP remediation**: Cloud mutations are not implemented for these providers. Live mutation is currently limited to supported AWS EC2 stop and downsizing actions, with explicit confirmation and post-action verification.
 - **Automated Spot Interruption Re-balancing**: Proactive migration of stateless workloads before Spot termination notices fire.
 
 ---
+
+## Project maturity and validation limits
+
+GreenMind AI is an early-stage prototype. Automated tests exercise local code and mocks; they do not establish production readiness or measured user outcomes. The committed forecasting metrics are generated from synthetic telemetry, not real cloud workloads. The carbon target in the ML dataset is a proxy based on a fixed power assumption and synthetic regional intensity curves, not metered emissions. PR #7's source audit also records unvalidated runtime behavior: `forecast_multi_step` advances in 5-minute recursive steps although the models use one-hour targets, and carbon proxy values feed back into an input representing grid intensity. This recursive path and feature mapping are not covered by the reported holdout metrics. Live telemetry requires configured provider credentials, and posture scores may be estimated or unavailable where live checks are not implemented.
+
+Live infrastructure mutation is limited to supported AWS EC2 stop and downsizing actions, requires explicit confirmation, and is disabled in `DEMO_MODE`. Azure and GCP mutation paths are not implemented. Review [SECURITY.md](SECURITY.md) before configuring credentials.
 
 ## 🏛️ System Architecture
 
@@ -91,7 +97,7 @@ graph TD
         DEMO[High-Fidelity Synthetic Engine]
     end
 
-    subgraph Core_Engine["GreenMind Core Engine (FastAPI 2.0)"]
+    subgraph Core_Engine["GreenMind API (FastAPI)"]
         INGEST[Telemetry Ingestion]
         ML[ML Forecasting Engine<br/>5x Gradient Boosting Models]
         LANGGRAPH[LangGraph Multi-Agent Orchestrator]
@@ -134,11 +140,11 @@ graph TD
 
 ## 🔮 Machine Learning Pipeline
 
-The ML pipeline forecasts cloud demand across 5 dimensions 60 minutes into the future without data leakage (chronological split):
+The five forecasting models use a chronological train/test split and targets four synthetic 15-minute steps (one hour) ahead. This describes the training and holdout horizon; it does not validate recursive runtime forecasts:
 
-### Model Evaluation Telemetry (Test Set)
+### Synthetic dataset evaluation (holdout set; not real-world validation)
 
-Evaluated chronologically against genuine temporal persistence baselines ($\hat{y}_t = y_{t-1}$ on the metric's own historical values):
+The metrics below are reproduced from `backend/app/ml/generate_dataset.py`: 60 days of deterministic synthetic 15-minute samples, with targets shifted four steps (one hour) ahead. The holdout split and persistence baseline evaluate this generated dataset only; they are not results on production workloads or independent cloud telemetry. The carbon target is a synthetic proxy per 15-minute sample (gCO₂), derived from a fixed 0.35 kW assumption and regional intensity values in gCO₂/kWh; it is not a measurement of cloud emissions.
 
 | Target Metric | Model Architecture | MAE | RMSE | R² Score | Baseline Improvement |
 | :--- | :--- | :---: | :---: | :---: | :---: |
@@ -146,7 +152,7 @@ Evaluated chronologically against genuine temporal persistence baselines ($\hat{
 | **Memory Utilization (%)** | GradientBoostingRegressor | **2.979%** | 3.704% | 0.636 | **+25.4%** vs persistence (3.996) |
 | **Network Traffic (Mbps)** | GradientBoostingRegressor | **43.876** | 55.328 | 0.871 | **+45.4%** vs persistence (80.346) |
 | **Hourly Cost (USD/hr)** | GradientBoostingRegressor | **$0.009** | $0.011 | 0.474 | **+29.7%** vs persistence ($0.013) |
-| **Carbon Intensity (gCO₂/hr)** | GradientBoostingRegressor | **4.061** | 5.087 | 0.391 | **+30.5%** vs persistence (5.846) |
+| **Synthetic carbon proxy (gCO₂ / 15-minute sample)** | GradientBoostingRegressor | **4.061** | 5.087 | 0.391 | **+30.5%** vs persistence (5.846) |
 
 ---
 
@@ -248,7 +254,7 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r backend/requirements.txt
 
 # Run backend test suite
-PYTHONPATH=backend pytest backend/tests -v
+python -m pytest backend/tests -v
 
 # Start FastAPI backend (http://localhost:8000)
 uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -289,6 +295,10 @@ docker compose --profile monitoring up -d
 - **Grafana (monitoring profile)**: `http://localhost:3000` (User: `admin`, Pass: `admin`)
 
 ---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, and the pull request workflow.
 
 ## 🛡️ Security & Environment Configuration
 

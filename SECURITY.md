@@ -62,14 +62,14 @@ GreenMind AI enforces the following security rules at the application layer:
 }
 ```
 
-> ⚠️ GreenMind AI is READ-ONLY. It never creates, modifies, or deletes AWS resources.
+> **Permissions scope:** Telemetry collection is read-only. The optional live action path can stop or downsize AWS EC2 instances after explicit operator confirmation when `DEMO_MODE=false`; it is unavailable for Azure and GCP. The AWS policy above is for telemetry only and does not authorize live remediation. Review the implementation and grant narrowly scoped write permissions only if you intend to enable those actions.
 
-#### Azure — Minimum Required Roles
+#### Azure — Minimum Required Roles (telemetry only)
 
 - `Monitoring Reader` — on the subscription or resource group scope
 - **No write permissions required**
 
-#### GCP — Minimum Required IAM Roles
+#### GCP — Minimum Required IAM Roles (telemetry only)
 
 - `roles/monitoring.viewer` — Cloud Monitoring read-only
 - **No write permissions required**
