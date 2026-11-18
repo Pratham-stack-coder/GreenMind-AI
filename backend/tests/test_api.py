@@ -308,8 +308,14 @@ def test_explain_quantitative_evidence():
     recs_res = client.get("/api/v1/recommendations?provider=aws&region=us-east")
     assert recs_res.status_code == 200
     recs = recs_res.json()["recommendations"]
-    assert len(recs) > 0
-    rec_id = recs[0]["id"]
+    # Security and reliability recommendations can correctly have no measured
+    # metrics when posture data is unavailable. Exercise a category with telemetry.
+    quantitative_recs = [
+        rec for rec in recs
+        if rec.get("category") in {"cost", "performance", "sustainability"}
+    ]
+    assert quantitative_recs
+    rec_id = quantitative_recs[0]["id"]
 
     exp_res = client.get(f"/api/v1/recommendations/{rec_id}/explain")
     assert exp_res.status_code == 200
